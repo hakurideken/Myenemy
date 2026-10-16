@@ -2,12 +2,14 @@ import {
   CUSTOM_BEST_OF,
   isFormatAvailable,
   MatchFormatError,
+  planMatch,
   type BestOf,
   type FormatKind,
   type MatchFormat,
 } from '../../core/match/planMatch';
 import { validateNickname } from '../../core/nickname';
 import { DIFFICULTIES, type Difficulty, type GameId } from '../../core/types';
+import { createRng } from '../../core/util/rng';
 import { GAME_INFOS } from '../../games/registry';
 import { loadLocalOpponent, saveLocalOpponent } from '../../platform/profile';
 import type { App, Mount } from '../App';
@@ -27,7 +29,9 @@ import type { LocalMode } from '../MatchFlow';
 
 const FORMAT_KINDS: readonly FormatKind[] = ['rychlovka', 'velky-souboj', 'vlastni'];
 
-export function setupScreen(app: App, mode: LocalMode): Mount {
+export type SetupMode = LocalMode | 'online';
+
+export function setupScreen(app: App, mode: SetupMode): Mount {
   return (root) => {
     const nickname = app.nickname ?? 'Hráč 1';
     let difficulty: Difficulty = 'medium';
@@ -48,27 +52,33 @@ export function setupScreen(app: App, mode: LocalMode): Mount {
       value: loadLocalOpponent() ?? 'Hráč 2',
     });
     const opponentSection =
-      mode === 'pve'
-        ? radioGroup(
-            'Obtížnost AI',
-            'difficulty',
-            DIFFICULTIES.map((d) => ({
-              value: d,
-              label: DIFFICULTY_LABEL[d],
-              hint: DIFFICULTY_HINT[d],
-            })),
-            difficulty,
-            (value) => {
-              difficulty = value;
-            },
+      mode === 'online'
+        ? h(
+            'p',
+            { class: 'note' },
+            `Hraješ jako ${nickname} (hostitel). Soupeře pozveš kódem místnosti nebo odkazem.`,
           )
-        : h(
-            'div',
-            { class: 'form' },
-            h('label', { for: 'opponent', class: 'field-label' }, 'Jméno druhého hráče'),
-            opponentInput,
-            h('p', { class: 'field-hint' }, `Ty hraješ jako ${nickname} (hráč A).`),
-          );
+        : mode === 'pve'
+          ? radioGroup(
+              'Obtížnost AI',
+              'difficulty',
+              DIFFICULTIES.map((d) => ({
+                value: d,
+                label: DIFFICULTY_LABEL[d],
+                hint: DIFFICULTY_HINT[d],
+              })),
+              difficulty,
+              (value) => {
+                difficulty = value;
+              },
+            )
+          : h(
+              'div',
+              { class: 'form' },
+              h('label', { for: 'opponent', class: 'field-label' }, 'Jméno druhého hráče'),
+              opponentInput,
+              h('p', { class: 'field-hint' }, `Ty hraješ jako ${nickname} (hráč A).`),
+            );
 
     // --- vlastní výběr ---
     const pickCounter = h('p', { class: 'pick-counter', 'aria-live': 'polite' });
@@ -206,7 +216,13 @@ export function setupScreen(app: App, mode: LocalMode): Mount {
           ? { kind, bestOf, picks: pickRandom || picks.length === 0 ? 'random' : [...picks] }
           : { kind };
       try {
-        app.startMatch({ mode, format, names: { A: nickname, B: opponentName }, difficulty });
+        if (mode === 'online') {
+          // Ověří formát předem – skutečné pořadí her se vylosuje až ze společného seedu.
+          planMatch(format, GAME_INFOS, createRng('kontrola-formatu'));
+          app.createOnlineRoom(format);
+        } else {
+          app.startMatch({ mode, format, names: { A: nickname, B: opponentName }, difficulty });
+        }
       } catch (err) {
         if (!(err instanceof MatchFormatError)) throw err;
         setText(error, err.message);
@@ -229,11 +245,15 @@ export function setupScreen(app: App, mode: LocalMode): Mount {
           h(
             'div',
             { class: 'actions' },
-            button('Zpět', () => app.goMenu(), 'btn btn-ghost'),
+            button(
+              'Zpět',
+              () => (mode === 'online' ? app.goOnline() : app.goMenu()),
+              'btn btn-ghost',
+            ),
             h(
               'button',
               { type: 'submit', class: 'btn btn-primary btn-lg', 'data-autofocus': true },
-              'Pokračovat',
+              mode === 'online' ? 'Vytvořit místnost' : 'Pokračovat',
             ),
           ),
         ),

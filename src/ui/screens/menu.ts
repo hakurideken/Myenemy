@@ -50,7 +50,13 @@ export function menuScreen(app: App): Mount {
             true,
           ),
           menuButton('Dva hráči', 'Souboj na jednom zařízení', () => app.goSetup('local')),
-          menuButton('Online 1v1', 'Připravujeme – přijde v další fázi', null),
+          menuButton(
+            'Online 1v1',
+            app.onlineAvailable
+              ? 'Založ místnost nebo se připoj kódem'
+              : 'Na tomhle webu zatím nenastaveno',
+            () => app.goOnline(),
+          ),
           h(
             'div',
             { class: 'menu-row' },

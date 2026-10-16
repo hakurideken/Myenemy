@@ -1,7 +1,7 @@
 # Myenemy
 
 Webová hra – souboj 1v1 v sadě miniher. Hraje se proti AI, ve dvou na jednom zařízení
-a (od fáze 3) online. Žádné účty ani databáze, jen přezdívka uložená v prohlížeči.
+nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka uložená v prohlížeči.
 
 ## Stav vývoje
 
@@ -9,7 +9,7 @@ a (od fáze 3) online. Žádné účty ani databáze, jen přezdívka uložená 
 | ---- | ------------------------------------------------------------------------------ | ------ |
 | 1    | Návrh architektury                                                             | hotovo |
 | 2    | MVP: přezdívka, menu, všechny formáty, PvE + lokální PvP, Rychlý tasec, KNP    | hotovo |
-| 3    | Online PvP s kódem místnosti (InMemoryTransport → Supabase Realtime Broadcast) | čeká   |
+| 3    | Online PvP s kódem místnosti (InMemoryTransport → Supabase Realtime Broadcast) | hotovo |
 | 4    | Zbývající minihry (reakční a tahové → skrytá informace → karetní)              | čeká   |
 | 5    | Doladění UI a přístupnosti, nasazení na GitHub Pages                           | čeká   |
 
@@ -55,7 +55,7 @@ npm install
 npm run dev
 ```
 
-Hra poběží na <http://localhost:5173>.
+Hra poběží na <http://localhost:5173>. PvE i hra ve dvou fungují bez jakékoli konfigurace.
 
 | Příkaz                 | Co dělá                                          |
 | ---------------------- | ------------------------------------------------ |
@@ -66,24 +66,84 @@ Hra poběží na <http://localhost:5173>.
 | `npm run build`        | typová kontrola + produkční build do `dist/`     |
 | `npm run preview`      | náhled produkčního buildu na `/Myenemy/` (s CSP) |
 
-## Jak otestovat fázi 2
+## Online hra
 
-1. `npm test` – musí projít všechny testy (formáty, remízy a los, střídání začínajícího,
-   GameRunner s AI a časovači, model reakční doby AI, pravidla Tasce a KNP, AI KNP).
-2. `npm run dev` a v prohlížeči:
-   - Přezdívka: zkus `A` (krátká), `<b>` (nepovolené znaky) a ` Žluťoučký  kůň` (projde a ořízne se).
-   - **Proti AI → Rychlovka**: střídají se Tasec a KNP; zkontroluj skóre a „Hra X z max. 5“.
-   - Tasec: zkus vystřelit před signálem (prohra kola) a pak normálně. Těžká AI reaguje
-     zhruba za 250 ms, lehká za 450 ms.
-   - KNP: vyber klávesou 1/2/3 nebo myší. Nech vypršet 15 s – zvolí se náhodně.
-   - Při remíze musí přijít „Rozhodující kolo 1/3“ a skóre se nezmění.
-   - **Vlastní výběr**: best of 3, vyber KNP a pak Tasec – v přehledu musí být v tomto pořadí
-     a třetí hra jako „?“.
-   - **Dva hráči**: Tasec na půlené obrazovce (klávesy A a L; na telefonu na výšku jsou
-     poloviny pod sebou a horní je otočená). U KNP se mezi volbami ukáže „Předej zařízení“
-     a druhý hráč nesmí vidět volbu prvního.
-   - Nastavení: vypni zvuky a obnov stránku – volba musí zůstat.
-3. Mobil: v DevTools přepni na telefon (např. 375 × 812) a projdi totéž dotykem.
+1. Hostitel zvolí **Online 1v1 → Vytvořit místnost**, vybere formát a dostane 5znakový kód
+   (bez zaměnitelných 0/O a 1/I) a odkaz `…?room=KOD`.
+2. Soupeř zadá kód, nebo otevře odkaz (po zadání přezdívky se připojí rovnou). Třetí hráč
+   dostane „Místnost je plná“.
+3. Oba vidí lobby s formátem a seznamem her (losované jako „?“); hostitel spustí souboj.
+4. Každé kolo začne, až oba kliknou na „Připraven“. Po zápase lze dát odvetu ve stejné místnosti.
+
+**Jak to funguje uvnitř:**
+
+- Herní kód mluví jen s rozhraním `Transport` – implementace `SupabaseTransport`
+  (Realtime Broadcast, kanál `myenemy:KOD`, žádné tabulky) a `InMemoryTransport` (vývoj, testy).
+- Nad transportem je `Peer`: každá zpráva má verzi protokolu, typ a obsah, validuje se Zodem
+  (nevalidní se zahodí a zaloguje), doručení je spolehlivé a seřazené (pořadová čísla, potvrzení,
+  opakované odeslání) a každá zpráva je podepsaná HMAC klíčem z ECDH výměny při spárování –
+  kdo jen zná kód místnosti, nemůže za hráče podvrhnout tah.
+- Hostitel řídí zápas (pořadí her, skóre, časovače), host posílá jen vstupy.
+- **Společný seed:** na začátku zápasu oba pošlou SHA-256 závazek svého seedu a teprve pak ho
+  odhalí; z obou vznikne seed zápasu, ze kterého se losuje pořadí her i veškerá náhoda.
+  Host si pořadí her přepočítá sám a nesoulad pozná.
+- **Zapečetěné tahy (KNP):** hostitel je zároveň hráč, takže volby jdou nejdřív jako závazek
+  (commit) a odhalují se, až mají závazek oba. Host navíc kolo přehraje z odhalených tahů
+  a ověří výsledek, který mu poslal hostitel. Nesoulad = prohra kontumací + hláška.
+- **Reakční hry:** každý měří reakci lokálně (`performance.now()` od zobrazení signálu)
+  a posílá změřený čas, ne okamžik doručení. Reakce pod 100 ms se počítá jako předčasná.
+- **Odpojení:** po 5 s ticha se ukáže odpočet, po dalších 15 s vyhrává zbylý hráč
+  kontumací. Kdo zápas opustí, prohraje hned.
+- **Neaktivita:** po lhůtě na tah se zahraje automaticky; třikrát po sobě = prohra kontumací.
+- **Jiná verze:** dva hráči s jiným buildem se nespojí – oba uvidí „Soupeř má jinou verzi hry –
+  obnovte stránku“.
+- **Výpadek serveru:** když se server do 5 s neozve (výpadek, uspaný projekt), hra to řekne
+  a nabídne PvE nebo hru ve dvou.
+
+### Nastavení Supabase (krok za krokem)
+
+1. Založ si účet na [supabase.com](https://supabase.com) a vytvoř nový projekt
+   (region v EU, např. Frankfurt). Databázové tabulky nejsou potřeba.
+2. V **Project Settings → API** (případně **API Keys**) zkopíruj **Project URL**
+   a veřejný **anon / publishable** klíč. (Klíč je veřejný a skončí v prohlížeči hráčů,
+   přesto ho do kódu nepiš – jde přes proměnné prostředí.)
+3. V nastavení **Realtime** nech povolený přístup k veřejným kanálům (bez „private channels
+   only“) – hra používá jen Broadcast na veřejném kanálu.
+4. Lokálně zkopíruj `.env.example` na `.env.local` a doplň hodnoty:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+5. Restartuj `npm run dev`. V menu se u **Online 1v1** objeví „Založ místnost nebo se připoj
+   kódem“.
+6. Projekt ve free plánu se po týdnu bez provozu uspí – hra pak ukáže „Online server je
+   nedostupný“. V dashboardu Supabase ho obnovíš tlačítkem **Restore**.
+
+Nasazení na GitHub Pages (s proměnnými v GitHub Actions) přibude ve fázi 5.
+
+## Jak otestovat fázi 3
+
+1. `npm test` – testy online logiky běží celé přes `InMemoryTransport` bez internetu:
+   spolehlivé doručení při ztrátách a přeházení zpráv, odmítnutí podvržených podpisů,
+   neshoda verzí, 5 s / 15 s odpojení, párování a plná místnost, commit-reveal, celý online
+   zápas KNP a Tasce, odveta, neaktivita i podvádějící klient (jiný tah než závazek, jiné
+   pořadí her než ze seedu).
+2. **Bez Supabase, dva hráči v jedné záložce:** `npm run dev` a otevři
+   <http://localhost:5173/?duo> (jen ve vývoji). Ovládej myší – klávesové zkratky by zabraly
+   v obou polovinách.
+   - Vlevo **Online 1v1 → Vytvořit místnost → Vytvořit místnost**, vpravo **Online 1v1** (kód je
+     předvyplněný) → **Připojit se**. Obě strany musí ukázat stejné lobby.
+   - Vlevo **Do boje!**, pak oba **Připraven** (druhý uvidí „✓ Soupeř je připravený“).
+   - KNP: vyber vpravo – vlevo musí být jen „Soupeř už má vybráno!“ bez prozrazení volby.
+   - Tasec: každá strana má vlastní arénu a vlastní změřený čas.
+   - Výpadek: v konzoli prohlížeče `__duo.transports[1].setConnected(false)` – po 5 s banner
+     s odpočtem, po dalších 15 s výhra kontumací.
+   - Nedostupný server: `__duo.hub.available = false` a pak vytvoř místnost – do 5 s hláška
+     s nabídkou PvE / hry ve dvou.
+3. **Se Supabase:** nastav `.env.local` podle návodu výše, otevři hru ve dvou prohlížečích
+   (nebo v normálním a anonymním okně). Vyzkoušej kód i odkaz `?room=`, třetí okno
+   („Místnost je plná“), odchod přes ✕ (soupeř vyhraje kontumací) a odvetu.
 
 ## Architektura
 
@@ -94,11 +154,13 @@ src/
 │  ├─ GameRunner.ts         spojí logiku, vykreslení a hráče (člověk / AI / síť)
 │  ├─ match/                planMatch (formáty, losování), MatchController (skóre, remízy)
 │  ├─ ai/reaction.ts        lidsky působící reakční doby AI
-│  └─ util/                 RNG se seedem, hodiny (i ruční pro testy)
+│  └─ util/                 RNG se seedem, hodiny, commit-reveal, kanonický JSON
+├─ net/                     Transport, InMemory/Supabase, protokol (Zod), Peer, místnosti
+├─ online/                  OnlineSession (zápas po síti), RemoteRunner (host), commit-reveal výměny
 ├─ games/
 │  ├─ registry.ts           JEDINÝ seznam miniher
 │  └─ <hra>/                logic.ts · ai.ts · view.ts · index.ts · *.test.ts
-├─ ui/                      router (App), průběh zápasu (MatchFlow), obrazovky, komponenty
+├─ ui/                      router (App), MatchFlow, OnlineFlow, obrazovky, komponenty
 └─ platform/                localStorage, nastavení, zvuky (WebAudio syntéza)
 ```
 
@@ -106,34 +168,41 @@ src/
   Stejná logika běží v PvE, lokálně i online; `view(state, hráč)` vrací jen to, co hráč smí
   vidět.
 - **GameRunner** implementuje rozhraní `MiniGame` ze zadání (`init/start/onInput/onEnd/destroy`)
-  a stará se o „přemýšlení“ AI (0,5–1,5 s), limit na tah (pak automatický tah) a v lokálním
-  režimu o obrazovku „Předej zařízení“ před každou tajnou volbou.
+  a stará se o „přemýšlení“ AI (0,5–1,5 s), limit na tah (pak automatický tah), v lokálním
+  režimu o obrazovku „Předej zařízení“ a online u hostitele o posílání stavu soupeři.
+- **RemoteRunner** u online hosta logiku nespouští – jen vykresluje stav od hostitele
+  (validovaný schématem pohledu) a posílá vstupy.
 - **MatchController** nezná konkrétní hry: řeší best of N, remízová kola, los a kontumace.
-- Náhoda zápasu se odvozuje z jednoho seedu – v online režimu ho oba hráči vytvoří společně
-  (commit-reveal), takže losování nemůže ovlivnit ani hostitel.
 
 ## Jak přidat novou minihru
 
 1. Vytvoř složku `src/games/<id>/`.
-2. `logic.ts` – implementuj `GameLogic` a Zod schéma tahu. V `outcome` definuj, co je remíza.
+2. `logic.ts` – implementuj `GameLogic`, Zod schéma tahu (`moveSchema`) a pohledu
+   (`viewSchema`). V `outcome` definuj, co je remíza.
 3. `ai.ts` – `getAIMove` pro obtížnosti `easy` / `medium` / `hard`. Lehká AI musí vždy vrátit
    platný tah (používá se i jako automatický tah při neaktivitě).
 4. `view.ts` – vykreslení přes `h()` / `svg()` z `src/ui/dom.ts` (text nikdy přes `innerHTML`).
-5. `index.ts` – `defineGame({...})` s názvem, typem, délkou, pravidly a ovládáním.
+5. `index.ts` – `defineGame({...})` s názvem, typem, délkou, pravidly a ovládáním. Hra se
+   současným tajným tahem (jako KNP) nastaví `sealed` – online pak jde přes commit-reveal.
 6. Přidej hru do pole `GAMES` v `src/games/registry.ts` – automaticky se objeví ve vlastním
-   výběru i v losování.
+   výběru, v losování i online.
 7. Napiš `logic.test.ts`. Obecný kontrakt (pravidla, ovládání, platné tahy AI pro všechny
-   obtížnosti) hlídá `registry.test.ts` sám.
+   obtížnosti, pohledy projdou `viewSchema`) hlídá `registry.test.ts` sám.
 
 ## Bezpečnost
 
 - Text od uživatele nebo soupeře jde vždy přes textové uzly; ESLint zakazuje `innerHTML`,
-  `outerHTML`, `insertAdjacentHTML` i `document.write`.
+  `outerHTML`, `insertAdjacentHTML` i `document.write`, a import Supabase mimo
+  `SupabaseTransport.ts`.
 - Produkční build obsahuje Content-Security-Policy (`<meta>`, protože GitHub Pages neumí
-  vlastní hlavičky): skripty a styly jen z vlastní domény, síť jen na Supabase.
+  vlastní hlavičky): skripty a styly jen z vlastní domény, síť jen na nastavený Supabase.
 - Přezdívka: 2–16 znaků po oříznutí, písmena včetně diakritiky, číslice, mezera a `_ . -`;
-  žádné řídicí ani neviditelné znaky.
-- V repozitáři nejsou žádná tajemství. Konfigurace Supabase půjde přes `VITE_…` proměnné
-  (viz `.env.example`).
+  žádné řídicí ani neviditelné znaky. Kontroluje se i u přezdívky soupeře ze sítě.
+- V repozitáři nejsou žádná tajemství; konfigurace Supabase jde přes `VITE_…` proměnné.
 
-Návod na nastavení Supabase a nasazení na GitHub Pages přibude ve fázích 3 a 5.
+**Známá omezení online režimu (bez serveru, který by rozhodoval):**
+
+- Reakční časy jsou na důvěře – upravený klient může poslat vymyšlený (ale ≥ 100 ms) čas.
+- Při výpadku spojení vidí výhru kontumací oba hráči (každý vidí odpojení toho druhého).
+- Kdo zná kód místnosti dřív než pozvaný soupeř, může se připojit místo něj. Po spárování
+  už do zápasu zasahovat nemůže (podpisy zpráv).

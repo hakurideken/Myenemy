@@ -29,6 +29,11 @@ export const quickDrawMoveSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('timeout') }),
 ]);
 
+export const quickDrawViewSchema = z.object({
+  delayMs: z.number().int().min(DELAY_MIN_MS).max(DELAY_MAX_MS),
+  results: z.object({ A: quickDrawMoveSchema.optional(), B: quickDrawMoveSchema.optional() }),
+});
+
 export function normalizeResult(move: QuickDrawMove): QuickDrawResult {
   if (move.kind !== 'reacted') return move;
   const ms = Math.round(move.ms);

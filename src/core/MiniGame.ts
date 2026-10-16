@@ -83,6 +83,8 @@ export interface RenderFrame {
   /** Lokální hráči, kteří právě smí zadat tah. */
   readonly canAct: readonly PlayerSlot[];
   readonly finished: Outcome | null;
+  /** Online: hráči, kteří už poslali zapečetěný tah (commit), ale ještě ho neodhalili. */
+  readonly committed: readonly PlayerSlot[];
 }
 
 export interface GameView<V> {
@@ -109,8 +111,21 @@ export interface MiniGameModule<S, M, V> extends GameInfo {
   readonly logic: GameLogic<S, M, V>;
   /** Validace vstupu (hlavně ze sítě). */
   readonly moveSchema: ZodType<M>;
+  /** Validace pohledu, který online host dostává od hostitele. */
+  readonly viewSchema: ZodType<V>;
+  /**
+   * Online: tahy se posílají zapečetěné (commit-reveal), protože hostitel je zároveň hráč
+   * a jinak by viděl volbu soupeře dřív, než zvolí sám. Jen pro hry s jedním současným
+   * tajným tahem na hráče – host pak výsledek ověří přehráním z odhalených tahů.
+   */
+  readonly sealed?: {
+    /** Tah hráče, jak je vidět v závěrečném pohledu (pro kontrolu proti odhalení). */
+    moveOf(finalView: V, player: PlayerSlot): M | null;
+  };
   /** Lehká obtížnost musí vždy vrátit platný tah – používá se i jako automatický tah. */
   getAIMove(view: V, ai: AIContext): M;
+  /** Tah za hráče, který nereaguje (výchozí: tah lehké AI). */
+  inactiveMove?(view: V): M;
   /** Za jak dlouho AI tah odehraje; výchozí je „přemýšlení“ 0,5–1,5 s. */
   aiDelayMs?(view: V, move: M, ai: AIContext): number;
   aiObserve?(finalView: V, ai: AIContext): void;
@@ -144,6 +159,22 @@ export interface RoundContext {
   readonly sfx: Sfx;
   handoff(to: PlayerSlot): Promise<void>;
   showTurnTimer(deadline: number | null, totalMs: number): void;
+  /** Online hostitel: napojení na síť. */
+  readonly bridge?: RunnerBridge;
+}
+
+export interface RemoteUpdate {
+  readonly view: unknown;
+  readonly canAct: boolean;
+  readonly committed: readonly PlayerSlot[];
+  readonly finished: Outcome | null;
+}
+
+export interface RunnerBridge {
+  /** Po každé změně stavu: pohled vzdáleného hráče, který se pošle soupeři. */
+  publish(update: RemoteUpdate): void;
+  /** Tah lokálního hráče (kvůli zapečetění a počítání neaktivity). */
+  localMove(player: PlayerSlot, move: unknown, auto: boolean): void;
 }
 
 export interface RoundEnd {

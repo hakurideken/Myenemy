@@ -34,8 +34,27 @@ export default defineConfig(
         },
       ],
       '@typescript-eslint/consistent-type-imports': 'error',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@supabase/*'],
+              message:
+                'Supabase jen v net/SupabaseTransport.ts – herní kód používá rozhraní Transport.',
+            },
+          ],
+        },
+      ],
     },
+  },
+  {
+    files: ['src/net/SupabaseTransport.ts'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   {
     files: ['**/*.js'],

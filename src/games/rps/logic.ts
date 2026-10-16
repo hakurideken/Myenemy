@@ -57,6 +57,14 @@ export interface RpsView {
 
 export const rpsMoveSchema = z.object({ choice: z.enum(RPS_CHOICES) });
 
+const choiceSchema = z.enum(RPS_CHOICES);
+export const rpsViewSchema = z.object({
+  viewer: z.enum(['A', 'B']),
+  mine: choiceSchema.nullable(),
+  opponentReady: z.boolean(),
+  revealed: z.object({ A: choiceSchema, B: choiceSchema }).nullable(),
+});
+
 /** Remíza = stejná volba. */
 export function judgeRps(a: RpsChoice, b: RpsChoice): Outcome {
   if (a === b) return DRAW;

@@ -2,7 +2,7 @@ import { GameRunner } from '../core/GameRunner';
 import { MatchController, type CurrentGame } from '../core/match/MatchController';
 import { planMatch, type MatchFormat } from '../core/match/planMatch';
 import type { RoundEnd, SeatConfig } from '../core/MiniGame';
-import type { Difficulty, PerPlayer } from '../core/types';
+import type { Difficulty, PerPlayer, PlayerSlot } from '../core/types';
 import { systemClock } from '../core/util/clock';
 import { deriveRng, randomSeed } from '../core/util/rng';
 import { GAME_INFOS, getGame } from '../games/registry';
@@ -44,6 +44,11 @@ export class MatchFlow {
         onBack: () => this.app.goMenu(),
       }),
     );
+  }
+
+  /** Hráč u tohoto zařízení – kvůli zvuku výhry/prohry. Lokálně hrají oba. */
+  private get me(): PlayerSlot | null {
+    return this.setup.mode === 'pve' ? 'A' : null;
   }
 
   private get seats(): PerPlayer<SeatConfig> {
@@ -112,7 +117,7 @@ export class MatchFlow {
         game: getGame(current.gameId),
         names: this.setup.names,
         score: this.controller.score,
-        mode: this.setup.mode,
+        me: this.me,
         sfx: this.app.sfx,
         onContinue: () => (this.controller.isOver ? this.showMatchResult() : this.showGameIntro()),
       }),
@@ -128,7 +133,7 @@ export class MatchFlow {
         winner,
         score: this.controller.score,
         history: this.controller.history,
-        mode: this.setup.mode,
+        me: this.me,
         sfx: this.app.sfx,
         onRematch: () => this.app.startMatch(this.setup),
         onMenu: () => this.app.goMenu(),

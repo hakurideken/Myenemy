@@ -38,5 +38,31 @@ describe('registr miniher', () => {
         }
       }
     });
+
+    it('každý pohled během hry projde viewSchema (online ho host validuje)', () => {
+      const rng = createRng(`views-${game.id}`);
+      for (let round = 0; round < 10; round++) {
+        let state = game.logic.setup({ rng, starter: round % 2 === 0 ? 'A' : 'B' });
+        for (let step = 0; step < 200 && game.logic.outcome(state) === null; step++) {
+          for (const viewer of ['A', 'B'] as const) {
+            const parsed = game.viewSchema.safeParse(game.logic.view(state, viewer));
+            expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+          }
+          const player = game.logic.toMove(state)[0];
+          if (!player) break;
+          const ai = { difficulty: 'easy' as const, rng, me: player, memory: new AIMemory() };
+          state = game.logic.apply(
+            state,
+            player,
+            game.getAIMove(game.logic.view(state, player), ai),
+          );
+        }
+        for (const viewer of ['A', 'B'] as const) {
+          const final = game.logic.view(state, viewer);
+          expect(game.viewSchema.safeParse(final).success).toBe(true);
+          if (game.sealed) expect(game.sealed.moveOf(final, viewer)).not.toBeNull();
+        }
+      }
+    });
   });
 });

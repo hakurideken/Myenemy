@@ -12,7 +12,8 @@ import type { MatchPlan } from './planMatch';
 /** Po kolika remízách v řadě rozhodne los (platí pro všechny hry). */
 export const MAX_DRAW_REPLAYS = 3;
 
-export type ForfeitReason = 'disconnect' | 'cheat' | 'afk';
+/** disconnect = spojení vypadlo, left = soupeř zápas opustil, afk = 3× po sobě neaktivní. */
+export type ForfeitReason = 'disconnect' | 'left' | 'cheat' | 'afk';
 export type EndReason = 'score' | ForfeitReason;
 
 export interface CurrentGame {

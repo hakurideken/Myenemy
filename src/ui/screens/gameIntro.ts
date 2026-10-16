@@ -1,7 +1,7 @@
 import type { CurrentGame } from '../../core/match/MatchController';
 import { MAX_DRAW_REPLAYS } from '../../core/match/MatchController';
 import type { AnyMiniGameModule } from '../../core/MiniGame';
-import type { GameMode, PerPlayer } from '../../core/types';
+import { otherPlayer, type GameMode, type PerPlayer, type PlayerSlot } from '../../core/types';
 import type { Mount } from '../App';
 import { button, chip, scoreBar } from '../components/common';
 import { h } from '../dom';
@@ -15,6 +15,25 @@ interface GameIntroOptions {
   readonly score: Readonly<PerPlayer<number>>;
   readonly onStart: () => void;
   readonly onLeave: () => void;
+  /** Online: kolo začne, až budou připravení oba. */
+  readonly online?: { readonly me: PlayerSlot; readonly ready: PerPlayer<boolean> };
+}
+
+function startControls(o: GameIntroOptions): HTMLElement[] {
+  if (!o.online) {
+    return [button('Start', o.onStart, 'btn btn-primary btn-lg', { 'data-autofocus': true })];
+  }
+  const { me, ready } = o.online;
+  const opponentReady = ready[otherPlayer(me)];
+  const status = h(
+    'p',
+    { class: `ready-status${opponentReady ? ' is-ready' : ''}`, 'aria-live': 'polite' },
+    opponentReady ? '✓ Soupeř je připravený' : '… Soupeř si čte pravidla',
+  );
+  const action = ready[me]
+    ? button('Čekám na soupeře…', () => undefined, 'btn btn-primary btn-lg', { disabled: true })
+    : button('Připraven', o.onStart, 'btn btn-primary btn-lg', { 'data-autofocus': true });
+  return [status, action];
 }
 
 export function gameIntroScreen(o: GameIntroOptions): Mount {
@@ -54,7 +73,7 @@ export function gameIntroScreen(o: GameIntroOptions): Mount {
             { class: 'rules' },
             game.controls(o.mode).map((line) => h('li', null, line)),
           ),
-          button('Start', o.onStart, 'btn btn-primary btn-lg', { 'data-autofocus': true }),
+          startControls(o),
         ),
       ),
     );

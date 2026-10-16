@@ -4,6 +4,7 @@ import {
   formatResult,
   quickDrawLogic,
   quickDrawMoveSchema,
+  quickDrawViewSchema,
   type QuickDrawMove,
   type QuickDrawState,
   type QuickDrawView,
@@ -33,8 +34,11 @@ export const quickDraw = defineGame<QuickDrawState, QuickDrawMove, QuickDrawView
   revealMs: 1800,
   logic: quickDrawLogic,
   moveSchema: quickDrawMoveSchema,
+  viewSchema: quickDrawViewSchema,
   getAIMove: quickDrawAIMove,
   aiDelayMs: quickDrawAIDelay,
+  // Kdo nereaguje (odpojený soupeř), prostě nestihl – žádný „AI čas“ za něj.
+  inactiveMove: () => ({ kind: 'timeout' }),
   summarize: (view, names) =>
     `${names.A}: ${formatResult(view.results.A)} · ${names.B}: ${formatResult(view.results.B)}`,
   createView: createQuickDrawView,

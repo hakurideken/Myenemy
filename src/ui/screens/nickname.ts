@@ -28,7 +28,7 @@ export function nicknameScreen(app: App): Mount {
         return;
       }
       app.setNickname(result.value);
-      app.goMenu();
+      app.continueAfterNickname();
     };
 
     root.append(

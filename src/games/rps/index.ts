@@ -5,6 +5,7 @@ import {
   describeRps,
   rpsLogic,
   rpsMoveSchema,
+  rpsViewSchema,
   type RpsMove,
   type RpsState,
   type RpsView,
@@ -33,6 +34,11 @@ export const rps = defineGame<RpsState, RpsMove, RpsView>({
   revealMs: RPS_SHAKE_MS + 1900,
   logic: rpsLogic,
   moveSchema: rpsMoveSchema,
+  viewSchema: rpsViewSchema,
+  // Hostitel je zároveň hráč – volba hosta se mu nesmí ukázat dřív, než zvolí sám.
+  sealed: {
+    moveOf: (view, player) => (view.revealed ? { choice: view.revealed[player] } : null),
+  },
   getAIMove: rpsAIMove,
   aiObserve: rpsAIObserve,
   summarize: (view, names) =>

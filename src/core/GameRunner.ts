@@ -33,6 +33,8 @@ export class GameRunner<S, M, V> implements MiniGame {
   private readonly endListeners: ((result: RoundEnd) => void)[] = [];
   private readonly aiTimers = new Map<PlayerSlot, TimerHandle>();
   private readonly moveTimers = new Map<PlayerSlot, { handle: TimerHandle; deadline: number }>();
+  /** Online: hráči se zapečetěným (zatím neodhaleným) tahem. */
+  private readonly committed = new Set<PlayerSlot>();
 
   constructor(private readonly game: MiniGameModule<S, M, V>) {
     this.info = { id: game.id, name: game.name, type: game.type, length: game.length };
@@ -76,6 +78,39 @@ export class GameRunner<S, M, V> implements MiniGame {
     this.endListeners.push(cb);
   }
 
+  /** Online hostitel: tah vzdáleného hráče (validace schématem i pravidly). */
+  submitRemote(player: PlayerSlot, input: unknown): boolean {
+    if (this.ctx?.seats[player].kind !== 'remote') return false;
+    const parsed = this.game.moveSchema.safeParse(input);
+    if (!parsed.success) {
+      console.warn(`[${this.game.id}] nevalidní tah soupeře`, parsed.error.issues);
+      return false;
+    }
+    return this.applyMove(player, parsed.data, false);
+  }
+
+  /** Online: soupeř poslal zapečetěný tah – zatím víme jen, že „má vybráno“. */
+  markCommitted(player: PlayerSlot): void {
+    if (this.destroyed || this.finished || !this.isToMove(player)) return;
+    this.committed.add(player);
+    this.render();
+  }
+
+  /** Tah za hráče, který nereaguje. */
+  autoMove(player: PlayerSlot): boolean {
+    if (this.destroyed || this.finished || !this.isToMove(player)) return false;
+    return this.applyMove(player, this.inactiveMove(player), true);
+  }
+
+  isToMove(player: PlayerSlot): boolean {
+    return this.current !== null && this.game.logic.toMove(this.state).includes(player);
+  }
+
+  /** Znovu pošle soupeři aktuální stav (např. po odmítnutém tahu). */
+  republish(): void {
+    this.publish();
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -95,7 +130,7 @@ export class GameRunner<S, M, V> implements MiniGame {
     return this.ctx;
   }
 
-  private applyMove(player: PlayerSlot, move: M): boolean {
+  private applyMove(player: PlayerSlot, move: M, auto = false): boolean {
     if (this.destroyed || this.finished || !this.current) return false;
     const { logic } = this.game;
     if (!logic.toMove(this.state).includes(player) || !logic.legal(this.state, player, move)) {
@@ -103,9 +138,20 @@ export class GameRunner<S, M, V> implements MiniGame {
       return false;
     }
     this.current = { state: logic.apply(this.state, player, move) };
+    this.committed.delete(player);
     this.clearMoveTimer(player);
+    if (this.context.seats[player].kind === 'human') {
+      this.context.bridge?.localMove(player, move, auto);
+    }
     this.step();
     return true;
+  }
+
+  private inactiveMove(player: PlayerSlot): M {
+    const view = this.game.logic.view(this.state, player);
+    return (
+      this.game.inactiveMove?.(view) ?? this.game.getAIMove(view, this.aiContext(player, 'easy'))
+    );
   }
 
   private step(): void {
@@ -196,7 +242,24 @@ export class GameRunner<S, M, V> implements MiniGame {
       perspective: this.perspective,
       canAct: [...this.canAct],
       finished: this.finished,
+      committed: [...this.committed],
     });
+    this.publish();
+  }
+
+  private publish(): void {
+    const ctx = this.ctx;
+    if (!ctx?.bridge || !this.current || this.destroyed) return;
+    const toMove = this.game.logic.toMove(this.state);
+    for (const p of PLAYER_SLOTS) {
+      if (ctx.seats[p].kind !== 'remote') continue;
+      ctx.bridge.publish({
+        view: this.game.logic.view(this.state, p),
+        canAct: this.finished === null && toMove.includes(p),
+        committed: [...this.committed],
+        finished: this.finished,
+      });
+    }
   }
 
   private aiContext(player: PlayerSlot, difficulty: Difficulty): AIContext {
@@ -246,11 +309,7 @@ export class GameRunner<S, M, V> implements MiniGame {
   private onMoveTimeout(player: PlayerSlot): void {
     this.moveTimers.delete(player);
     if (this.destroyed || this.finished) return;
-    const auto = this.game.getAIMove(
-      this.game.logic.view(this.state, player),
-      this.aiContext(player, 'easy'),
-    );
-    this.applyMove(player, auto);
+    this.applyMove(player, this.inactiveMove(player), true);
   }
 
   private clearMoveTimer(player: PlayerSlot): void {

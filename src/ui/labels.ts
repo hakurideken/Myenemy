@@ -1,4 +1,4 @@
-import type { CurrentGame } from '../core/match/MatchController';
+import type { CurrentGame, EndReason } from '../core/match/MatchController';
 import { MAX_DRAW_REPLAYS } from '../core/match/MatchController';
 import type { FormatKind, MatchFormat } from '../core/match/planMatch';
 import type { Difficulty, GameLength, GameMode, GameType } from '../core/types';
@@ -57,6 +57,32 @@ export function formatTitle(format: MatchFormat): string {
 export function plural(n: number, one: string, few: string, many: string): string {
   if (n === 1) return one;
   return n >= 2 && n <= 4 ? few : many;
+}
+
+/** Proč zápas skončil – z pohledu vítěze a poraženého. */
+export function endReasonText(
+  reason: EndReason,
+  iWon: boolean,
+  detail: string | null,
+): string | null {
+  switch (reason) {
+    case 'score':
+      return null;
+    case 'disconnect':
+      return iWon
+        ? 'Soupeř se odpojil – výhra kontumací.'
+        : 'Spojení se přerušilo – prohra kontumací.';
+    case 'left':
+      return iWon ? 'Soupeř opustil zápas – výhra kontumací.' : 'Zápas jsi opustil.';
+    case 'afk':
+      return iWon
+        ? 'Soupeř třikrát po sobě nereagoval – výhra kontumací.'
+        : 'Třikrát po sobě jsi nereagoval – prohra kontumací.';
+    case 'cheat':
+      return iWon
+        ? `Soupeř poslal data, která nesedí s jeho závazkem${detail ? `: ${detail}` : '.'} Výhra kontumací.`
+        : 'Soupeř nahlásil nesoulad v datech zápasu – prohra kontumací.';
+  }
 }
 
 export function gameProgress(current: CurrentGame): string {

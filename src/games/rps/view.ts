@@ -1,5 +1,11 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
-import { PLAYER_SLOTS, type Outcome, type PerPlayer, type PlayerSlot } from '../../core/types';
+import {
+  otherPlayer,
+  PLAYER_SLOTS,
+  type Outcome,
+  type PerPlayer,
+  type PlayerSlot,
+} from '../../core/types';
 import type { TimerHandle } from '../../core/util/clock';
 import { h, setText } from '../../ui/dom';
 import { rpsIcon } from './icons';
@@ -33,7 +39,18 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
   let frame: RenderFrame | null = null;
   let latest: RpsView | null = null;
   let revealStarted = false;
+  /**
+   * Online se tah posílá zapečetěný a do stavu se dostane až po odhalení – do té doby
+   * ho ukazujeme jen lokálně. Vázané na hráče, aby se v hotseatu neukázalo druhému.
+   */
+  let submitted: { player: PlayerSlot; choice: RpsChoice } | null = null;
   const timers: TimerHandle[] = [];
+
+  const myChoice = (): RpsChoice | null => {
+    if (!frame || !latest) return null;
+    if (latest.mine) return latest.mine;
+    return submitted?.player === frame.perspective ? submitted.choice : null;
+  };
 
   const prompt = h('h2', { class: 'rps-prompt' });
   const status = h('p', { class: 'rps-status', 'aria-live': 'polite' });
@@ -87,7 +104,7 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
       frame !== null &&
       latest !== null &&
       frame.finished === null &&
-      latest.mine === null &&
+      myChoice() === null &&
       frame.canAct.includes(frame.perspective)
     );
   }
@@ -95,6 +112,7 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
   function choose(choice: RpsChoice): void {
     if (!canChoose() || !frame) return;
     ctx.sfx.play('click');
+    submitted = { player: frame.perspective, choice };
     ctx.submit(frame.perspective, { choice });
   }
 
@@ -148,18 +166,20 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
             ? `${ctx.names[f.perspective]}, vyber zbraň`
             : 'Vyber zbraň',
       );
+      const mine = myChoice();
+      const opponentReady = view.opponentReady || f.committed.includes(otherPlayer(f.perspective));
       for (const button of buttons) {
-        const chosen = view.mine === button.dataset.choice;
+        const chosen = mine === button.dataset.choice;
         button.disabled = !active;
         button.setAttribute('aria-pressed', String(chosen));
         button.classList.toggle('is-chosen', chosen);
       }
       if (!f.finished) {
         let text: string;
-        if (view.mine) {
-          text = `Vybráno: ${CHOICE_LABEL[view.mine]}. ${view.opponentReady ? 'Odhalujeme…' : 'Čekám na soupeře…'}`;
+        if (mine) {
+          text = `Vybráno: ${CHOICE_LABEL[mine]}. ${opponentReady ? 'Odhalujeme…' : 'Čekám na soupeře…'}`;
         } else {
-          text = view.opponentReady ? 'Soupeř už má vybráno!' : 'Soupeř vybírá…';
+          text = opponentReady ? 'Soupeř už má vybráno!' : 'Soupeř vybírá…';
         }
         setText(status, text);
       }

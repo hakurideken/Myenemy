@@ -58,6 +58,69 @@ body {
   flex-direction: column;
 }
 
+.app-screen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.app-banner {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(640px, calc(100% - 24px));
+  margin: max(8px, env(safe-area-inset-top)) 12px 0;
+  padding: 10px 16px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  background: #3a2c05;
+  box-shadow: var(--shadow);
+  font-weight: 700;
+  pointer-events: auto;
+}
+
+.banner-icon {
+  color: var(--gold);
+}
+
+/* Vývojový režim ?duo – dva hráči vedle sebe. */
+#app.duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100dvh;
+}
+
+.duo-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow-y: auto;
+  border-right: 2px dashed var(--line);
+}
+
+.duo-pane .app-screen {
+  min-height: 100%;
+}
+
+.duo-pane .app-banner {
+  position: sticky;
+  height: 0;
+  overflow: visible;
+}
+
 button,
 input {
   font: inherit;
@@ -120,6 +183,11 @@ input {
   from {
     opacity: 0;
   }
+}
+
+.app-screen.is-static .screen,
+.app-screen.is-static .result-card {
+  animation: none;
 }
 
 @keyframes screen-in {
@@ -1547,6 +1615,104 @@ legend {
   margin: 0;
   font-size: 1.2rem;
   font-weight: 900;
+}
+
+/* ---------- Online ---------- */
+
+.card-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.code-input {
+  font-family: var(--font-display);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.room-card {
+  align-items: stretch;
+}
+
+.room-code {
+  margin: 0;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 16vw, 5rem);
+  letter-spacing: 0.25em;
+  line-height: 1;
+  text-align: center;
+}
+
+.link-row {
+  display: flex;
+  gap: 8px;
+}
+
+.link-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem !important;
+}
+
+.copy-status {
+  min-height: 1.5em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-weight: 800;
+}
+
+.pulse {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+}
+
+.spinner {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto;
+  border: 5px solid var(--panel-2);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ready-status {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-weight: 800;
+  text-align: center;
+}
+
+.ready-status.is-ready {
+  color: var(--gold);
 }
 
 /* ---------- Omezený pohyb ---------- */

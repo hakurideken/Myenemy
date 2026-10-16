@@ -1,7 +1,7 @@
 import type { CurrentGame, ReportResult } from '../../core/match/MatchController';
 import { MAX_DRAW_REPLAYS } from '../../core/match/MatchController';
 import type { GameInfo, RoundEnd, Sfx, SfxName } from '../../core/MiniGame';
-import type { GameMode, PerPlayer } from '../../core/types';
+import type { PerPlayer, PlayerSlot } from '../../core/types';
 import type { Mount } from '../App';
 import { bigScore, button, scoreBar } from '../components/common';
 import { h } from '../dom';
@@ -13,7 +13,8 @@ interface RoundResultOptions {
   readonly game: GameInfo;
   readonly names: PerPlayer<string>;
   readonly score: Readonly<PerPlayer<number>>;
-  readonly mode: GameMode;
+  /** Hráč na tomto zařízení (PvE, online); null = lokálně dva hráči. */
+  readonly me: PlayerSlot | null;
   readonly sfx: Sfx;
   readonly onContinue: () => void;
 }
@@ -41,7 +42,7 @@ export function roundResultScreen(o: RoundResultOptions): Mount {
         ? `Ani po ${MAX_DRAW_REPLAYS} rozhodujících kolech nikdo nevyhrál.`
         : o.game.name;
       tone = `result--${report.winner.toLowerCase()}`;
-      sound = o.mode === 'pve' && report.winner === 'B' ? 'lose' : 'win';
+      sound = o.me !== null && report.winner !== o.me ? 'lose' : 'win';
       next = report.matchWinner ? 'Výsledek zápasu' : 'Další hra';
     }
 
