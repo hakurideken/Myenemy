@@ -10,7 +10,7 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | 1    | Návrh architektury                                                             | hotovo |
 | 2    | MVP: přezdívka, menu, všechny formáty, PvE + lokální PvP, Rychlý tasec, KNP    | hotovo |
 | 3    | Online PvP s kódem místnosti (InMemoryTransport → Supabase Realtime Broadcast) | hotovo |
-| 4    | Zbývající minihry (reakční a tahové → skrytá informace → karetní)              | čeká   |
+| 4    | Zbývající minihry: reakční a tahové (hotovo) → skrytá informace → karetní      | běží   |
 | 5    | Doladění UI a přístupnosti, nasazení na GitHub Pages                           | čeká   |
 
 ## Minihry
@@ -19,12 +19,12 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | ----------------- | ----------------- | ------ | ------ |
 | Rychlý tasec      | reakční           | rychlá | hotovo |
 | Kámen-nůžky-papír | tahová (současná) | rychlá | hotovo |
-| Klikací souboj    | reakční           | rychlá | fáze 4 |
-| Postřeh           | reakční           | rychlá | fáze 4 |
-| Piškvorky 3×3     | tahová            | rychlá | fáze 4 |
-| Čtyři v řadě      | tahová            | delší  | fáze 4 |
-| Sirky (Nim)       | tahová            | rychlá | fáze 4 |
-| Tečky a čtverečky | tahová            | delší  | fáze 4 |
+| Klikací souboj    | reakční           | rychlá | hotovo |
+| Postřeh           | reakční           | rychlá | hotovo |
+| Piškvorky 3×3     | tahová            | rychlá | hotovo |
+| Čtyři v řadě      | tahová            | delší  | hotovo |
+| Sirky (Nim)       | tahová            | rychlá | hotovo |
+| Tečky a čtverečky | tahová            | delší  | hotovo |
 | Lodě              | skrytá informace  | delší  | fáze 4 |
 | Logik souboj      | skrytá informace  | delší  | fáze 4 |
 | Prší              | karetní           | delší  | fáze 4 |
@@ -34,8 +34,7 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 ## Formáty zápasu
 
 - **Rychlovka** – best of 5 z rychlých her (vyhrává, kdo první vyhraje 3).
-- **Velký souboj** – best of 3 z delších her (vyhrává, kdo první vyhraje 2). Dokud žádná
-  delší hra neexistuje, je formát zašedlý.
+- **Velký souboj** – best of 3 z delších her (vyhrává, kdo první vyhraje 2).
 - **Vlastní výběr** – 1, 3, 5, 7 nebo 9 her; konkrétní hry v pořadí výběru, nebo náhodně ze
   všech. Chybějící hry se doplní náhodně bez opakování; opakovat se začne, až když nabídka
   dojde (nikdy ne dvakrát za sebou).
@@ -144,6 +143,27 @@ Nasazení na GitHub Pages (s proměnnými v GitHub Actions) přibude ve fázi 5.
 3. **Se Supabase:** nastav `.env.local` podle návodu výše, otevři hru ve dvou prohlížečích
    (nebo v normálním a anonymním okně). Vyzkoušej kód i odkaz `?room=`, třetí okno
    („Místnost je plná“), odchod přes ✕ (soupeř vyhraje kontumací) a odvetu.
+
+## Jak otestovat fázi 4 – reakční a tahové hry
+
+1. `npm test` – pravidla a remízy všech šesti her, AI (těžká v Piškvorkách nikdy neprohraje,
+   v Sirkách z vyhrané pozice vždy vyhraje, v Tečkách a čtverečcích přesně propočítá koncovku)
+   a obecný kontrakt v `registry.test.ts` (platné tahy AI, pohledy projdou schématem).
+2. Nejrychleji: **Proti AI → Vlastní výběr → best of 1 → Vybrat hry** a jedna konkrétní hra.
+   - **Klikací souboj:** odpočet 3-2-1, pak 5 s klikání (mezerník / klepání). Držení klávesy
+     se nepočítá.
+   - **Postřeh:** po výzvě „zelený trojúhelník“ apod. klepni na správný cíl (klávesy 1–4).
+     Cíl jde poznat podle barvy i podle tvaru. Špatný cíl = prohra kola.
+   - **Piškvorky:** klávesy 1–9. Těžká AI je neporazitelná – zkus aspoň remízu.
+   - **Čtyři v řadě:** klávesy 1–7, kámen „spadne“ dolů. Těžká AI hledá 7 tahů dopředu.
+   - **Sirky:** „Vzít 1/2/3“; při najetí se sirky, které bys vzal, nadzvednou. Trik: nech
+     soupeři počet, který dává zbytek 1 po dělení čtyřmi.
+   - **Tečky a čtverečky:** klikej na čáry mezi tečkami; kdo uzavře políčko, hraje znovu.
+3. **Dva hráči:** Klikací souboj a Postřeh mají půlenou obrazovku (A: klávesa A / Q W E R,
+   B: klávesa L / U I O P), deskové hry mají společnou desku.
+4. **Velký souboj** je teď dostupný (Čtyři v řadě a Tečky a čtverečky).
+5. Online (`?duo` nebo Supabase): všechny nové hry fungují i po síti – hostitel posílá stav,
+   reakční hry posílají lokálně změřený výsledek.
 
 ## Architektura
 

@@ -188,8 +188,10 @@ describe('párování', () => {
   it('ztracené welcome se po opakovaném hello pošle znovu', async () => {
     const { guests } = await openHost();
     const lossy = hub.createTransport();
+    const send = vi.spyOn(lossy, 'send');
     const joining = joinRoom({ transport: lossy, clock, room: 'ABCDE', me: identity('Jana') });
-    await run(clock, 0);
+    // Počkat, až hello skutečně odejde (generování klíče trvá skutečný čas).
+    await vi.waitFor(() => expect(send).toHaveBeenCalled());
     lossy.connected = false;
     await run(clock, 500);
     expect(guests).toHaveLength(1);

@@ -197,21 +197,18 @@ export class HostRoom {
 
 /** Host: připojí se kódem; selže s PairingError (plno / jiná verze / hostitel neodpovídá / server nedostupný). */
 export async function joinRoom(o: RoomOptions): Promise<Pairing> {
-  const keys = await openTransport(o);
+  try {
+    await o.transport.open(o.room);
+  } catch {
+    throw new PairingError('unavailable');
+  }
   const { me, transport, clock, room, timing } = o;
-  const hello: Hello = {
-    v: PROTOCOL_VERSION,
-    type: 'hello',
-    from: me.id,
-    nickname: me.nickname,
-    build: BUILD_ID,
-    pub: keys.publicKey,
-  };
 
   return new Promise<Pairing>((resolve, reject) => {
     let settled = false;
     let accepting = false;
     let retry: TimerHandle | null = null;
+    let off: () => void = () => undefined;
 
     const finish = (result: Pairing | PairingError): void => {
       if (settled) return;
@@ -223,55 +220,75 @@ export async function joinRoom(o: RoomOptions): Promise<Pairing> {
       else resolve(result);
     };
 
+    // Lhůta běží od otevření kanálu – včetně generování klíčů.
     const deadline = clock.setTimeout(() => finish(new PairingError('no-host')), JOIN_TIMEOUT_MS);
 
-    const off = transport.onMessage((raw) => {
-      if (settled || accepting || !isRecord(raw) || raw.to !== me.id) return;
-      const probe = versionProbeSchema.safeParse(raw);
-      if (!probe.success) return;
-      if (probe.data.type === 'version-mismatch' || probe.data.v !== PROTOCOL_VERSION) {
-        finish(new PairingError('version'));
-        return;
-      }
-      if (probe.data.type === 'room-full' && roomFullSchema.safeParse(raw).success) {
-        finish(new PairingError('full'));
-        return;
-      }
-      if (probe.data.type !== 'welcome') return;
-      if (raw.build !== BUILD_ID) {
-        transport.send(versionMismatch(me.id, typeof raw.from === 'string' ? raw.from : undefined));
-        finish(new PairingError('version'));
-        return;
-      }
-      const parsed = welcomeSchema.safeParse(raw);
-      if (!parsed.success) {
-        console.warn('[room] nevalidní welcome zahozeno', parsed.error.issues);
-        return;
-      }
-      const welcome = parsed.data;
-      accepting = true;
-      deriveSessionKey(keys, welcome.pub, room).then(
-        (key) =>
-          finish({
-            peer: new Peer({
-              transport,
-              clock,
-              myId: me.id,
-              peerId: welcome.from,
-              key,
-              ...(timing ? { timing } : {}),
-            }),
-            opponent: { id: welcome.from, nickname: welcome.nickname },
-            format: welcome.format,
-          }),
-        () => finish(new PairingError('no-host')),
-      );
-    });
+    createKeyPair().then(
+      (keys) => {
+        if (!settled) listen(keys);
+      },
+      () => finish(new PairingError('no-host')),
+    );
 
-    const sendHello = (): void => {
-      transport.send(hello);
-      retry = clock.setTimeout(sendHello, HELLO_RETRY_MS);
+    const listen = (keys: SessionKeyPair): void => {
+      const hello: Hello = {
+        v: PROTOCOL_VERSION,
+        type: 'hello',
+        from: me.id,
+        nickname: me.nickname,
+        build: BUILD_ID,
+        pub: keys.publicKey,
+      };
+      off = transport.onMessage((raw) => {
+        if (settled || accepting || !isRecord(raw) || raw.to !== me.id) return;
+        const probe = versionProbeSchema.safeParse(raw);
+        if (!probe.success) return;
+        if (probe.data.type === 'version-mismatch' || probe.data.v !== PROTOCOL_VERSION) {
+          finish(new PairingError('version'));
+          return;
+        }
+        if (probe.data.type === 'room-full' && roomFullSchema.safeParse(raw).success) {
+          finish(new PairingError('full'));
+          return;
+        }
+        if (probe.data.type !== 'welcome') return;
+        if (raw.build !== BUILD_ID) {
+          transport.send(
+            versionMismatch(me.id, typeof raw.from === 'string' ? raw.from : undefined),
+          );
+          finish(new PairingError('version'));
+          return;
+        }
+        const parsed = welcomeSchema.safeParse(raw);
+        if (!parsed.success) {
+          console.warn('[room] nevalidní welcome zahozeno', parsed.error.issues);
+          return;
+        }
+        const welcome = parsed.data;
+        accepting = true;
+        deriveSessionKey(keys, welcome.pub, room).then(
+          (key) =>
+            finish({
+              peer: new Peer({
+                transport,
+                clock,
+                myId: me.id,
+                peerId: welcome.from,
+                key,
+                ...(timing ? { timing } : {}),
+              }),
+              opponent: { id: welcome.from, nickname: welcome.nickname },
+              format: welcome.format,
+            }),
+          () => finish(new PairingError('no-host')),
+        );
+      });
+
+      const sendHello = (): void => {
+        transport.send(hello);
+        retry = clock.setTimeout(sendHello, HELLO_RETRY_MS);
+      };
+      sendHello();
     };
-    sendHello();
   });
 }
