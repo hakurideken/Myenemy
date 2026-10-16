@@ -3,8 +3,10 @@ import { settle } from '../test/helpers';
 import {
   CheatError,
   SealedExchange,
+  SecretExchange,
   SeedExchange,
   type SealedMessage,
+  type SecretMessage,
   type SeedMessage,
 } from './exchanges';
 
@@ -104,5 +106,60 @@ describe('zapečetěný tah', () => {
     if (reveal?.kind !== 'reveal') throw new Error('reveal');
     expect(await host.receiveReveal({ choice: 'paper' }, reveal.salt)).toBe(false);
     expect(host.opponentMove).toBeNull();
+  });
+});
+
+describe('tajná data hry (závazek na začátku, odhalení na konci)', () => {
+  function pairUp() {
+    const sent: SecretMessage[] = [];
+    const a = new SecretExchange('A', (m) => sent.push(m));
+    const b = new SecretExchange('B', () => undefined);
+    return { a, b, sent };
+  }
+
+  it('odhalení sedí se závazkem; před odhalením je vidět jen otisk', async () => {
+    const { a, b, sent } = pairUp();
+    await a.commit({ code: [1, 2, 3, 4] });
+    const first = sent[0];
+    if (first?.kind !== 'secret-commit') throw new Error('chybí závazek');
+    expect(JSON.stringify(first)).not.toContain('[1,2,3,4]');
+    expect(b.receiveCommit(first.hash)).toBe(true);
+    expect(b.receiveCommit('f'.repeat(64))).toBe(false);
+    const waiting = b.waitReveal(() => undefined);
+    a.reveal();
+    a.reveal();
+    expect(sent.filter((m) => m.kind === 'secret-reveal')).toHaveLength(1);
+    const reveal = sent[1];
+    if (reveal?.kind !== 'secret-reveal') throw new Error('chybí odhalení');
+    await b.receiveReveal(reveal.secret, reveal.salt);
+    expect(await waiting).toEqual({ kind: 'ok', secret: { code: [1, 2, 3, 4] } });
+  });
+
+  it('jiná data než v závazku = nesoulad; bez odhalení = chybí', async () => {
+    const { a, b, sent } = pairUp();
+    await a.commit([0, 0, 0, 0]);
+    const first = sent[0];
+    if (first?.kind !== 'secret-commit') throw new Error('chybí závazek');
+    b.receiveCommit(first.hash);
+    a.reveal();
+    const reveal = sent[1];
+    if (reveal?.kind !== 'secret-reveal') throw new Error('chybí odhalení');
+    await b.receiveReveal([1, 1, 1, 1], reveal.salt);
+    expect(await b.waitReveal(() => undefined)).toEqual({ kind: 'mismatch' });
+
+    const c = new SecretExchange('B', () => undefined);
+    c.receiveCommit(first.hash);
+    let timeout: () => void = () => undefined;
+    const waiting = c.waitReveal((cb) => (timeout = cb));
+    await settle();
+    timeout();
+    expect(await waiting).toEqual({ kind: 'missing' });
+  });
+
+  it('závazek jde poslat jen jednou', async () => {
+    const { a } = pairUp();
+    await a.commit(1);
+    await expect(a.commit(2)).rejects.toThrow();
+    expect(a.ownSecret).toBe(1);
   });
 });

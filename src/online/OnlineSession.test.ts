@@ -11,13 +11,15 @@ import {
 import { DRAW, win, type PlayerSlot } from '../core/types';
 import { ManualClock } from '../core/util/clock';
 import { commit } from '../core/util/commitReveal';
+import { logik } from '../games/logik';
+import type { LogikMove } from '../games/logik/logic';
 import { quickDraw } from '../games/quick-draw';
 import { rps } from '../games/rps';
 import { InMemoryHub, type InMemoryTransport } from '../net/InMemoryTransport';
 import type { Peer } from '../net/Peer';
 import type { SessionBody } from '../net/protocol';
 import { HostRoom, joinRoom, newClientId, type Pairing } from '../net/room';
-import { run } from '../test/helpers';
+import { run, runUntil, settledFlag } from '../test/helpers';
 import { SeedExchange } from './exchanges';
 import { OnlineSession, type OnlinePhase, type RoundMount } from './OnlineSession';
 
@@ -133,7 +135,8 @@ async function pair(format: MatchFormat): Promise<{
     room: 'ABCDE',
     me: { id: newClientId(), nickname: 'Host' },
   });
-  await run(clock, 300);
+  const joined = settledFlag(joining);
+  await runUntil(clock, () => hostPairing !== null && joined());
   const guestPairing = await joining;
   if (!hostPairing) throw new Error('hostitel nepřijal hosta');
   return { hostPairing, guestPairing, hostT, guestT };
@@ -142,7 +145,7 @@ async function pair(format: MatchFormat): Promise<{
 async function sessions(
   games: AnyMiniGameModule[],
   format: MatchFormat,
-  options: { mountGuest?: boolean } = {},
+  options: { mountGuest?: boolean; guestGames?: AnyMiniGameModule[] } = {},
 ) {
   const p = await pair(format);
   const names = { A: 'Hostitel', B: 'Host' };
@@ -160,11 +163,13 @@ async function sessions(
     names,
     format: p.guestPairing.format,
     clock,
-    games,
+    games: options.guestGames ?? games,
   });
   autoMount(host);
   if (options.mountGuest !== false) autoMount(guest);
-  await run(clock, 400);
+  // Výměna seedu (kryptografie) – posouvat čas, dokud nejsou oba v lobby.
+  await runUntil(clock, () => host.phase.name !== 'seeding' && guest.phase.name !== 'seeding');
+  await run(clock, 100);
   return { ...p, host, guest };
 }
 
@@ -432,5 +437,150 @@ describe('online zápas – podvody', () => {
     });
     await run(clock, 300);
     expect(guest.phase).toMatchObject({ name: 'match-result', winner: 'B', reason: 'cheat' });
+  });
+});
+
+describe('online zápas – skrytá informace (Logik)', () => {
+  const LOGIK: MatchFormat = { kind: 'vlastni', bestOf: 1, picks: ['logik'] };
+  const hidden = logik.hidden;
+  if (!hidden) throw new Error('Logik musí mít skrytou informaci');
+
+  /** Klient, který při odpovídání lže (vždy „nic netrefil“). */
+  function lying(game: AnyMiniGameModule): AnyMiniGameModule {
+    if (!hidden) throw new Error('chybí hidden');
+    return {
+      ...game,
+      hidden: {
+        ...hidden,
+        respond: (view, player, secret) => {
+          const move = hidden.respond(view, player, secret);
+          return (move as LogikMove | null)?.kind === 'feedback'
+            ? { kind: 'feedback', black: 0, white: 0 }
+            : move;
+        },
+      },
+    };
+  }
+
+  const gameBodies = (bodies: SessionBody[], kind: string): number =>
+    bodies.filter((b) => b.type === 'game' && b.body.kind === kind).length;
+
+  async function chooseCodes(lkViews: StubView[], a: number[], b: number[]): Promise<void> {
+    lastView(lkViews, 'A').ctx.submitSecret('A', a);
+    lastView(lkViews, 'B').ctx.submitSecret('B', b);
+    await run(clock, 500);
+  }
+
+  it('kódy se zavážou předem, odhalí až po konci a výsledek sedí u obou', async () => {
+    const lk = stubbed(logik);
+    const s = await sessions([lk.module], LOGIK);
+    const seenByHost: SessionBody[] = [];
+    s.hostPairing.peer.onMessage((b) => seenByHost.push(b));
+    await toPlaying(s.host, s.guest);
+    await chooseCodes(lk.views, [0, 0, 0, 0], [1, 1, 1, 1]);
+    expect(gameBodies(seenByHost, 'secret-commit')).toBe(1);
+    expect(gameBodies(seenByHost, 'secret-reveal')).toBe(0);
+    expect(JSON.stringify(seenByHost)).not.toContain('[1,1,1,1]');
+
+    lastView(lk.views, 'A').ctx.submit('A', { kind: 'guess', code: [1, 1, 1, 1] });
+    lastView(lk.views, 'B').ctx.submit('B', { kind: 'guess', code: [2, 2, 2, 2] });
+    await run(clock, 4000);
+    expect(gameBodies(seenByHost, 'secret-reveal')).toBe(1);
+    for (const session of [s.host, s.guest]) {
+      const phase = session.phase;
+      if (phase.name !== 'round-result') throw new Error(`fáze ${phase.name}`);
+      expect(phase.report).toMatchObject({ kind: 'decided', winner: 'A' });
+    }
+  });
+
+  it('host lže v odpovědích → hostitel to po odhalení kódu pozná', async () => {
+    const host = stubbed(logik);
+    const guest = stubbed(lying(logik));
+    const s = await sessions([host.module], LOGIK, { guestGames: [guest.module] });
+    await toPlaying(s.host, s.guest);
+    lastView(host.views, 'A').ctx.submitSecret('A', [0, 0, 0, 0]);
+    lastView(guest.views, 'B').ctx.submitSecret('B', [1, 1, 1, 1]);
+    await run(clock, 500);
+    lastView(host.views, 'A').ctx.submit('A', { kind: 'guess', code: [1, 1, 1, 1] });
+    lastView(guest.views, 'B').ctx.submit('B', { kind: 'guess', code: [0, 0, 0, 0] });
+    await run(clock, 4000);
+    expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'cheat' });
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'cheat' });
+  });
+
+  it('hostitel lže v odpovědích → host to po odhalení kódu pozná', async () => {
+    const host = stubbed(lying(logik));
+    const guest = stubbed(logik);
+    const s = await sessions([host.module], LOGIK, { guestGames: [guest.module] });
+    await toPlaying(s.host, s.guest);
+    lastView(host.views, 'A').ctx.submitSecret('A', [0, 0, 0, 0]);
+    lastView(guest.views, 'B').ctx.submitSecret('B', [1, 1, 1, 1]);
+    await run(clock, 500);
+    lastView(host.views, 'A').ctx.submit('A', { kind: 'guess', code: [1, 1, 1, 1] });
+    lastView(guest.views, 'B').ctx.submit('B', { kind: 'guess', code: [0, 0, 0, 0] });
+    await run(clock, 4000);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'B', reason: 'cheat' });
+    if (s.guest.phase.name === 'match-result') {
+      expect(s.guest.phase.detail).toContain('odpovídal v rozporu');
+    }
+  });
+
+  it('hostitel pozmění odpověď hosta → host to pozná', async () => {
+    const honest = stubbed(logik);
+    const tampered: AnyMiniGameModule = {
+      ...honest.module,
+      // Podvádějící hostitel samozřejmě nekontroluje sám sebe.
+      hidden: { ...hidden, consistent: () => true },
+      logic: {
+        ...logik.logic,
+        // Hostitel si odpověď hosta „vylepší“ na prolomený kód.
+        apply: (state, player, move) =>
+          logik.logic.apply(
+            state,
+            player,
+            player === 'B' && (move as LogikMove).kind === 'feedback'
+              ? { kind: 'feedback', black: 4, white: 0 }
+              : move,
+          ),
+      },
+    };
+    const s = await sessions([tampered], LOGIK, { guestGames: [honest.module] });
+    await toPlaying(s.host, s.guest);
+    await chooseCodes(honest.views, [0, 0, 0, 0], [1, 1, 1, 1]);
+    lastView(honest.views, 'A').ctx.submit('A', { kind: 'guess', code: [3, 3, 3, 3] });
+    lastView(honest.views, 'B').ctx.submit('B', { kind: 'guess', code: [2, 2, 2, 2] });
+    await run(clock, 4000);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'B', reason: 'cheat' });
+    if (s.guest.phase.name === 'match-result') {
+      expect(s.guest.phase.detail).toContain('pozměnil');
+    }
+  });
+
+  it('hostitel začne hru bez závazku ke kódu → host to pozná hned', async () => {
+    const honest = stubbed(logik);
+    const noCommit: AnyMiniGameModule = {
+      ...honest.module,
+      logic: {
+        ...logik.logic,
+        setup: (env) => {
+          const state = logik.logic.setup(env) as { ready: Record<PlayerSlot, boolean> };
+          return { ...state, ready: { A: true, B: false } };
+        },
+      },
+    };
+    const s = await sessions([noCommit], LOGIK, { guestGames: [honest.module] });
+    await toPlaying(s.host, s.guest);
+    lastView(honest.views, 'B').ctx.submitSecret('B', [1, 1, 1, 1]);
+    await run(clock, 500);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'B', reason: 'cheat' });
+  });
+
+  it('host, který nezvolí kód ani po lhůtě, prohraje kontumací', async () => {
+    const lk = stubbed(logik);
+    const s = await sessions([lk.module], LOGIK, { mountGuest: false });
+    await toPlaying(s.host, s.guest);
+    lastView(lk.views, 'A').ctx.submitSecret('A', [0, 0, 0, 0]);
+    await run(clock, 71_000, 1000);
+    expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'afk' });
   });
 });

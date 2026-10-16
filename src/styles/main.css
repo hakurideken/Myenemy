@@ -2277,6 +2277,559 @@ legend {
   }
 }
 
+/* ---------- Lodě ---------- */
+
+.bs {
+  --sea: #123049;
+  --sea-deep: #0c1f30;
+  --hull: #9aa3b5;
+}
+
+.bs-seas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.bs-sea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 400px);
+}
+
+/* Vlastní moře je při bitvě menší – hlavní je to, kam se střílí. */
+.bs:not(.is-placing) .bs-sea:last-child {
+  width: min(100%, 300px);
+}
+
+.bs.is-placing .bs-sea {
+  width: min(100%, 440px);
+}
+
+.bs-sea-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.bs-grid {
+  display: grid;
+  grid-template-columns: 1.3em repeat(8, minmax(0, 1fr));
+  gap: 3px;
+  width: 100%;
+  padding: 6px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--sea-deep);
+}
+
+.bs-grid.is-active {
+  border-color: var(--gold);
+}
+
+.bs-label,
+.bs-corner {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.bs-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--sea);
+  color: inherit;
+  cursor: default;
+  transition: background-color 120ms;
+}
+
+.bs-grid.is-active .bs-cell {
+  cursor: pointer;
+}
+
+.bs-grid.is-active .bs-cell[data-state='sea']:not(.is-preview, .is-invalid):hover {
+  background: #1d4a6e;
+}
+
+.bs-cell:focus-visible {
+  z-index: 1;
+  outline: 3px solid var(--gold);
+  outline-offset: -1px;
+}
+
+.bs-cell[data-state='water'] {
+  background: var(--sea-deep);
+}
+
+.bs-cell[data-state='water']::after {
+  content: '';
+  width: 16%;
+  height: 16%;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 18%);
+}
+
+.bs-cell[data-state='ship'],
+.bs-cell.has-ship {
+  background: var(--hull);
+}
+
+.bs-cell.is-h.is-bow {
+  border-top-left-radius: 50%;
+  border-bottom-left-radius: 50%;
+}
+
+.bs-cell.is-h.is-stern {
+  border-top-right-radius: 50%;
+  border-bottom-right-radius: 50%;
+}
+
+.bs-cell.is-v.is-bow {
+  border-top-left-radius: 50%;
+  border-top-right-radius: 50%;
+}
+
+.bs-cell.is-v.is-stern {
+  border-bottom-left-radius: 50%;
+  border-bottom-right-radius: 50%;
+}
+
+.bs-cell[data-state='hit'] {
+  background: #6b2a1f;
+  color: #ffb347;
+}
+
+.bs-cell[data-state='sunk'] {
+  background: #3b1512;
+  color: var(--a);
+}
+
+.bs-cell[data-state='pending'] {
+  color: var(--gold);
+}
+
+.bs-cell.is-last {
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.bs-cell.is-preview {
+  background: rgb(255 200 61 / 70%);
+}
+
+.bs-cell.is-invalid {
+  background: rgb(255 112 112 / 60%);
+}
+
+.bs-marker {
+  width: 72%;
+  height: 72%;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 3.4;
+  animation: pop 200ms ease-out;
+}
+
+.bs-cell[data-state='miss'] .bs-marker {
+  fill: rgb(220 235 255 / 70%);
+  stroke: none;
+}
+
+.bs-cell[data-state='pending'] .bs-marker {
+  stroke-width: 2.5;
+  animation: bs-aim 700ms ease-in-out infinite alternate;
+}
+
+@keyframes bs-aim {
+  to {
+    transform: scale(0.6);
+  }
+}
+
+.bs-fleet {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bs-fleet-hull {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.bs-fleet-seg {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--hull, #9aa3b5);
+}
+
+.bs-fleet-ship.is-sunk .bs-fleet-seg {
+  background: var(--a);
+  opacity: 0.45;
+}
+
+.bs-placement {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 600px);
+}
+
+.bs-palette {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bs-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bs-pick:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.bs-pick.is-selected {
+  border-color: var(--gold);
+  background: #2c2410;
+}
+
+.bs-pick.is-placed {
+  opacity: 0.55;
+}
+
+.bs-pick.is-placed .bs-pick-name::after {
+  content: ' ✓';
+}
+
+.bs-placement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Na úzkém displeji jen tvary lodí, ať je mřížka vidět celá. */
+@media (max-width: 560px) {
+  .bs-palette {
+    gap: 6px;
+  }
+
+  .bs-pick {
+    padding: 8px;
+  }
+
+  .bs-pick-name {
+    display: none;
+  }
+
+  .bs-placement-actions {
+    gap: 6px;
+  }
+
+  .bs-placement-actions .btn {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+}
+
+/* ---------- Logik souboj ---------- */
+
+.lk-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 460px);
+  padding: 14px;
+  border: 2px solid var(--gold);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.lk-editor-title,
+.lk-board-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.lk-slots {
+  display: flex;
+  gap: 10px;
+}
+
+.lk-slot,
+.lk-color {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(42px, 12vw, 54px);
+  height: clamp(42px, 12vw, 54px);
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lk-slot {
+  border: 2px dashed var(--line);
+  background: var(--bg-raise);
+}
+
+.lk-slot:not([data-color='']) {
+  border-style: solid;
+}
+
+.lk-color:hover,
+.lk-color:focus-visible,
+.lk-slot:hover,
+.lk-slot:focus-visible {
+  border-color: var(--gold);
+  outline: none;
+}
+
+.lk-color kbd {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.7rem;
+}
+
+.lk-palette {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.lk-editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.lk-peg-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lk-peg-icon.is-empty circle {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.lk-peg-body {
+  stroke: rgb(0 0 0 / 35%);
+  stroke-width: 1.5;
+}
+
+.lk-peg-symbol {
+  fill: rgb(20 12 30 / 78%);
+}
+
+.lk-c0 .lk-peg-body {
+  fill: #ff5c52;
+}
+
+.lk-c1 .lk-peg-body {
+  fill: #3bbcff;
+}
+
+.lk-c2 .lk-peg-body {
+  fill: #4ade80;
+}
+
+.lk-c3 .lk-peg-body {
+  fill: #ffd23d;
+}
+
+.lk-c4 .lk-peg-body {
+  fill: #c084fc;
+}
+
+.lk-c5 .lk-peg-body {
+  fill: #fb923c;
+}
+
+.lk-boards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.lk-board {
+  display: flex;
+  flex: 1 1 280px;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+  padding: 10px 12px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.lk-secret {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 800;
+}
+
+.lk-secret .lk-peg-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.lk-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lk-row {
+  display: grid;
+  grid-template-columns: 1.6em 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: var(--bg-raise);
+  animation: screen-in 200ms ease-out both;
+}
+
+.lk-row.is-cracked {
+  background: rgb(255 200 61 / 16%);
+  outline: 2px solid var(--gold);
+}
+
+.lk-row-no {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.lk-row-code {
+  display: flex;
+  gap: 4px;
+}
+
+.lk-row-code .lk-peg-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.lk-feedback {
+  display: grid;
+  grid-template-columns: repeat(2, 11px);
+  gap: 3px;
+}
+
+.lk-fb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.lk-fb--black {
+  background: var(--gold);
+}
+
+.lk-fb--white {
+  border: 2px solid var(--text);
+}
+
+.lk-fb--none {
+  background: rgb(255 255 255 / 8%);
+}
+
+.lk-fb--wait {
+  border: 1px dashed var(--line);
+}
+
+.lk-empty {
+  padding: 4px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.lk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 14px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.lk-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ---------- Online ---------- */
 
 .card-title {

@@ -1,8 +1,10 @@
 import type { AnyMiniGameModule, GameInfo } from '../core/MiniGame';
 import type { GameId } from '../core/types';
+import { battleship } from './battleship';
 import { clickBattle } from './click-battle';
 import { connectFour } from './connect-four';
 import { dotsAndBoxes } from './dots-and-boxes';
+import { logik } from './logik';
 import { nim } from './nim';
 import { quickDraw } from './quick-draw';
 import { reflex } from './reflex';
@@ -22,6 +24,8 @@ export const GAMES: readonly AnyMiniGameModule[] = [
   connectFour,
   nim,
   dotsAndBoxes,
+  battleship,
+  logik,
 ];
 
 export const GAME_INFOS: readonly GameInfo[] = GAMES.map(({ id, name, type, length }) => ({

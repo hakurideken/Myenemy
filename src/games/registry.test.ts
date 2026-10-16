@@ -1,10 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { AIMemory } from '../core/MiniGame';
-import { DIFFICULTIES, type GameMode } from '../core/types';
-import { createRng } from '../core/util/rng';
+import { AIMemory, type AnyMiniGameModule } from '../core/MiniGame';
+import { DIFFICULTIES, type Difficulty, type PlayerSlot } from '../core/types';
+import { createRng, type Rng } from '../core/util/rng';
 import { GAME_INFOS, GAMES, getGame } from './registry';
 
-const MODES: readonly GameMode[] = ['pve', 'local', 'online'];
+const MODES = ['pve', 'local', 'online'] as const;
+
+/** Tajná data obou hráčů (u her se skrytou informací), jinak null. */
+function secretsFor(game: AnyMiniGameModule, rng: Rng): Record<PlayerSlot, unknown> | null {
+  const hidden = game.hidden;
+  return hidden ? { A: hidden.randomSecret(rng), B: hidden.randomSecret(rng) } : null;
+}
+
+/** Tah hráče: z tajných dat (odpověď), jinak tah AI. */
+function playerMove(
+  game: AnyMiniGameModule,
+  state: unknown,
+  player: PlayerSlot,
+  secrets: Record<PlayerSlot, unknown> | null,
+  rng: Rng,
+  difficulty: Difficulty = 'easy',
+): unknown {
+  const view = game.logic.view(state, player);
+  const answer = secrets ? game.hidden?.respond(view, player, secrets[player]) : null;
+  if (answer !== null && answer !== undefined) return answer;
+  return game.getAIMove(view, { difficulty, rng, me: player, memory: new AIMemory() });
+}
 
 describe('registr miniher', () => {
   it('id jsou unikátní a getGame je najde', () => {
@@ -25,14 +46,19 @@ describe('registr miniher', () => {
     it.each(DIFFICULTIES)('AI (%s) vrací validní a platný tah', (difficulty) => {
       const rng = createRng(`contract-${game.id}-${difficulty}`);
       for (let round = 0; round < 20; round++) {
-        const state = game.logic.setup({ rng, starter: round % 2 === 0 ? 'A' : 'B' });
+        let state = game.logic.setup({ rng, starter: round % 2 === 0 ? 'A' : 'B' });
+        const secrets = secretsFor(game, rng);
+        // U skryté informace nejdřív tahy z tajných dat (rozmístění, volba kódu).
+        for (;;) {
+          const player = game.logic.toMove(state)[0];
+          const view = player ? game.logic.view(state, player) : null;
+          const answer =
+            player && secrets ? game.hidden?.respond(view, player, secrets[player]) : null;
+          if (!player || answer === null || answer === undefined) break;
+          state = game.logic.apply(state, player, answer);
+        }
         for (const player of game.logic.toMove(state)) {
-          const move = game.getAIMove(game.logic.view(state, player), {
-            difficulty,
-            rng,
-            me: player,
-            memory: new AIMemory(),
-          });
+          const move = playerMove(game, state, player, null, rng, difficulty);
           expect(game.moveSchema.safeParse(move).success).toBe(true);
           expect(game.logic.legal(state, player, move)).toBe(true);
         }
@@ -43,24 +69,28 @@ describe('registr miniher', () => {
       const rng = createRng(`views-${game.id}`);
       for (let round = 0; round < 10; round++) {
         let state = game.logic.setup({ rng, starter: round % 2 === 0 ? 'A' : 'B' });
-        for (let step = 0; step < 200 && game.logic.outcome(state) === null; step++) {
+        const secrets = secretsFor(game, rng);
+        for (let step = 0; step < 400 && game.logic.outcome(state) === null; step++) {
           for (const viewer of ['A', 'B'] as const) {
             const parsed = game.viewSchema.safeParse(game.logic.view(state, viewer));
             expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
           }
           const player = game.logic.toMove(state)[0];
           if (!player) break;
-          const ai = { difficulty: 'easy' as const, rng, me: player, memory: new AIMemory() };
-          state = game.logic.apply(
-            state,
-            player,
-            game.getAIMove(game.logic.view(state, player), ai),
-          );
+          const move = playerMove(game, state, player, secrets, rng);
+          expect(game.logic.legal(state, player, move)).toBe(true);
+          state = game.logic.apply(state, player, move);
         }
+        expect(game.logic.outcome(state)).not.toBeNull();
         for (const viewer of ['A', 'B'] as const) {
           const final = game.logic.view(state, viewer);
           expect(game.viewSchema.safeParse(final).success).toBe(true);
           if (game.sealed) expect(game.sealed.moveOf(final, viewer)).not.toBeNull();
+          if (game.hidden && secrets) {
+            // Poctivé odpovědi musí projít kontrolou a výsledek plyne z veřejného pohledu.
+            expect(game.hidden.consistent(final, viewer, secrets[viewer])).toBe(true);
+            expect(game.hidden.outcome(final)).toEqual(game.logic.outcome(state));
+          }
         }
       }
     });

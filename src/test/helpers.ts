@@ -27,3 +27,30 @@ export async function run(clock: ManualClock, ms: number, step = 50): Promise<vo
     await settle();
   }
 }
+
+/**
+ * Posouvá ruční čas, dokud podmínka neplatí (nejvýš `maxMs` ručního času). Pro kroky,
+ * které čekají na kryptografii – pod zátěží jí pevné okno ručního času nemusí stačit.
+ */
+export async function runUntil(
+  clock: ManualClock,
+  done: () => boolean,
+  maxMs = 5_000,
+  step = 50,
+): Promise<void> {
+  await settle();
+  for (let elapsed = 0; elapsed < maxMs && !done(); elapsed += step) {
+    clock.advance(Math.min(step, maxMs - elapsed));
+    await settle();
+  }
+}
+
+/** Funkce, která říká, jestli už je slib vyřízený (úspěchem i chybou). */
+export function settledFlag(promise: Promise<unknown>): () => boolean {
+  let done = false;
+  promise.then(
+    () => (done = true),
+    () => (done = true),
+  );
+  return () => done;
+}

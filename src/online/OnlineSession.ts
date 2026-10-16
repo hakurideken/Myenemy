@@ -26,7 +26,7 @@ import { GAMES } from '../games/registry';
 import { DEFAULT_TIMING, type Peer, type PeerStatus } from '../net/Peer';
 import type { GameBody, SessionBody, StateBody } from '../net/protocol';
 import { Listeners } from '../net/Transport';
-import { CheatError, SealedExchange, SeedExchange } from './exchanges';
+import { CheatError, SealedExchange, SecretExchange, SeedExchange } from './exchanges';
 import { RemoteRunner } from './RemoteRunner';
 
 /** Rezerva navíc k lhůtě na tah, než hostitel zahraje za mlčícího hosta. */
@@ -35,6 +35,8 @@ export const REMOTE_GRACE_MS = 10_000;
 export const UNTIMED_GAME_LIMIT_MS = 15_000;
 /** Kolikrát po sobě automatický tah, než prohraje kontumací. */
 export const AFK_FORFEIT_AFTER = 3;
+/** Jak dlouho po konci hry čekat na odhalení tajných dat soupeře. */
+export const REVEAL_WAIT_MS = 10_000;
 
 export type Role = 'host' | 'guest';
 export type CloseReason = 'opponent-left' | 'opponent-gone' | 'version' | 'cheat' | 'me-left';
@@ -89,8 +91,12 @@ interface RoundState {
   readonly current: CurrentGame;
   readonly game: AnyMiniGameModule;
   readonly sealed: SealedExchange | null;
-  host: GameRunner<unknown, unknown, unknown> | null;
-  guest: RemoteRunner<unknown, unknown, unknown> | null;
+  /** Hry se skrytou informací: závazky a odhalení tajných dat. */
+  readonly secrets: SecretExchange | null;
+  host: GameRunner<unknown, unknown, unknown, unknown> | null;
+  guest: RemoteRunner<unknown, unknown, unknown, unknown> | null;
+  /** Hostitel: poslední pohled odeslaný hostovi. */
+  lastView: unknown;
   /** Host: stav, který přišel dřív, než se kolo vykreslilo. */
   pendingState: StateBody | null;
   latestState: StateBody | null;
@@ -259,6 +265,7 @@ export class OnlineSession {
             this.countAfk(player, auto);
             if (round.sealed) void round.sealed.seal(move, auto);
           },
+          commitSecret: (_player, secret) => this.commitSecret(round, secret),
         },
       });
       runner.onEnd((result) => this.hostRoundEnd(round, result));
@@ -268,6 +275,7 @@ export class OnlineSession {
         me: this.me,
         send: (move, auto) => this.sendGame(current, { kind: 'move', move, auto }),
         seal: (move, auto) => void round.sealed?.seal(move, auto),
+        commitSecret: (secret) => this.commitSecret(round, secret),
       });
       round.guest = runner;
       runner.init({ ...base, seats: { A: { kind: 'remote' }, B: { kind: 'human' } } });
@@ -396,8 +404,10 @@ export class OnlineSession {
       current,
       game,
       sealed: game.sealed ? new SealedExchange(this.me, (m) => this.sendGame(current, m)) : null,
+      secrets: game.hidden ? new SecretExchange(this.me, (m) => this.sendGame(current, m)) : null,
       host: null,
       guest: null,
+      lastView: null,
       pendingState: null,
       latestState: null,
       revealCheck: null,
@@ -408,9 +418,15 @@ export class OnlineSession {
     this.setPhase({ name: 'playing', current });
   }
 
+  private commitSecret(round: RoundState, secret: unknown): Promise<void> {
+    if (!round.secrets) return Promise.reject(new Error('Hra nemá tajná data.'));
+    return round.secrets.commit(secret);
+  }
+
   private publish(round: RoundState, update: RemoteUpdate): void {
     if (this.round !== round || round.ended) return;
     round.stateSeq += 1;
+    round.lastView = update.view;
     this.sendGame(round.current, {
       kind: 'state',
       seq: round.stateSeq,
@@ -419,9 +435,13 @@ export class OnlineSession {
       committed: [...update.committed],
       finished: update.finished,
     });
+    // Konec hry: teprve teď smí soupeř vidět tajná data (k ověření odpovědí).
+    if (update.finished !== null) round.secrets?.reveal();
     if (update.canAct && update.finished === null) {
       if (round.fallback === null) {
-        const limit = (round.game.moveTimeoutMs ?? UNTIMED_GAME_LIMIT_MS) + REMOTE_GRACE_MS;
+        const { game } = round;
+        const timeout = game.moveTimeout ? game.moveTimeout(update.view) : game.moveTimeoutMs;
+        const limit = (timeout ?? UNTIMED_GAME_LIMIT_MS) + REMOTE_GRACE_MS;
         round.fallback = this.o.clock.setTimeout(() => this.onRemoteSilent(round), limit);
       }
     } else {
@@ -439,6 +459,8 @@ export class OnlineSession {
       return;
     }
     if (runner.autoMove(this.opponent)) this.countAfk(this.opponent, true);
+    // Tah z tajných dat (rozmístění, odpověď) za soupeře zahrát nejde.
+    else this.forfeitAfk(this.opponent);
   }
 
   private clearFallback(round: RoundState): void {
@@ -449,21 +471,38 @@ export class OnlineSession {
   private countAfk(player: PlayerSlot, auto: boolean): void {
     if (this.o.role !== 'host') return;
     this.afk[player] = auto ? this.afk[player] + 1 : 0;
-    if (this.afk[player] >= AFK_FORFEIT_AFTER && this.controller && !this.controller.isOver) {
-      this.send({
-        type: 'match-end',
-        match: this.matchNo,
-        winner: otherPlayer(player),
-        reason: 'afk',
-      });
-      this.endByForfeit(player, 'afk');
-    }
+    if (this.afk[player] >= AFK_FORFEIT_AFTER) this.forfeitAfk(player);
+  }
+
+  private forfeitAfk(player: PlayerSlot): void {
+    if (this.o.role !== 'host' || !this.controller || this.controller.isOver) return;
+    this.send({
+      type: 'match-end',
+      match: this.matchNo,
+      winner: otherPlayer(player),
+      reason: 'afk',
+    });
+    this.endByForfeit(player, 'afk');
   }
 
   private hostRoundEnd(round: RoundState, result: RoundEnd): void {
     if (this.round !== round || round.ended || !this.controller) return;
     round.ended = true;
     this.clearFallback(round);
+    if (round.secrets) {
+      // Výsledek se pošle až po ověření, že soupeř odpovídal podle svých tajných dat.
+      void this.verifyOpponentSecret(round, round.lastView).then((problem) => {
+        if (this.round !== round || this.closed) return;
+        if (problem) this.detectCheat(problem);
+        else this.finishHostRound(round, result);
+      });
+      return;
+    }
+    this.finishHostRound(round, result);
+  }
+
+  private finishHostRound(round: RoundState, result: RoundEnd): void {
+    if (!this.controller) return;
     const report = this.controller.report(result.outcome);
     const { gameNo, replay } = round.current;
     this.send({
@@ -481,12 +520,14 @@ export class OnlineSession {
     const round = this.round;
     if (!round || round.ended || roundKey(round.current) !== roundKey(body)) return;
     round.ended = true;
-    if (round.sealed) {
-      const problem = await this.verifySealedRound(round, body.outcome);
-      if (problem) {
-        this.detectCheat(problem);
-        return;
-      }
+    const problem = round.sealed
+      ? await this.verifySealedRound(round, body.outcome)
+      : round.secrets
+        ? await this.verifyHiddenRound(round, body.outcome)
+        : null;
+    if (problem) {
+      this.detectCheat(problem);
+      return;
     }
     if (this.round !== round || this.closed || !this.controller) return;
     const report = this.controller.report(body.outcome);
@@ -534,6 +575,49 @@ export class OnlineSession {
     const expected = logic.outcome(state);
     if (!expected || canonicalJson(expected) !== canonicalJson(outcome)) {
       return 'Výsledek kola od hostitele nesouhlasí s odhalenými tahy.';
+    }
+    return null;
+  }
+
+  /**
+   * Host: výsledek musí plynout ze závěrečného stavu, hostitel nesměl změnit odpovědi
+   * hosta a jeho vlastní odpovědi musí sedět s odhalenými tajnými daty.
+   */
+  private async verifyHiddenRound(round: RoundState, outcome: Outcome): Promise<string | null> {
+    const { game, secrets } = round;
+    const hidden = game.hidden;
+    if (!hidden || !secrets) return null;
+    const parsed = round.latestState ? game.viewSchema.safeParse(round.latestState.view) : null;
+    if (!parsed?.success) return 'Chybí závěrečný stav kola.';
+    const expected = hidden.outcome(parsed.data);
+    if (!expected || canonicalJson(expected) !== canonicalJson(outcome)) {
+      return 'Výsledek kola od hostitele nesouhlasí se stavem hry.';
+    }
+    if (secrets.hasCommitted && !hidden.consistent(parsed.data, this.me, secrets.ownSecret)) {
+      return 'Hostitel pozměnil tvoje odpovědi.';
+    }
+    return this.verifyOpponentSecret(round, parsed.data);
+  }
+
+  /** Počká na odhalení tajných dat soupeře a ověří je proti závazku i jeho odpovědím. */
+  private async verifyOpponentSecret(
+    round: RoundState,
+    finalView: unknown,
+  ): Promise<string | null> {
+    const { game, secrets } = round;
+    const hidden = game.hidden;
+    if (!hidden || !secrets) return null;
+    const reveal = await secrets.waitReveal((cb) => {
+      this.o.clock.setTimeout(cb, REVEAL_WAIT_MS);
+    });
+    if (reveal.kind === 'missing') return 'Soupeř neodhalil svá tajná data.';
+    if (reveal.kind === 'mismatch') return 'Tajná data soupeře neodpovídají jeho závazku.';
+    const parsed = hidden.secretSchema.safeParse(reveal.secret);
+    if (!parsed.success || !hidden.isValidSecret(parsed.data)) {
+      return 'Soupeř měl neplatná tajná data.';
+    }
+    if (!hidden.consistent(finalView, this.opponent, parsed.data)) {
+      return 'Soupeř během hry odpovídal v rozporu se svými tajnými daty.';
     }
     return null;
   }
@@ -636,8 +720,14 @@ export class OnlineSession {
 
   private handleGame(body: Extract<SessionBody, { type: 'game' }>): void {
     const round = this.round;
-    if (!round || round.ended || roundKey(round.current) !== roundKey(body)) return;
+    if (!round || roundKey(round.current) !== roundKey(body)) return;
     const msg = body.body;
+    // Odhalení tajných dat chodí i po konci hry (čeká se na ně při ověřování).
+    if (msg.kind === 'secret-reveal') {
+      if (msg.player === this.opponent) void round.secrets?.receiveReveal(msg.secret, msg.salt);
+      return;
+    }
+    if (round.ended) return;
     if (this.o.role === 'host') this.hostGameMessage(round, msg);
     else this.guestGameMessage(round, msg);
   }
@@ -646,13 +736,25 @@ export class OnlineSession {
     const runner = round.host;
     if (!runner) return;
     switch (msg.kind) {
-      case 'move':
+      case 'move': {
         if (round.sealed) {
           console.warn('[online] nezapečetěný tah v zapečetěné hře zahozen');
           return;
         }
-        this.countAfk(this.opponent, msg.auto);
+        if (round.secrets && !round.secrets.opponentCommitted) {
+          console.warn('[online] tah před závazkem k tajným datům zahozen');
+          runner.republish();
+          return;
+        }
+        // Odpovědi z tajných dat nejsou rozhodnutí hráče – neaktivitu nepočítají.
+        if (!runner.awaitsSecret(this.opponent)) this.countAfk(this.opponent, msg.auto);
+        // Nový tah = nová lhůta (jinak by se hostovi sčítal čas několika tahů za sebou).
+        this.clearFallback(round);
         if (!runner.submitRemote(this.opponent, msg.move)) runner.republish();
+        break;
+      }
+      case 'secret-commit':
+        if (msg.player === this.opponent) round.secrets?.receiveCommit(msg.hash);
         break;
       case 'commit':
         if (!round.sealed || msg.player !== this.opponent) return;
@@ -677,9 +779,25 @@ export class OnlineSession {
     }
   }
 
+  /** Host: hostitel se musí zavázat dřív, než hra začne, a odhalí se až po konci. */
+  private guestHiddenState(round: RoundState, msg: StateBody): boolean {
+    const hidden = round.game.hidden;
+    const secrets = round.secrets;
+    if (!hidden || !secrets) return true;
+    const parsed = round.game.viewSchema.safeParse(msg.view);
+    if (!parsed.success) return true;
+    if (hidden.locked(parsed.data) && !secrets.opponentCommitted) {
+      this.detectCheat('Hostitel se nezavázal ke svým tajným datům před začátkem hry.');
+      return false;
+    }
+    if (msg.finished !== null && hidden.outcome(parsed.data) !== null) secrets.reveal();
+    return true;
+  }
+
   private guestGameMessage(round: RoundState, msg: GameBody): void {
     switch (msg.kind) {
       case 'state':
+        if (!this.guestHiddenState(round, msg)) return;
         round.latestState = msg;
         if (round.guest) round.guest.receiveState(msg);
         else round.pendingState = msg;
@@ -691,6 +809,9 @@ export class OnlineSession {
         if (msg.player === this.opponent && round.sealed) {
           round.revealCheck = round.sealed.receiveReveal(msg.move, msg.salt);
         }
+        break;
+      case 'secret-commit':
+        if (msg.player === this.opponent) round.secrets?.receiveCommit(msg.hash);
         break;
       case 'move':
         break;

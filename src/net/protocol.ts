@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { validateNickname } from '../core/nickname';
 
 /** Zvýšit při jakékoli nekompatibilní změně zpráv. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const BUILD_ID: string = __BUILD_ID__;
 /** Horní mez velikosti jedné zprávy (znaky kanonického JSON). */
 export const MAX_MESSAGE_CHARS = 32_000;
@@ -136,6 +136,15 @@ export const gameBodySchema = z.discriminatedUnion('kind', [
   /** Zapečetěný tah: SHA-256(sůl ‖ tah). */
   z.object({ kind: z.literal('commit'), player: playerSlotSchema, hash: hex64, auto: z.boolean() }),
   z.object({ kind: z.literal('reveal'), player: playerSlotSchema, move: z.unknown(), salt: hex64 }),
+  /** Závazek k tajným datům hry (rozmístění lodí, kód): SHA-256(sůl ‖ data). */
+  z.object({ kind: z.literal('secret-commit'), player: playerSlotSchema, hash: hex64 }),
+  /** Odhalení tajných dat po konci hry (validuje secretSchema dané hry). */
+  z.object({
+    kind: z.literal('secret-reveal'),
+    player: playerSlotSchema,
+    secret: z.unknown(),
+    salt: hex64,
+  }),
 ]);
 
 export const sessionBodySchema = z.discriminatedUnion('type', [

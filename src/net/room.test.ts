@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ManualClock } from '../core/util/clock';
-import { run } from '../test/helpers';
+import { run, runUntil, settledFlag } from '../test/helpers';
 import { createKeyPair } from './crypto';
 import { InMemoryHub } from './InMemoryTransport';
 import { BUILD_ID, PROTOCOL_VERSION, type SessionBody } from './protocol';
@@ -85,7 +85,7 @@ describe('párování', () => {
   it('host se připojí, oba znají přezdívku soupeře a formát a můžou si psát', async () => {
     const { guests } = await openHost();
     const joining = join('Jana');
-    await run(clock, 300);
+    await runUntil(clock, settledFlag(joining));
     const guest = await joining;
     const host = guests[0];
     expect(host?.opponent.nickname).toBe('Jana');
@@ -102,7 +102,7 @@ describe('párování', () => {
   it('třetí hráč dostane „místnost je plná“', async () => {
     await openHost();
     const first = join('Jana');
-    await run(clock, 300);
+    await runUntil(clock, settledFlag(first));
     await first;
     const third = observe(join('Petr'));
     await run(clock, 300);

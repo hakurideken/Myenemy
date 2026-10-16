@@ -10,7 +10,7 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | 1    | Návrh architektury                                                             | hotovo |
 | 2    | MVP: přezdívka, menu, všechny formáty, PvE + lokální PvP, Rychlý tasec, KNP    | hotovo |
 | 3    | Online PvP s kódem místnosti (InMemoryTransport → Supabase Realtime Broadcast) | hotovo |
-| 4    | Zbývající minihry: reakční a tahové (hotovo) → skrytá informace → karetní      | běží   |
+| 4    | Zbývající minihry: reakční, tahové a skrytá informace (hotovo) → karetní       | běží   |
 | 5    | Doladění UI a přístupnosti, nasazení na GitHub Pages                           | čeká   |
 
 ## Minihry
@@ -25,8 +25,8 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | Čtyři v řadě      | tahová            | delší  | hotovo |
 | Sirky (Nim)       | tahová            | rychlá | hotovo |
 | Tečky a čtverečky | tahová            | delší  | hotovo |
-| Lodě              | skrytá informace  | delší  | fáze 4 |
-| Logik souboj      | skrytá informace  | delší  | fáze 4 |
+| Lodě              | skrytá informace  | delší  | hotovo |
+| Logik souboj      | skrytá informace  | delší  | hotovo |
 | Prší              | karetní           | delší  | fáze 4 |
 | Oko bere          | karetní           | rychlá | fáze 4 |
 | Pexeso duel       | karetní           | delší  | fáze 4 |
@@ -89,6 +89,12 @@ Hra poběží na <http://localhost:5173>. PvE i hra ve dvou fungují bez jakéko
 - **Zapečetěné tahy (KNP):** hostitel je zároveň hráč, takže volby jdou nejdřív jako závazek
   (commit) a odhalují se, až mají závazek oba. Host navíc kolo přehraje z odhalených tahů
   a ověří výsledek, který mu poslal hostitel. Nesoulad = prohra kontumací + hláška.
+- **Skrytá informace (Lodě, Logik):** rozmístění lodí / tajný kód zná jen jeho majitel – ani
+  hostitel ho nevidí. Před začátkem hry pošle každý jen závazek (SHA-256 se solí), na dotazy
+  soupeře (výstřel, tip) odpovídá jeho vlastní klient. Po konci hry se data odhalí a obě strany
+  ověří, že odpovídají závazku a že soupeř po celou hru odpovídal podle nich. Host navíc
+  kontroluje, že mu hostitel nepozměnil odpovědi a že výsledek plyne z odehraného stavu.
+  Hostitel bez závazku nebo lež v odpovědi = prohra kontumací.
 - **Reakční hry:** každý měří reakci lokálně (`performance.now()` od zobrazení signálu)
   a posílá změřený čas, ne okamžik doručení. Reakce pod 100 ms se počítá jako předčasná.
 - **Odpojení:** po 5 s ticha se ukáže odpočet, po dalších 15 s vyhrává zbylý hráč
@@ -165,6 +171,28 @@ Nasazení na GitHub Pages (s proměnnými v GitHub Actions) přibude ve fázi 5.
 5. Online (`?duo` nebo Supabase): všechny nové hry fungují i po síti – hostitel posílá stav,
    reakční hry posílají lokálně změřený výsledek.
 
+## Jak otestovat fázi 4 – skrytá informace (Lodě, Logik)
+
+1. `npm test` – pravidla obou her, AI (těžká v Lodích střílí podle mapy pravděpodobnosti,
+   v Logiku prolomí každý kód nejvýš na 7 pokusů), automatické odpovědi z tajných dat,
+   předávání zařízení a online závazky: poctivá hra, lež hosta i hostitele v odpovědích,
+   hostitel, který pozmění odpověď hosta, hostitel bez závazku a host, který nezvolí kód.
+2. **Proti AI → Vlastní výběr → best of 1 → Vybrat hry → Lodě:**
+   - Rozmístění: vyber loď v paletě, klikni do moře (náhled zežloutne, nepovolené místo
+     zčervená), **R** nebo „Otočit“ mění směr, klik na položenou loď ji zvedne. „Náhodně“
+     rozmístí vše, „Hotovo“ potvrdí. Po 90 s se rozmístí samo.
+   - Bitva: střílíš do levého moře (klik, nebo šipky + Enter). Zásah = střílíš znovu.
+     Kolem potopené lodi se pole označí jako „jistě voda“. Vpravo vidíš svou flotilu
+     a výstřely AI, pod levým mořem zbývající lodě soupeře.
+3. **Logik souboj:** zvol tajný kód (klávesy 1–6 nebo klik na barvy, Backspace maže, Enter
+   potvrdí), pak tipuj. Odpověď: zlatá tečka = barva i místo, kroužek = jen barva. Barvy mají
+   i vlastní symbol. Vyhrává, kdo prolomí kód na méně pokusů.
+4. **Dva hráči:** obě hry jdou přes „Předej zařízení“ – každý vidí jen své lodě / svůj kód.
+   Po výstřelu vedle zůstane výsledek 1,5 s vidět, pak se zařízení předá. V Logiku tipuje
+   první ten, kdo zařízení právě drží (jedno předání na kolo).
+5. **Online (`?duo` nebo Supabase):** obě strany zadají lodě / kód, hra začne až po obou.
+   Na konci se kódy odhalí a ověří – výsledek musí být u obou stejný, v konzoli bez varování.
+
 ## Architektura
 
 ```
@@ -204,6 +232,9 @@ src/
 4. `view.ts` – vykreslení přes `h()` / `svg()` z `src/ui/dom.ts` (text nikdy přes `innerHTML`).
 5. `index.ts` – `defineGame({...})` s názvem, typem, délkou, pravidly a ovládáním. Hra se
    současným tajným tahem (jako KNP) nastaví `sealed` – online pak jde přes commit-reveal.
+   Hra s tajnými daty, na která se soupeř ptá (jako Lodě nebo Logik), nastaví `hidden`:
+   schéma a kontrolu dat, náhodná data, `respond` (odpověď z dat), `consistent` (ověření
+   odpovědí po odhalení) a `outcome` z veřejného stavu. Logika samotná tajná data nezná.
 6. Přidej hru do pole `GAMES` v `src/games/registry.ts` – automaticky se objeví ve vlastním
    výběru, v losování i online.
 7. Napiš `logic.test.ts`. Obecný kontrakt (pravidla, ovládání, platné tahy AI pro všechny
@@ -226,3 +257,6 @@ src/
 - Při výpadku spojení vidí výhru kontumací oba hráči (každý vidí odpojení toho druhého).
 - Kdo zná kód místnosti dřív než pozvaný soupeř, může se připojit místo něj. Po spárování
   už do zápasu zasahovat nemůže (podpisy zpráv).
+- Lež v odpovědi (Lodě, Logik) se pozná až po konci hry – podvodník ale prohraje celý zápas.
+- Kdo nahlásí nesoulad dat, vyhrává kontumací. Upravený klient tak může soupeře falešně
+  obvinit; bez rozhodčího serveru nejde zjistit, kdo lže (hra to aspoň oznámí oběma).

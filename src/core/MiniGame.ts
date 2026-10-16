@@ -72,6 +72,8 @@ export interface ViewContext<M> {
   /** Hráči, kteří hrají na tomto zařízení (PvE: ['A'], lokálně: ['A','B']). */
   readonly localPlayers: readonly PlayerSlot[];
   submit(player: PlayerSlot, move: M): void;
+  /** Hry se skrytou informací: hráč potvrdil svá tajná data (rozmístění lodí, kód). */
+  submitSecret(player: PlayerSlot, secret: unknown): void;
   readonly clock: Clock;
   readonly prefs: Prefs;
   readonly sfx: Sfx;
@@ -85,6 +87,35 @@ export interface RenderFrame {
   readonly finished: Outcome | null;
   /** Online: hráči, kteří už poslali zapečetěný tah (commit), ale ještě ho neodhalili. */
   readonly committed: readonly PlayerSlot[];
+  /** Tajná data hráče z `perspective`, pokud je toto zařízení zná (jinak null). */
+  readonly secret: unknown;
+}
+
+/**
+ * Hry se skrytou informací (Lodě, Logik). Logika tajná data vůbec nezná – stav obsahuje
+ * jen veřejné dotazy a odpovědi. Odpovědi počítá klient vlastníka z jeho tajných dat;
+ * online se data na začátku zavážou hashem a na konci odhalí a ověří.
+ */
+export interface HiddenInfo<Sec, M, V> {
+  readonly secretSchema: ZodType<Sec>;
+  isValidSecret(secret: Sec): boolean;
+  randomSecret(rng: Rng): Sec;
+  /**
+   * Tah vynucený tajnými daty hráče – „připraven“ po zadání dat nebo odpověď na dotaz
+   * soupeře. null = hráč teď nic automaticky neodpovídá.
+   */
+  respond(view: V, player: PlayerSlot, secret: Sec): M | null;
+  /**
+   * Čeká se na tah, který plyne z tajných dat hráče (rozmístění, odpověď)? Za takový tah
+   * nejde zahrát náhodně – bez dat se hráči přidělí náhodná, vzdálenému hráči nic.
+   */
+  awaitsSecret(view: V, player: PlayerSlot): boolean;
+  /** Od této chvíle už musí mít oba hráči závazek (hra začala). */
+  locked(view: V): boolean;
+  /** Odpovídají všechny odpovědi hráče v závěrečném pohledu jeho tajným datům? */
+  consistent(finalView: V, player: PlayerSlot, secret: Sec): boolean;
+  /** Výsledek spočítaný jen z veřejného závěrečného pohledu (pro kontrolu u hosta). */
+  outcome(finalView: V): Outcome | null;
 }
 
 export interface GameView<V> {
@@ -100,12 +131,18 @@ export interface GameView<V> {
  */
 export type LocalLayout = 'split' | 'shared' | 'hotseat';
 
-export interface MiniGameModule<S, M, V> extends GameInfo {
+export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
   readonly rules: readonly string[];
   controls(mode: GameMode): readonly string[];
   readonly localLayout: LocalLayout;
   /** Limit na tah (neaktivita → automatický tah). null = hra si časování řídí sama. */
   readonly moveTimeoutMs: number | null;
+  /** Limit na tah podle fáze hry (např. delší na rozmístění lodí); přebíjí moveTimeoutMs. */
+  moveTimeout?(view: V): number | null;
+  /** Skrytá informace (tajná data hráčů) – viz HiddenInfo. */
+  readonly hidden?: HiddenInfo<Sec, M, V>;
+  /** Hotseat: jak dlouho nechat hráče vidět výsledek jeho tahu, než se zařízení předá. */
+  readonly handoffDelayMs?: number;
   /** Jak dlouho nechat vidět konec hry, než přijde výsledek kola. */
   readonly revealMs: number;
   readonly logic: GameLogic<S, M, V>;
@@ -122,7 +159,10 @@ export interface MiniGameModule<S, M, V> extends GameInfo {
     /** Tah hráče, jak je vidět v závěrečném pohledu (pro kontrolu proti odhalení). */
     moveOf(finalView: V, player: PlayerSlot): M | null;
   };
-  /** Lehká obtížnost musí vždy vrátit platný tah – používá se i jako automatický tah. */
+  /**
+   * Lehká obtížnost musí vždy vrátit platný tah – používá se i jako automatický tah.
+   * U her se skrytou informací se volá jen mimo tahy z tajných dat (viz awaitsSecret).
+   */
   getAIMove(view: V, ai: AIContext): M;
   /** Tah za hráče, který nereaguje (výchozí: tah lehké AI). */
   inactiveMove?(view: V): M;
@@ -133,9 +173,11 @@ export interface MiniGameModule<S, M, V> extends GameInfo {
   createView(ctx: ViewContext<M>): GameView<V>;
 }
 
-export type AnyMiniGameModule = MiniGameModule<unknown, unknown, unknown>;
+export type AnyMiniGameModule = MiniGameModule<unknown, unknown, unknown, unknown>;
 
-export function defineGame<S, M, V>(game: MiniGameModule<S, M, V>): AnyMiniGameModule {
+export function defineGame<S, M, V, Sec = unknown>(
+  game: MiniGameModule<S, M, V, Sec>,
+): AnyMiniGameModule {
   return game;
 }
 
@@ -175,6 +217,8 @@ export interface RunnerBridge {
   publish(update: RemoteUpdate): void;
   /** Tah lokálního hráče (kvůli zapečetění a počítání neaktivity). */
   localMove(player: PlayerSlot, move: unknown, auto: boolean): void;
+  /** Tajná data lokálního hráče – odešle se závazek (hash) dřív, než hra pokračuje. */
+  commitSecret?(player: PlayerSlot, secret: unknown): Promise<void>;
 }
 
 export interface RoundEnd {
