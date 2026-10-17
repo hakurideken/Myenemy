@@ -68,7 +68,8 @@ function createSea(
   onHover: (cell: number | null) => void,
 ): Sea {
   const title = h('h3', { class: 'bs-sea-title' }, label);
-  const grid = h('div', { class: 'bs-grid', role: 'grid', 'aria-label': label });
+  // Šipky přesouvají fokus mezi poli (roving tabindex), Tab skočí z moře ven.
+  const grid = h('div', { class: 'bs-grid', role: 'group', 'aria-label': label });
   const cells: HTMLButtonElement[] = [];
   const sea: Sea = {
     el: h('section', { class: 'bs-sea' }, title, grid),
@@ -90,6 +91,7 @@ function createSea(
         type: 'button',
         class: 'bs-cell',
         'data-state': '',
+        'aria-label': cellName(cell),
         tabindex: cell === 0 ? '0' : '-1',
         onclick: () => onActivate(cell),
         onmouseenter: () => onHover(cell),

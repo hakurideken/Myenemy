@@ -4,9 +4,10 @@ import type { GameId } from '../core/types';
 import { readSupabaseConfig, supabaseTransportFactory } from '../net/config';
 import type { TransportFactory } from '../net/Transport';
 import { loadNickname, saveNickname } from '../platform/profile';
-import { prefersReducedMotion, SettingsStore } from '../platform/settings';
+import { applyMotionPreference, prefersReducedMotion, SettingsStore } from '../platform/settings';
 import { createSfx } from '../platform/sound';
 import type { Banner } from './components/banner';
+import { confirmDialog, type ConfirmOptions } from './components/modal';
 import { h } from './dom';
 import { MatchFlow, type MatchSetup } from './MatchFlow';
 import { OnlineFlow } from './OnlineFlow';
@@ -49,6 +50,7 @@ export class App {
     private readonly options: AppOptions = {},
   ) {
     root.append(this.bannerRoot, this.screenRoot);
+    applyMotionPreference(this.settings.current.reducedMotion);
     this.persistNickname = options.nickname === undefined;
     this.nicknameValue = options.nickname ?? loadNickname();
     this.pendingRoom = options.pendingRoom ?? null;
@@ -88,6 +90,11 @@ export class App {
     target?.focus({ preventScroll: true });
   }
 
+  /** Potvrzovací dialog nad celou aplikací (zbytek je mezitím neaktivní). */
+  confirm(options: ConfirmOptions): Promise<boolean> {
+    return confirmDialog(this.root, options);
+  }
+
   setBanner(banner: Banner | null): void {
     this.banner?.destroy();
     this.banner = banner;
@@ -95,7 +102,7 @@ export class App {
   }
 
   prefs(): Prefs {
-    return { reducedMotion: prefersReducedMotion() };
+    return { reducedMotion: prefersReducedMotion() || this.settings.current.reducedMotion };
   }
 
   aiMemory(gameId: GameId): AIMemory {

@@ -142,8 +142,14 @@ export class MatchFlow {
   }
 
   private leave(): void {
-    if (window.confirm('Opravdu chceš opustit zápas? Výsledek se nikam nezapočítá.')) {
-      this.app.goMenu();
-    }
+    void this.app
+      .confirm({
+        title: 'Opustit zápas?',
+        message: 'Výsledek se nikam nezapočítá.',
+        confirm: 'Opustit',
+      })
+      .then((ok) => {
+        if (ok) this.app.goMenu();
+      });
   }
 }

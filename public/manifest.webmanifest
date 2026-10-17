@@ -1,0 +1,12 @@
+{
+  "name": "Myenemy – souboj 1v1",
+  "short_name": "Myenemy",
+  "description": "Souboj 1v1 v sadě miniher – proti AI, ve dvou na jednom zařízení i online.",
+  "lang": "cs",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e0b14",
+  "theme_color": "#0e0b14",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

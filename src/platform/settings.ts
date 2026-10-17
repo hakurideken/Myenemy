@@ -6,11 +6,13 @@ const KEY = 'settings';
 const settingsSchema = z.object({
   sound: z.boolean(),
   vibration: z.boolean(),
+  /** Omezit animace i bez systémového nastavení (starší uložená nastavení ho nemají). */
+  reducedMotion: z.boolean().default(false),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
 
-const DEFAULTS: Settings = { sound: true, vibration: true };
+const DEFAULTS: Settings = { sound: true, vibration: true, reducedMotion: false };
 
 export class SettingsStore {
   private value: Settings;
@@ -32,6 +34,13 @@ export class SettingsStore {
 
 export function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** Ruční omezení animací: třída na <html> zapne stejná pravidla jako systémové nastavení. */
+export function applyMotionPreference(reduce: boolean): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('reduce-motion', reduce);
+  }
 }
 
 export function canVibrate(): boolean {

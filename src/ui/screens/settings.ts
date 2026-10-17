@@ -1,4 +1,4 @@
-import { canVibrate, prefersReducedMotion } from '../../platform/settings';
+import { applyMotionPreference, canVibrate, prefersReducedMotion } from '../../platform/settings';
 import type { App, Mount } from '../App';
 import { button } from '../components/common';
 import { h } from '../dom';
@@ -32,8 +32,9 @@ function toggle(
 
 export function settingsScreen(app: App): Mount {
   return (root) => {
-    const { sound, vibration } = app.settings.current;
+    const { sound, vibration, reducedMotion } = app.settings.current;
     const vibrationSupported = canVibrate();
+    const systemMotion = prefersReducedMotion();
     root.append(
       h(
         'main',
@@ -58,12 +59,17 @@ export function settingsScreen(app: App): Mount {
             },
             !vibrationSupported,
           ),
-          h(
-            'p',
-            { class: 'note' },
-            prefersReducedMotion()
-              ? 'Animace jsou omezené podle nastavení systému („Omezit pohyb“).'
-              : 'Animace se řídí systémovým nastavením „Omezit pohyb“.',
+          toggle(
+            'Omezit animace',
+            systemMotion
+              ? 'Zapnuto v systému („Omezit pohyb“)'
+              : 'Bez létajících karet, otáčení a pulzování',
+            reducedMotion || systemMotion,
+            (on) => {
+              app.settings.update({ reducedMotion: on });
+              applyMotionPreference(on);
+            },
+            systemMotion,
           ),
         ),
         button('Zpět do menu', () => app.goMenu(), 'btn btn-primary btn-lg', {

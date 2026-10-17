@@ -220,7 +220,15 @@ export class OnlineFlow {
   }
 
   private confirmLeave(): void {
-    if (window.confirm('Opravdu chceš odejít? Soupeř vyhraje kontumací.')) this.exit();
+    void this.app
+      .confirm({
+        title: 'Odejít ze zápasu?',
+        message: 'Soupeř vyhraje kontumací.',
+        confirm: 'Odejít',
+      })
+      .then((ok) => {
+        if (ok && !this.disposed) this.exit();
+      });
   }
 
   /** Klíč obrazovky – stejný klíč = jen aktualizace (bez animace a bez zvuku). */

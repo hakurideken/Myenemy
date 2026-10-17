@@ -1,5 +1,6 @@
 import type { PlayerSlot } from '../../core/types';
 import { h, uid } from '../dom';
+import { makeInert } from './modal';
 
 /** Neprůhledná obrazovka mezi tahy, aby druhý hráč neviděl tajná data. */
 export function showHandoff(container: HTMLElement, name: string, slot: PlayerSlot): Promise<void> {
@@ -23,9 +24,12 @@ export function showHandoff(container: HTMLElement, name: string, slot: PlayerSl
       h('p', { class: 'lead' }, 'Na řadě je tento hráč. Ostatní se nedívejte!'),
       confirm,
     );
+    // Hra pod překryvem nesmí jít ovládat ani číst (Tab, čtečka obrazovky).
+    const restore = makeInert(container, overlay);
     confirm.addEventListener(
       'click',
       () => {
+        restore();
         overlay.remove();
         resolve();
       },

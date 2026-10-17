@@ -11,7 +11,7 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | 2    | MVP: přezdívka, menu, všechny formáty, PvE + lokální PvP, Rychlý tasec, KNP    | hotovo |
 | 3    | Online PvP s kódem místnosti (InMemoryTransport → Supabase Realtime Broadcast) | hotovo |
 | 4    | Zbývající minihry: reakční, tahové, skrytá informace a karetní                 | hotovo |
-| 5    | Doladění UI a přístupnosti, nasazení na GitHub Pages                           | čeká   |
+| 5    | Doladění UI a přístupnosti, nasazení na GitHub Pages                           | hotovo |
 
 ## Minihry
 
@@ -133,7 +133,31 @@ Hra poběží na <http://localhost:5173>. PvE i hra ve dvou fungují bez jakéko
 6. Projekt ve free plánu se po týdnu bez provozu uspí – hra pak ukáže „Online server je
    nedostupný“. V dashboardu Supabase ho obnovíš tlačítkem **Restore**.
 
-Nasazení na GitHub Pages (s proměnnými v GitHub Actions) přibude ve fázi 5.
+## Nasazení na GitHub Pages
+
+Hra je statický web – workflow `.github/workflows/ci.yml` ji po každém pushi do `main`
+otestuje, sestaví a nasadí na `https://<uživatel>.github.io/Myenemy/`.
+
+1. Na GitHubu otevři repozitář → **Settings → Pages** a v **Build and deployment → Source**
+   zvol **GitHub Actions**. (Dokud to není zapnuté, workflow nasazení jen přeskočí
+   s upozorněním a nic nespadne.)
+2. Online hra: **Settings → Secrets and variables → Actions → Variables → New repository
+   variable** a přidej:
+   - `VITE_SUPABASE_URL` – Project URL ze Supabase (např. `https://abcd.supabase.co`),
+   - `VITE_SUPABASE_ANON_KEY` – veřejný anon / publishable klíč.
+
+   Klíč je veřejný (skončí v prohlížeči hráčů), proto stačí proměnná; když ho chceš mít
+   mezi tajemstvími, workflow umí načíst i stejnojmenný **secret**. Bez těchto hodnot web
+   funguje, jen online režim ukáže, že není nastavený.
+
+3. Spusť nasazení: další push do `main`, nebo **Actions → CI a nasazení → Run workflow**.
+   Adresa se ukáže u kroku **deploy** (prostředí `github-pages`).
+4. Základní cesta je `/Myenemy/` (`base` ve `vite.config.ts`). Při přejmenování repozitáře
+   ji uprav. Content-Security-Policy se při buildu vygeneruje z `VITE_SUPABASE_URL` – síť
+   povolí jen na tvůj Supabase projekt.
+
+Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run preview`
+(http://localhost:4173/Myenemy/).
 
 ## Jak otestovat fázi 3
 
@@ -222,6 +246,27 @@ Nasazení na GitHub Pages (s proměnnými v GitHub Actions) přibude ve fázi 5.
 4. **Online (`?duo` nebo Supabase):** na začátku kola se chvíli míchá („Míchám balíček…“).
    Každá strana vidí jen svou ruku, soupeř jen počet karet. V Oko bere je vidět jen
    „rozhodnuto“, ne jak. Výsledek musí být u obou stejný, v konzoli bez chyb.
+
+## Jak otestovat fázi 5 – UI, přístupnost, nasazení
+
+1. **Nasazení:** podle návodu výše zapni Pages (a případně přidej proměnné Supabase),
+   pak push nebo **Run workflow**. Na nasazené adrese zkus PvE, hru ve dvou a online
+   (dvě okna / dva prohlížeče, odkaz `?room=` musí vést na `/Myenemy/?room=…`).
+2. **Klávesnice:** celou hru jde ovládat bez myši – Tab mezi prvky (viditelný zlatý rámeček),
+   Enter/mezerník, zkratky her podle úvodní nápovědy. Po přechodu na novou obrazovku je
+   fokus na nadpisu.
+3. **Opuštění zápasu (✕):** místo systémového okna se ukáže vlastní dialog. Výchozí je
+   „Zůstat“, Escape nebo klik mimo dialog ho zavře, Tab neuteče ven a hra pod ním nereaguje
+   na klávesy.
+4. **Předávání zařízení:** při hře ve dvou (Lodě, Logik, Prší, Oko bere, KNP) nejde hru pod
+   překryvem ovládat ani Tabem – čtečka obrazovky čte jen výzvu k předání.
+5. **Nastavení → Omezit animace:** vypne létání karet, otáčení a pulzování i bez
+   systémového nastavení. Když je „Omezit pohyb“ zapnuté v systému, přepínač je zapnutý
+   a zamčený.
+6. **Čtečka obrazovky** (NVDA, VoiceOver): stav hry se ohlašuje (aria-live), karty a pole
+   mají české popisy („srdcová sedma“, „C5: zásah“), časovač upozorní jednou na posledních
+   5 sekund.
+7. **Instalace:** v Chrome / Edge na nasazené adrese jde hru „nainstalovat“ (manifest).
 
 ## Architektura
 
