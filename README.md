@@ -10,7 +10,7 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | 1    | Návrh architektury                                                             | hotovo |
 | 2    | MVP: přezdívka, menu, všechny formáty, PvE + lokální PvP, Rychlý tasec, KNP    | hotovo |
 | 3    | Online PvP s kódem místnosti (InMemoryTransport → Supabase Realtime Broadcast) | hotovo |
-| 4    | Zbývající minihry: reakční, tahové a skrytá informace (hotovo) → karetní       | běží   |
+| 4    | Zbývající minihry: reakční, tahové, skrytá informace a karetní                 | hotovo |
 | 5    | Doladění UI a přístupnosti, nasazení na GitHub Pages                           | čeká   |
 
 ## Minihry
@@ -27,9 +27,9 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | Tečky a čtverečky | tahová            | delší  | hotovo |
 | Lodě              | skrytá informace  | delší  | hotovo |
 | Logik souboj      | skrytá informace  | delší  | hotovo |
-| Prší              | karetní           | delší  | fáze 4 |
-| Oko bere          | karetní           | rychlá | fáze 4 |
-| Pexeso duel       | karetní           | delší  | fáze 4 |
+| Prší              | karetní           | delší  | hotovo |
+| Oko bere          | karetní           | rychlá | hotovo |
+| Pexeso duel       | karetní           | delší  | hotovo |
 
 ## Formáty zápasu
 
@@ -95,6 +95,14 @@ Hra poběží na <http://localhost:5173>. PvE i hra ve dvou fungují bez jakéko
   ověří, že odpovídají závazku a že soupeř po celou hru odpovídal podle nich. Host navíc
   kontroluje, že mu hostitel nepozměnil odpovědi a že výsledek plyne z odehraného stavu.
   Hostitel bez závazku nebo lež v odpovědi = prohra kontumací.
+- **Karty (Oko bere, Prší, Pexeso) – mental poker:** balíček nezná ani hostitel. Oba hráči
+  ho postupně zašifrují svým klíčem a zamíchají (SRA, komutativní šifrování x^e mod p
+  s 2048bitovým prvočíslem z RFC 3526), pak každou pozici zamknou zvláštním klíčem. Kartu
+  odemknou až klíče obou: k líznuté kartě pošle soupeř svůj klíč jen mně, k vyložené
+  a otočené kartě oba. Stav karetní hry je veřejný, proto ji počítají oba hráči sami
+  a tahy si posílají navzájem; vyloženou kartu soupeř hned ověří klíčem. Současná rozhodnutí
+  (Oko bere: líznout / stát) jdou zapečetěná. Na konci si hráči pošlou všechny klíče a ověří,
+  že balíček obsahoval každou kartu právě jednou. Míchání trvá asi půl vteřiny.
 - **Reakční hry:** každý měří reakci lokálně (`performance.now()` od zobrazení signálu)
   a posílá změřený čas, ne okamžik doručení. Reakce pod 100 ms se počítá jako předčasná.
 - **Odpojení:** po 5 s ticha se ukáže odpočet, po dalších 15 s vyhrává zbylý hráč
@@ -193,6 +201,28 @@ Nasazení na GitHub Pages (s proměnnými v GitHub Actions) přibude ve fázi 5.
 5. **Online (`?duo` nebo Supabase):** obě strany zadají lodě / kód, hra začne až po obou.
    Na konci se kódy odhalí a ověří – výsledek musí být u obou stejný, v konzoli bez varování.
 
+## Jak otestovat fázi 4 – karetní hry (Oko bere, Prší, Pexeso)
+
+1. `npm test` – pravidla všech tří her (sedmy se sčítají, eso zastaví, svršek mění barvu,
+   otočení balíčku, limit tahů, oko a přetažení, dvojice v pexesu), síla AI (těžká
+   a střední porazí lehkou), mental poker (prvočíslo, komutativita, soukromé i veřejné
+   odhalení, audit, podvržený klíč, zdvojená karta) a online zápasy přes `InMemoryTransport`:
+   celé Pexeso i Oko bere mezi dvěma klienty, vyložení karty bez klíče a neaktivita.
+   Síťové testy běží až po ostatních a soubor po souboru (jsou citlivé na vytížené CPU).
+2. **Proti AI → Vlastní výběr → best of 1 → Vybrat hry:**
+   - **Oko bere:** L = líznout, S = stát. Soupeřovy karty jsou rubem nahoru, odhalí se, až
+     oba stojí. Při 21, oku nebo přetažení se stojí automaticky.
+   - **Prší:** klikni na zvýrazněnou kartu; svrškem zvolíš barvu (1–4). Na sedmu musíš dát
+     sedmu, nebo líznout (2, 4, …), na eso dát eso, nebo stát – bez sedmy / esa se to
+     provede samo. Když dojde balíček, otočí se odhazovací.
+   - **Pexeso duel:** otoč dvě kartičky; dvojice = bereš a hraješ znovu. Karty z posledního
+     tahu zůstanou vidět, dokud někdo neotočí další.
+3. **Dva hráči:** Oko bere a Prší přes „Předej zařízení“ (každý vidí jen svou ruku), Pexeso
+   na společné desce.
+4. **Online (`?duo` nebo Supabase):** na začátku kola se chvíli míchá („Míchám balíček…“).
+   Každá strana vidí jen svou ruku, soupeř jen počet karet. V Oko bere je vidět jen
+   „rozhodnuto“, ne jak. Výsledek musí být u obou stejný, v konzoli bez chyb.
+
 ## Architektura
 
 ```
@@ -202,9 +232,10 @@ src/
 │  ├─ GameRunner.ts         spojí logiku, vykreslení a hráče (člověk / AI / síť)
 │  ├─ match/                planMatch (formáty, losování), MatchController (skóre, remízy)
 │  ├─ ai/reaction.ts        lidsky působící reakční doby AI
+│  ├─ cards/                mental poker (SRA), lokální rozdávající
 │  └─ util/                 RNG se seedem, hodiny, commit-reveal, kanonický JSON
 ├─ net/                     Transport, InMemory/Supabase, protokol (Zod), Peer, místnosti
-├─ online/                  OnlineSession (zápas po síti), RemoteRunner (host), commit-reveal výměny
+├─ online/                  OnlineSession, RemoteRunner (host), commit-reveal, MentalPokerDealer
 ├─ games/
 │  ├─ registry.ts           JEDINÝ seznam miniher
 │  └─ <hra>/                logic.ts · ai.ts · view.ts · index.ts · *.test.ts
@@ -235,6 +266,10 @@ src/
    Hra s tajnými daty, na která se soupeř ptá (jako Lodě nebo Logik), nastaví `hidden`:
    schéma a kontrolu dat, náhodná data, `respond` (odpověď z dat), `consistent` (ověření
    odpovědí po odhalení) a `outcome` z veřejného stavu. Logika samotná tajná data nezná.
+   Karetní hra nastaví `cards`: logika pracuje jen s pozicemi v zamíchaném balíčku,
+   řekne, kdo má na kterou kartu nárok (`privateFor`, `publicCards`), na co čeká
+   (`pendingPublic` → `reveal`) a které karty tah tvrdí (`claims`). Karty rozdává
+   lokálně `LocalDealer`, online `MentalPokerDealer`.
 6. Přidej hru do pole `GAMES` v `src/games/registry.ts` – automaticky se objeví ve vlastním
    výběru, v losování i online.
 7. Napiš `logic.test.ts`. Obecný kontrakt (pravidla, ovládání, platné tahy AI pro všechny
@@ -258,5 +293,7 @@ src/
 - Kdo zná kód místnosti dřív než pozvaný soupeř, může se připojit místo něj. Po spárování
   už do zápasu zasahovat nemůže (podpisy zpráv).
 - Lež v odpovědi (Lodě, Logik) se pozná až po konci hry – podvodník ale prohraje celý zápas.
+- Karty: kdo si pamatuje otočené karty (pexeso, otočený balíček v Prší), může si je
+  zobrazit i upravený klient – jsou to veřejně viděné karty, stejně jako ve skutečné hře.
 - Kdo nahlásí nesoulad dat, vyhrává kontumací. Upravený klient tak může soupeře falešně
   obvinit; bez rozhodčího serveru nejde zjistit, kdo lže (hra to aspoň oznámí oběma).

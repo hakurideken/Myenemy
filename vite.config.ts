@@ -18,6 +18,9 @@ function connectSources(supabaseUrl: string | undefined): string {
 
 const CHARSET_META = '<meta charset="UTF-8" />';
 
+/** Testy sítě a online zápasu (ruční čas + skutečná kryptografie). */
+const NETWORK_TESTS = ['src/net/**/*.test.ts', 'src/online/**/*.test.ts'];
+
 /**
  * GitHub Pages neumí vlastní HTTP hlavičky, proto CSP přes <meta> – jen v buildu,
  * protože dev server Vite vkládá styly inline. <meta> CSP platí jen pro obsah za ní,
@@ -59,10 +62,26 @@ export default defineConfig(({ command, mode, isPreview }) => {
     },
     plugins: [contentSecurityPolicy(env.VITE_SUPABASE_URL)],
     test: {
-      include: ['src/**/*.test.ts'],
       environment: 'node',
       // Online testy simulují desítky sekund sítě s opravdovou kryptografií.
       testTimeout: 20_000,
+      projects: [
+        {
+          extends: true,
+          test: { name: 'logika', include: ['src/**/*.test.ts'], exclude: NETWORK_TESTS },
+        },
+        {
+          // Síť běží s ručním časem a opravdovou kryptografií – je citlivá na vytížené CPU,
+          // proto až po ostatních testech a soubor po souboru.
+          extends: true,
+          test: {
+            name: 'síť',
+            include: NETWORK_TESTS,
+            sequence: { groupOrder: 1 },
+            fileParallelism: false,
+          },
+        },
+      ],
     },
   };
 });

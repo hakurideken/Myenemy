@@ -27,6 +27,7 @@ import { DEFAULT_TIMING, type Peer, type PeerStatus } from '../net/Peer';
 import type { GameBody, SessionBody, StateBody } from '../net/protocol';
 import { Listeners } from '../net/Transport';
 import { CheatError, SealedExchange, SecretExchange, SeedExchange } from './exchanges';
+import { MentalPokerDealer } from './MentalPokerDealer';
 import { RemoteRunner } from './RemoteRunner';
 
 /** Rezerva navíc k lhůtě na tah, než hostitel zahraje za mlčícího hosta. */
@@ -37,6 +38,9 @@ export const UNTIMED_GAME_LIMIT_MS = 15_000;
 export const AFK_FORFEIT_AFTER = 3;
 /** Jak dlouho po konci hry čekat na odhalení tajných dat soupeře. */
 export const REVEAL_WAIT_MS = 10_000;
+
+type AnyRunner = GameRunner<unknown, unknown, unknown, unknown>;
+type CardPlay = Extract<GameBody, { kind: 'move' | 'commit' | 'reveal' }>;
 
 export type Role = 'host' | 'guest';
 export type CloseReason = 'opponent-left' | 'opponent-gone' | 'version' | 'cheat' | 'me-left';
@@ -93,8 +97,25 @@ interface RoundState {
   readonly sealed: SealedExchange | null;
   /** Hry se skrytou informací: závazky a odhalení tajných dat. */
   readonly secrets: SecretExchange | null;
-  host: GameRunner<unknown, unknown, unknown, unknown> | null;
+  host: AnyRunner | null;
   guest: RemoteRunner<unknown, unknown, unknown, unknown> | null;
+  /**
+   * Karetní hry: logiku spouštějí oba hráči (stav je veřejný, karty drží mental poker).
+   * Hostitel má svůj runner v `host`, host v `peer`.
+   */
+  readonly dealer: MentalPokerDealer | null;
+  peer: AnyRunner | null;
+  /** Karty: tahy soupeře se zpracovávají přísně po sobě (odhalení je asynchronní). */
+  cardChain: Promise<void>;
+  /** Karty: runner je vytvořený (tahy soupeře na něj čekají). */
+  readonly cardMounted: Promise<void>;
+  markCardMounted: () => void;
+  /** Karty: zapečetěné současné tahy podle pořadí. */
+  readonly cardSteps: Map<number, SealedExchange>;
+  ownSteps: number;
+  /** Karty: výsledek podle vlastní logiky (host ho porovná s hostitelovým). */
+  cardOutcome: Outcome | null;
+  readonly cardOutcomeWaiters: ((outcome: Outcome | null) => void)[];
   /** Hostitel: poslední pohled odeslaný hostovi. */
   lastView: unknown;
   /** Host: stav, který přišel dřív, než se kolo vykreslilo. */
@@ -108,6 +129,14 @@ interface RoundState {
 }
 
 const roundKey = (c: { gameNo: number; replay: number }): string => `${c.gameNo}:${c.replay}`;
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
 
 /**
  * Online zápas jednoho hráče (hostitel = A, host = B). Hostitel řídí průběh (pořadí her,
@@ -234,7 +263,14 @@ export class OnlineSession {
   mountRound(mount: RoundMount): () => void {
     const round = this.round;
     const seed = this.seed;
-    if (!round || !seed || this.phaseValue.name !== 'playing' || round.host || round.guest) {
+    if (
+      !round ||
+      !seed ||
+      this.phaseValue.name !== 'playing' ||
+      round.host ||
+      round.guest ||
+      round.peer
+    ) {
       return () => undefined;
     }
     const { current, game } = round;
@@ -253,7 +289,9 @@ export class OnlineSession {
       showTurnTimer: (deadline, total) => mount.showTurnTimer(deadline, total),
     };
 
-    if (this.o.role === 'host') {
+    if (round.dealer) {
+      this.mountCardRound(round, round.dealer, base);
+    } else if (this.o.role === 'host') {
       const runner = new GameRunner(game);
       round.host = runner;
       runner.init({
@@ -288,7 +326,35 @@ export class OnlineSession {
     return () => {
       round.host?.destroy();
       round.guest?.destroy();
+      round.peer?.destroy();
     };
+  }
+
+  /** Karetní hra: vlastní runner u obou hráčů, tahy se posílají oběma směry. */
+  private mountCardRound(
+    round: RoundState,
+    dealer: MentalPokerDealer,
+    base: Omit<RoundContext, 'seats' | 'bridge'>,
+  ): void {
+    const runner = new GameRunner(round.game);
+    if (this.o.role === 'host') round.host = runner;
+    else round.peer = runner;
+    runner.init({
+      ...base,
+      seats:
+        this.me === 'A'
+          ? { A: { kind: 'human' }, B: { kind: 'remote' } }
+          : { A: { kind: 'remote' }, B: { kind: 'human' } },
+      dealer,
+      bridge: {
+        publish: (update) => this.cardPublish(round, update),
+        localMove: (_player, move, auto, simultaneous) =>
+          this.cardLocalMove(round, move, auto, simultaneous),
+      },
+    });
+    if (this.o.role === 'host') runner.onEnd((result) => this.hostRoundEnd(round, result));
+    runner.start();
+    round.markCardMounted();
   }
 
   // ---------- Průběh zápasu ----------
@@ -400,6 +466,7 @@ export class OnlineSession {
       this.detectCheat(`Neznámá hra ${current.gameId}.`);
       return;
     }
+    const mounted = deferred();
     this.round = {
       current,
       game,
@@ -407,6 +474,22 @@ export class OnlineSession {
       secrets: game.hidden ? new SecretExchange(this.me, (m) => this.sendGame(current, m)) : null,
       host: null,
       guest: null,
+      dealer: game.cards
+        ? new MentalPokerDealer(
+            this.me,
+            game.cards.deckSize,
+            (m) => this.sendGame(current, m),
+            (detail) => this.detectCheat(detail),
+          )
+        : null,
+      peer: null,
+      cardChain: Promise.resolve(),
+      cardMounted: mounted.promise,
+      markCardMounted: mounted.resolve,
+      cardSteps: new Map(),
+      ownSteps: 0,
+      cardOutcome: null,
+      cardOutcomeWaiters: [],
       lastView: null,
       pendingState: null,
       latestState: null,
@@ -416,6 +499,8 @@ export class OnlineSession {
       ended: false,
     };
     this.setPhase({ name: 'playing', current });
+    // Míchání začne hned, ještě než se kolo vykreslí.
+    this.round.dealer?.start();
   }
 
   private commitSecret(round: RoundState, secret: unknown): Promise<void> {
@@ -449,6 +534,147 @@ export class OnlineSession {
     }
   }
 
+  // ---------- Karetní hry ----------
+
+  /** Runner karetní hry na tomto zařízení. */
+  private cardRunner(round: RoundState): AnyRunner | null {
+    return this.o.role === 'host' ? round.host : round.peer;
+  }
+
+  private cardPublish(round: RoundState, update: RemoteUpdate): void {
+    if (this.round !== round || round.ended) return;
+    if (update.finished !== null && round.cardOutcome === null) {
+      round.cardOutcome = update.finished;
+      for (const resolve of round.cardOutcomeWaiters.splice(0)) resolve(update.finished);
+      // Po konci hry už klíče nic neprozradí – soupeř si ověří celý balíček.
+      round.dealer?.sendAudit();
+    }
+    if (this.o.role !== 'host') return;
+    if (update.canAct && update.finished === null) {
+      if (round.fallback === null) {
+        const limit = (round.game.moveTimeoutMs ?? UNTIMED_GAME_LIMIT_MS) + REMOTE_GRACE_MS;
+        round.fallback = this.o.clock.setTimeout(() => this.onRemoteSilent(round), limit);
+      }
+    } else {
+      this.clearFallback(round);
+    }
+  }
+
+  private cardLocalMove(
+    round: RoundState,
+    move: unknown,
+    auto: boolean,
+    simultaneous: boolean,
+  ): void {
+    if (this.round !== round || round.ended) return;
+    this.countAfk(this.me, auto);
+    // Klíče k vyloženým kartám jdou napřed, ať soupeř tah hned ověří.
+    const claims = round.game.cards?.claims(move) ?? [];
+    round.dealer?.reveal(claims.map((c) => c.pos));
+    if (simultaneous) {
+      // Současný tah (oba se rozhodují naráz): nejdřív závazek, odhalení až po soupeřově.
+      void this.cardStep(round, round.ownSteps++).seal(move, auto);
+    } else {
+      this.sendGame(round.current, { kind: 'move', move, auto });
+    }
+  }
+
+  private cardStep(round: RoundState, step: number): SealedExchange {
+    let exchange = round.cardSteps.get(step);
+    if (!exchange) {
+      exchange = new SealedExchange(this.me, (m) => this.sendGame(round.current, { ...m, step }));
+      round.cardSteps.set(step, exchange);
+    }
+    return exchange;
+  }
+
+  /** Tahy soupeře v karetní hře – po sobě, až když je balíček připravený. */
+  private cardMessage(round: RoundState, msg: CardPlay): void {
+    const dealer = round.dealer;
+    if (!dealer) return;
+    round.cardChain = round.cardChain
+      .then(() => Promise.all([dealer.ready(), round.cardMounted]))
+      .then(() => this.applyCardMessage(round, msg))
+      .catch((err: unknown) => console.error('[online] karetní tah', err));
+  }
+
+  private async applyCardMessage(round: RoundState, msg: CardPlay): Promise<void> {
+    const runner = this.cardRunner(round);
+    if (
+      this.round !== round ||
+      round.ended ||
+      !runner ||
+      ('player' in msg && msg.player !== this.opponent)
+    ) {
+      return;
+    }
+    switch (msg.kind) {
+      case 'move':
+        this.countAfk(this.opponent, msg.auto);
+        this.applyCardMove(round, runner, msg.move);
+        break;
+      case 'commit':
+        if (this.cardStep(round, msg.step ?? 0).receiveCommit(msg.hash)) {
+          this.countAfk(this.opponent, msg.auto);
+          runner.markCommitted(this.opponent);
+        }
+        break;
+      case 'reveal': {
+        const ok = await this.cardStep(round, msg.step ?? 0).receiveReveal(msg.move, msg.salt);
+        if (this.round !== round || round.ended) return;
+        if (!ok) this.detectCheat('Soupeř odhalil jiný tah, než ke kterému se zavázal.');
+        else this.applyCardMove(round, runner, msg.move);
+        break;
+      }
+    }
+  }
+
+  private applyCardMove(round: RoundState, runner: AnyRunner, input: unknown): void {
+    const { game, dealer } = round;
+    const parsed = game.moveSchema.safeParse(input);
+    if (!parsed.success) {
+      this.detectCheat('Soupeř poslal nevalidní tah.');
+      return;
+    }
+    const claims = game.cards?.claims(parsed.data) ?? [];
+    if (claims.length > 0 && !dealer?.check(claims)) {
+      this.detectCheat('Soupeř vyložil kartu, kterou nemá.');
+      return;
+    }
+    this.clearFallback(round);
+    // Oba hráči mají stejný stav – neplatný tah znamená upravený klient.
+    if (!runner.submitRemote(this.opponent, parsed.data)) {
+      this.detectCheat('Soupeř zahrál tah, který pravidla nedovolují.');
+    }
+  }
+
+  /** Host: výsledek z vlastní logiky (čeká, až hra doběhne i u něj). */
+  private waitCardOutcome(round: RoundState): Promise<Outcome | null> {
+    if (round.cardOutcome) return Promise.resolve(round.cardOutcome);
+    return new Promise((resolve) => {
+      round.cardOutcomeWaiters.push(resolve);
+      this.o.clock.setTimeout(() => resolve(null), REVEAL_WAIT_MS);
+    });
+  }
+
+  private async verifyCardRound(
+    round: RoundState,
+    outcome: Outcome | null,
+  ): Promise<string | null> {
+    const dealer = round.dealer;
+    if (!dealer) return null;
+    if (outcome !== null) {
+      const mine = await this.waitCardOutcome(round);
+      if (!mine) return 'Hra u tebe neskončila, ale hostitel tvrdí, že ano.';
+      if (canonicalJson(mine) !== canonicalJson(outcome)) {
+        return 'Výsledek kola od hostitele nesouhlasí s odehranou hrou.';
+      }
+    }
+    return dealer.waitAudit((cb) => {
+      this.o.clock.setTimeout(cb, REVEAL_WAIT_MS);
+    });
+  }
+
   /** Hostitel: host v limitu nereagoval – zahraje se za něj (nebo prohra, pokud neodhalil). */
   private onRemoteSilent(round: RoundState): void {
     round.fallback = null;
@@ -456,6 +682,11 @@ export class OnlineSession {
     if (this.round !== round || round.ended || !runner || !runner.isToMove(this.opponent)) return;
     if (round.sealed?.opponentCommitted) {
       this.detectCheat('Soupeř neodhalil svůj zapečetěný tah.');
+      return;
+    }
+    // Karty: stav drží i host, takže za něj hostitel táhnout nemůže.
+    if (round.dealer) {
+      this.forfeitAfk(this.opponent);
       return;
     }
     if (runner.autoMove(this.opponent)) this.countAfk(this.opponent, true);
@@ -489,6 +720,15 @@ export class OnlineSession {
     if (this.round !== round || round.ended || !this.controller) return;
     round.ended = true;
     this.clearFallback(round);
+    if (round.dealer) {
+      // Karty: výsledek až po ověření celého balíčku (audit klíčů).
+      void this.verifyCardRound(round, null).then((problem) => {
+        if (this.round !== round || this.closed) return;
+        if (problem) this.detectCheat(problem);
+        else this.finishHostRound(round, result);
+      });
+      return;
+    }
     if (round.secrets) {
       // Výsledek se pošle až po ověření, že soupeř odpovídal podle svých tajných dat.
       void this.verifyOpponentSecret(round, round.lastView).then((problem) => {
@@ -520,11 +760,13 @@ export class OnlineSession {
     const round = this.round;
     if (!round || round.ended || roundKey(round.current) !== roundKey(body)) return;
     round.ended = true;
-    const problem = round.sealed
-      ? await this.verifySealedRound(round, body.outcome)
-      : round.secrets
-        ? await this.verifyHiddenRound(round, body.outcome)
-        : null;
+    const problem = round.dealer
+      ? await this.verifyCardRound(round, body.outcome)
+      : round.sealed
+        ? await this.verifySealedRound(round, body.outcome)
+        : round.secrets
+          ? await this.verifyHiddenRound(round, body.outcome)
+          : null;
     if (problem) {
       this.detectCheat(problem);
       return;
@@ -727,7 +969,18 @@ export class OnlineSession {
       if (msg.player === this.opponent) void round.secrets?.receiveReveal(msg.secret, msg.salt);
       return;
     }
+    // Mental poker: míchání, klíče a audit (audit chodí i po konci hry).
+    if (msg.kind === 'deck' || msg.kind === 'card-keys' || msg.kind === 'deck-audit') {
+      round.dealer?.receive(msg);
+      return;
+    }
     if (round.ended) return;
+    if (round.dealer) {
+      if (msg.kind === 'move' || msg.kind === 'commit' || msg.kind === 'reveal') {
+        this.cardMessage(round, msg);
+      }
+      return;
+    }
     if (this.o.role === 'host') this.hostGameMessage(round, msg);
     else this.guestGameMessage(round, msg);
   }
@@ -884,6 +1137,8 @@ export class OnlineSession {
     this.clearFallback(round);
     round.host?.destroy();
     round.guest?.destroy();
+    round.peer?.destroy();
+    for (const resolve of round.cardOutcomeWaiters.splice(0)) resolve(null);
     this.round = null;
   }
 

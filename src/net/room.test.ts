@@ -95,7 +95,7 @@ describe('párování', () => {
     const got: SessionBody[] = [];
     host?.peer.onMessage((b) => got.push(b));
     guest.peer.send({ type: 'rematch', match: 1 });
-    await run(clock, 200);
+    await runUntil(clock, () => got.length > 0);
     expect(got).toEqual([{ type: 'rematch', match: 1 }]);
   });
 
@@ -105,7 +105,7 @@ describe('párování', () => {
     await runUntil(clock, settledFlag(first));
     await first;
     const third = observe(join('Petr'));
-    await run(clock, 300);
+    await runUntil(clock, () => third.reason !== null);
     expect(third.reason).toBe('full');
   });
 
@@ -126,7 +126,7 @@ describe('párování', () => {
       build: 'starsi-build',
       pub: (await createKeyPair()).publicKey,
     });
-    await run(clock, 200);
+    await runUntil(clock, () => answers.length > 0);
     expect(mismatch).toHaveBeenCalledOnce();
     expect(answers).toEqual([
       expect.objectContaining({ type: 'version-mismatch', to: id, build: BUILD_ID }),
@@ -155,7 +155,7 @@ describe('párování', () => {
       );
     });
     const joining = observe(join('Jana'));
-    await run(clock, 300);
+    await runUntil(clock, () => joining.reason !== null);
     expect(joining.reason).toBe('version');
     expect(seen.some((m) => (m as { type: string }).type === 'version-mismatch')).toBe(true);
   });

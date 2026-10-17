@@ -6,6 +6,9 @@ import { connectFour } from './connect-four';
 import { dotsAndBoxes } from './dots-and-boxes';
 import { logik } from './logik';
 import { nim } from './nim';
+import { okoBere } from './oko-bere';
+import { pexeso } from './pexeso';
+import { prsi } from './prsi';
 import { quickDraw } from './quick-draw';
 import { reflex } from './reflex';
 import { rps } from './rps';
@@ -26,6 +29,9 @@ export const GAMES: readonly AnyMiniGameModule[] = [
   dotsAndBoxes,
   battleship,
   logik,
+  okoBere,
+  prsi,
+  pexeso,
 ];
 
 export const GAME_INFOS: readonly GameInfo[] = GAMES.map(({ id, name, type, length }) => ({

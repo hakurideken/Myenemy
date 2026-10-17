@@ -1,5 +1,7 @@
+import { LocalDealer } from './cards/LocalDealer';
 import type {
   AIContext,
+  CardDealer,
   GameInfo,
   GameView,
   MiniGame,
@@ -45,6 +47,10 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   private readonly pendingSecrets = new Set<PlayerSlot>();
   /** Čerstvě zadaná tajná data: true = zvolená automaticky (neaktivita). */
   private readonly freshSecrets = new Map<PlayerSlot, boolean>();
+  /** Karetní hry: kdo zná karty (lokálně celý balíček, online mental poker). */
+  private dealer: CardDealer | null = null;
+  private dealerReady = false;
+  private offDealer: (() => void) | null = null;
 
   constructor(private readonly game: MiniGameModule<S, M, V, Sec>) {
     this.info = { id: game.id, name: game.name, type: game.type, length: game.length };
@@ -53,6 +59,12 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   init(ctx: RoundContext): void {
     this.ctx = ctx;
     this.current = { state: this.game.logic.setup({ rng: ctx.rng, starter: ctx.starter }) };
+    const cards = this.game.cards;
+    if (cards) {
+      this.dealer = ctx.dealer ?? new LocalDealer(cards.deckSize, ctx.rng);
+      // Dorazil klíč / karta – možná jde odhalit, co hra čeká, nebo překreslit ruku.
+      this.offDealer = this.dealer.onChange(() => this.step());
+    }
     const localPlayers = PLAYER_SLOTS.filter((p) => ctx.seats[p].kind === 'human');
     this.perspective = localPlayers[0] ?? 'A';
     const hidden = this.game.hidden;
@@ -83,7 +95,20 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   }
 
   start(): void {
-    this.step();
+    const dealer = this.dealer;
+    if (!dealer) {
+      this.step();
+      return;
+    }
+    this.render();
+    dealer.ready().then(
+      () => {
+        if (this.destroyed) return;
+        this.dealerReady = true;
+        this.step();
+      },
+      (err: unknown) => console.error(`[${this.game.id}] míchání balíčku selhalo`, err),
+    );
   }
 
   onInput(player: PlayerSlot, input: unknown): void {
@@ -160,6 +185,7 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
     if (this.endTimer !== null) this.ctx?.clock.clearTimeout(this.endTimer);
     if (this.handoffTimer !== null) this.ctx?.clock.clearTimeout(this.handoffTimer);
     this.ctx?.showTurnTimer(null, 0);
+    this.offDealer?.();
     this.view?.destroy();
   }
 
@@ -216,15 +242,22 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   private applyMove(player: PlayerSlot, move: M, auto = false, notify = true): boolean {
     if (this.destroyed || this.finished || !this.current) return false;
     const { logic } = this.game;
-    if (!logic.toMove(this.state).includes(player) || !logic.legal(this.state, player, move)) {
+    const toMove = logic.toMove(this.state);
+    if (!toMove.includes(player) || !logic.legal(this.state, player, move)) {
       console.warn(`[${this.game.id}] neplatný tah hráče ${player}`, move);
+      return false;
+    }
+    // Karetní hry: vyložená karta musí být opravdu ta, kterou tah tvrdí.
+    const claims = this.game.cards?.claims(move) ?? [];
+    if (claims.length > 0 && !this.dealer?.check(claims)) {
+      console.warn(`[${this.game.id}] tah tvrdí kartu, kterou hráč nemá`, move);
       return false;
     }
     this.current = { state: logic.apply(this.state, player, move) };
     this.committed.delete(player);
     this.clearMoveTimer(player);
     if (notify && this.context.seats[player].kind === 'human') {
-      this.context.bridge?.localMove(player, move, auto);
+      this.context.bridge?.localMove(player, move, auto, toMove.length > 1);
     }
     this.step();
     return true;
@@ -263,6 +296,14 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
       return;
     }
 
+    if (this.game.cards) {
+      if (!this.dealerReady) {
+        this.canAct = [];
+        this.render();
+        return;
+      }
+      if (this.resolveCards()) return;
+    }
     const toMove = this.game.logic.toMove(this.state);
     if (this.autoRespond(toMove)) return;
     for (const p of toMove) {
@@ -283,6 +324,43 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
     this.canAct = humans;
     this.render();
     this.armMoveTimers(humans);
+  }
+
+  /**
+   * Karty: nároky hráčů, veřejná odhalení, na která hra čeká, a tahy z vlastních karet.
+   * true = stav se změnil (nebo se čeká na rozdávajícího) a krok je vyřízený.
+   */
+  private resolveCards(): boolean {
+    const { cards, logic } = this.game;
+    const dealer = this.dealer;
+    if (!cards || !dealer) return false;
+    const views = { A: logic.view(this.state, 'A'), B: logic.view(this.state, 'B') };
+    const pending = cards.pendingPublic(views.A);
+    const shared = [...cards.publicCards(views.A).map((c) => c.pos), ...pending];
+    dealer.entitle({
+      A: [...cards.privateFor(views.A, 'A'), ...shared],
+      B: [...cards.privateFor(views.B, 'B'), ...shared],
+    });
+    if (pending.length > 0) {
+      const revealed = dealer.peek(pending);
+      if (!revealed) {
+        // Online: čeká se na klíč od soupeře (onChange zavolá krok znovu).
+        this.canAct = [];
+        this.render();
+        return true;
+      }
+      this.current = { state: cards.reveal(this.state, revealed) };
+      this.step();
+      return true;
+    }
+    if (cards.autoMove) {
+      for (const p of logic.toMove(this.state)) {
+        if (this.context.seats[p].kind === 'remote') continue;
+        const move = cards.autoMove(views[p], p, dealer.known(p));
+        if (move !== null && this.applyMove(p, move)) return true;
+      }
+    }
+    return false;
   }
 
   private stepHotseat(humans: readonly PlayerSlot[]): void {
@@ -359,6 +437,7 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
       finished: this.finished,
       committed: [...this.committed],
       secret: this.secrets.get(this.perspective) ?? null,
+      cards: this.dealer && this.dealerReady ? this.dealer.known(this.perspective) : null,
     });
     this.publish();
   }
@@ -380,7 +459,14 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
 
   private aiContext(player: PlayerSlot, difficulty: Difficulty): AIContext {
     const ctx = this.context;
-    return { difficulty, rng: ctx.aiRng, me: player, memory: ctx.aiMemory };
+    const cards = this.dealer && this.dealerReady ? this.dealer.known(player) : undefined;
+    return {
+      difficulty,
+      rng: ctx.aiRng,
+      me: player,
+      memory: ctx.aiMemory,
+      ...(cards && { cards }),
+    };
   }
 
   private scheduleAI(player: PlayerSlot): void {

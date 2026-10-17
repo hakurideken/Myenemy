@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LocalDealer } from '../core/cards/LocalDealer';
 import { AIMemory, type AnyMiniGameModule } from '../core/MiniGame';
 import { DIFFICULTIES, type Difficulty, type PlayerSlot } from '../core/types';
 import { createRng, type Rng } from '../core/util/rng';
@@ -6,25 +7,75 @@ import { GAME_INFOS, GAMES, getGame } from './registry';
 
 const MODES = ['pve', 'local', 'online'] as const;
 
-/** Tajná data obou hráčů (u her se skrytou informací), jinak null. */
-function secretsFor(game: AnyMiniGameModule, rng: Rng): Record<PlayerSlot, unknown> | null {
-  const hidden = game.hidden;
-  return hidden ? { A: hidden.randomSecret(rng), B: hidden.randomSecret(rng) } : null;
+/** Simulace hry bez runneru: tajná data (skrytá informace) a rozdávající (karty). */
+interface Sim {
+  state: unknown;
+  readonly secrets: Record<PlayerSlot, unknown> | null;
+  readonly dealer: LocalDealer | null;
 }
 
-/** Tah hráče: z tajných dat (odpověď), jinak tah AI. */
-function playerMove(
-  game: AnyMiniGameModule,
-  state: unknown,
-  player: PlayerSlot,
-  secrets: Record<PlayerSlot, unknown> | null,
-  rng: Rng,
-  difficulty: Difficulty = 'easy',
-): unknown {
-  const view = game.logic.view(state, player);
-  const answer = secrets ? game.hidden?.respond(view, player, secrets[player]) : null;
+function simulate(game: AnyMiniGameModule, rng: Rng, starter: PlayerSlot): Sim {
+  const hidden = game.hidden;
+  const sim: Sim = {
+    state: game.logic.setup({ rng, starter }),
+    secrets: hidden ? { A: hidden.randomSecret(rng), B: hidden.randomSecret(rng) } : null,
+    dealer: game.cards ? new LocalDealer(game.cards.deckSize, rng) : null,
+  };
+  settleCards(game, sim);
+  return sim;
+}
+
+/** Karty: rozdá nároky a odhalí, na co hra čeká (jako GameRunner). */
+function settleCards(game: AnyMiniGameModule, sim: Sim): void {
+  const { cards, logic } = game;
+  const dealer = sim.dealer;
+  if (!cards || !dealer) return;
+  for (;;) {
+    const views = { A: logic.view(sim.state, 'A'), B: logic.view(sim.state, 'B') };
+    const pending = cards.pendingPublic(views.A);
+    const shared = [...cards.publicCards(views.A).map((c) => c.pos), ...pending];
+    dealer.entitle({
+      A: [...cards.privateFor(views.A, 'A'), ...shared],
+      B: [...cards.privateFor(views.B, 'B'), ...shared],
+    });
+    const revealed = pending.length > 0 ? dealer.peek(pending) : null;
+    if (!revealed) return;
+    sim.state = cards.reveal(sim.state, revealed);
+  }
+}
+
+/** Tah, který hraje automatika (z tajných dat nebo vlastních karet), jinak null. */
+function forcedMove(game: AnyMiniGameModule, sim: Sim, player: PlayerSlot): unknown {
+  const view = game.logic.view(sim.state, player);
+  const answer = sim.secrets ? game.hidden?.respond(view, player, sim.secrets[player]) : null;
   if (answer !== null && answer !== undefined) return answer;
-  return game.getAIMove(view, { difficulty, rng, me: player, memory: new AIMemory() });
+  if (sim.dealer) return game.cards?.autoMove?.(view, player, sim.dealer.known(player)) ?? null;
+  return null;
+}
+
+function aiMove(
+  game: AnyMiniGameModule,
+  sim: Sim,
+  player: PlayerSlot,
+  rng: Rng,
+  difficulty: Difficulty,
+): unknown {
+  const cards = sim.dealer?.known(player);
+  return game.getAIMove(game.logic.view(sim.state, player), {
+    difficulty,
+    rng,
+    me: player,
+    memory: new AIMemory(),
+    ...(cards && { cards }),
+  });
+}
+
+function apply(game: AnyMiniGameModule, sim: Sim, player: PlayerSlot, move: unknown): void {
+  expect(game.logic.legal(sim.state, player, move)).toBe(true);
+  const claims = game.cards?.claims(move) ?? [];
+  if (sim.dealer) expect(sim.dealer.check(claims)).toBe(true);
+  sim.state = game.logic.apply(sim.state, player, move);
+  settleCards(game, sim);
 }
 
 describe('registr miniher', () => {
@@ -46,50 +97,46 @@ describe('registr miniher', () => {
     it.each(DIFFICULTIES)('AI (%s) vrací validní a platný tah', (difficulty) => {
       const rng = createRng(`contract-${game.id}-${difficulty}`);
       for (let round = 0; round < 20; round++) {
-        let state = game.logic.setup({ rng, starter: round % 2 === 0 ? 'A' : 'B' });
-        const secrets = secretsFor(game, rng);
-        // U skryté informace nejdřív tahy z tajných dat (rozmístění, volba kódu).
+        const sim = simulate(game, rng, round % 2 === 0 ? 'A' : 'B');
+        // Nejdřív automatické tahy (rozmístění, volba kódu, vynucené tahy z karet).
         for (;;) {
-          const player = game.logic.toMove(state)[0];
-          const view = player ? game.logic.view(state, player) : null;
-          const answer =
-            player && secrets ? game.hidden?.respond(view, player, secrets[player]) : null;
-          if (!player || answer === null || answer === undefined) break;
-          state = game.logic.apply(state, player, answer);
+          const player = game.logic.toMove(sim.state)[0];
+          const forced = player ? forcedMove(game, sim, player) : null;
+          if (!player || forced === null) break;
+          apply(game, sim, player, forced);
         }
-        for (const player of game.logic.toMove(state)) {
-          const move = playerMove(game, state, player, null, rng, difficulty);
+        for (const player of game.logic.toMove(sim.state)) {
+          const move = aiMove(game, sim, player, rng, difficulty);
           expect(game.moveSchema.safeParse(move).success).toBe(true);
-          expect(game.logic.legal(state, player, move)).toBe(true);
+          expect(game.logic.legal(sim.state, player, move)).toBe(true);
+          expect(sim.dealer?.check(game.cards?.claims(move) ?? []) ?? true).toBe(true);
         }
       }
     });
 
-    it('každý pohled během hry projde viewSchema (online ho host validuje)', () => {
+    it('celá hra: každý pohled projde viewSchema a hra skončí', () => {
       const rng = createRng(`views-${game.id}`);
       for (let round = 0; round < 10; round++) {
-        let state = game.logic.setup({ rng, starter: round % 2 === 0 ? 'A' : 'B' });
-        const secrets = secretsFor(game, rng);
-        for (let step = 0; step < 400 && game.logic.outcome(state) === null; step++) {
+        const sim = simulate(game, rng, round % 2 === 0 ? 'A' : 'B');
+        for (let step = 0; step < 600 && game.logic.outcome(sim.state) === null; step++) {
           for (const viewer of ['A', 'B'] as const) {
-            const parsed = game.viewSchema.safeParse(game.logic.view(state, viewer));
+            const parsed = game.viewSchema.safeParse(game.logic.view(sim.state, viewer));
             expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
           }
-          const player = game.logic.toMove(state)[0];
+          const player = game.logic.toMove(sim.state)[0];
           if (!player) break;
-          const move = playerMove(game, state, player, secrets, rng);
-          expect(game.logic.legal(state, player, move)).toBe(true);
-          state = game.logic.apply(state, player, move);
+          const move = forcedMove(game, sim, player) ?? aiMove(game, sim, player, rng, 'easy');
+          apply(game, sim, player, move);
         }
-        expect(game.logic.outcome(state)).not.toBeNull();
+        expect(game.logic.outcome(sim.state)).not.toBeNull();
         for (const viewer of ['A', 'B'] as const) {
-          const final = game.logic.view(state, viewer);
+          const final = game.logic.view(sim.state, viewer);
           expect(game.viewSchema.safeParse(final).success).toBe(true);
           if (game.sealed) expect(game.sealed.moveOf(final, viewer)).not.toBeNull();
-          if (game.hidden && secrets) {
+          if (game.hidden && sim.secrets) {
             // Poctivé odpovědi musí projít kontrolou a výsledek plyne z veřejného pohledu.
-            expect(game.hidden.consistent(final, viewer, secrets[viewer])).toBe(true);
-            expect(game.hidden.outcome(final)).toEqual(game.logic.outcome(state));
+            expect(game.hidden.consistent(final, viewer, sim.secrets[viewer])).toBe(true);
+            expect(game.hidden.outcome(final)).toEqual(game.logic.outcome(sim.state));
           }
         }
       }

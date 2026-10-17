@@ -126,6 +126,7 @@ export class RemoteRunner<S, M, V, Sec = unknown> implements MiniGame {
       finished: this.latest.finished,
       committed: this.latest.committed,
       secret: this.secret?.value ?? null,
+      cards: null,
     });
   }
 

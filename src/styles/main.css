@@ -2830,6 +2830,593 @@ legend {
   gap: 6px;
 }
 
+/* ---------- Karty (mariášové) ---------- */
+
+.suit-0 {
+  --suit: #d3313b;
+}
+
+.suit-1 {
+  --suit: #23864a;
+}
+
+.suit-2 {
+  --suit: #d98a0b;
+}
+
+.suit-3 {
+  --suit: #8a5426;
+}
+
+.pcard {
+  flex: none;
+  width: var(--card-w, 64px);
+  aspect-ratio: 2 / 3;
+  filter: drop-shadow(0 4px 6px rgb(0 0 0 / 35%));
+}
+
+.pcard.is-dealt {
+  animation: card-deal 260ms ease-out both;
+}
+
+@keyframes card-deal {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.92);
+  }
+}
+
+.card-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.card-paper {
+  fill: #fbf7ee;
+  stroke: #d8ccb6;
+  stroke-width: 1;
+}
+
+.card-rank {
+  fill: var(--suit);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.suit-fill {
+  fill: var(--suit);
+}
+
+.suit-cap {
+  fill: color-mix(in srgb, var(--suit) 65%, black);
+}
+
+.suit-vein {
+  fill: none;
+  stroke: rgb(255 255 255 / 60%);
+  stroke-linecap: round;
+  stroke-width: 1.4;
+}
+
+.card-ace-ring {
+  fill: none;
+  stroke: var(--suit);
+  stroke-width: 1.5;
+  opacity: 0.35;
+}
+
+.card-figure {
+  fill: var(--suit);
+  opacity: 0.85;
+}
+
+.card-back {
+  fill: #6d1612;
+  stroke: #3d0b09;
+  stroke-width: 1;
+}
+
+.card-back-frame {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.2;
+  opacity: 0.75;
+}
+
+.card-back-dot {
+  fill: var(--gold);
+  opacity: 0.35;
+}
+
+.card-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-height: calc(var(--card-w, 64px) * 1.5);
+}
+
+.card-fan {
+  display: flex;
+  justify-content: center;
+  min-height: calc(var(--card-w, 64px) * 1.5);
+}
+
+.card-fan .pcard + .pcard {
+  margin-left: calc(var(--card-w, 64px) * -0.6);
+}
+
+.suit-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.oko-actions kbd,
+.prsi-actions kbd {
+  margin-left: 8px;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* ---------- Oko bere ---------- */
+
+.oko {
+  gap: 12px;
+}
+
+.oko-seat {
+  --card-w: clamp(52px, 13vw, 72px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 560px);
+  padding: 12px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.oko-seat.is-active {
+  border-color: var(--gold);
+}
+
+.oko-seat-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.oko-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.oko-badge {
+  padding: 2px 10px;
+  border-radius: 99px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.oko-badge:empty {
+  display: none;
+}
+
+.oko-total {
+  min-height: 1.4em;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.oko-total--mine {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.oko-round {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.oko-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* ---------- Prší ---------- */
+
+.prsi {
+  gap: 10px;
+}
+
+.prsi-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 760px);
+}
+
+.prsi-seat--theirs {
+  --card-w: 40px;
+}
+
+.prsi-seat--mine {
+  padding: 10px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-lg);
+}
+
+.prsi-seat--mine.is-active {
+  border-color: var(--gold);
+  background: rgb(255 200 61 / 6%);
+}
+
+.prsi-seat-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.prsi-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.prsi-count {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.prsi-table {
+  --card-w: clamp(64px, 16vw, 86px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 28px;
+}
+
+.prsi-pile {
+  position: relative;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+.prsi-pile:disabled {
+  cursor: default;
+}
+
+.prsi-pile:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.prsi-pile-count {
+  position: absolute;
+  right: -10px;
+  bottom: -8px;
+  min-width: 30px;
+  padding: 2px 6px;
+  border: 2px solid var(--line);
+  border-radius: 99px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.prsi-discard-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.prsi-discard {
+  min-height: calc(var(--card-w) * 1.5);
+}
+
+.prsi-effect {
+  min-height: 1.3em;
+  margin: 0;
+  color: var(--gold);
+  font-weight: 900;
+  text-align: center;
+}
+
+.prsi-event {
+  min-height: 1.3em;
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.prsi-hand {
+  --card-w: clamp(52px, 12vw, 70px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  min-height: calc(var(--card-w) * 1.5);
+}
+
+.prsi-card {
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  transition:
+    transform 120ms,
+    opacity 120ms;
+}
+
+.prsi-card[aria-disabled='true'] {
+  cursor: default;
+}
+
+.prsi-seat--mine.is-active .prsi-card[aria-disabled='true'] {
+  opacity: 0.45;
+}
+
+.prsi-card.is-playable {
+  box-shadow: 0 0 0 3px rgb(255 200 61 / 75%);
+}
+
+.prsi-card.is-playable:hover,
+.prsi-card:focus-visible {
+  transform: translateY(-8px);
+}
+
+.prsi-card:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.prsi-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.prsi-chooser {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.prsi-chooser-title {
+  margin: 0;
+  font-weight: 800;
+}
+
+.prsi-suits {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prsi-suit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbf7ee;
+  color: #241a00;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.prsi-suit:hover,
+.prsi-suit:focus-visible {
+  border-color: var(--gold);
+  outline: none;
+}
+
+.prsi-suit .suit-icon {
+  width: 34px;
+  height: 34px;
+}
+
+/* ---------- Pexeso duel ---------- */
+
+.pex-scores {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pex-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border: 2px solid var(--line);
+  border-radius: 99px;
+  font-weight: 800;
+}
+
+.pex-score.is-turn {
+  border-color: var(--gold);
+}
+
+.pex-score--a .pex-score-value {
+  color: var(--a);
+}
+
+.pex-score--b .pex-score-value {
+  color: var(--b);
+}
+
+.pex-score-value {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+}
+
+.pex-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  width: min(100%, 560px, 82dvh);
+}
+
+.pex-card {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: var(--panel-2);
+  cursor: pointer;
+  transition: transform 160ms;
+}
+
+.pex-card .card-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pex-grid.is-active .pex-card:not(:disabled):hover {
+  transform: translateY(-3px);
+}
+
+.pex-card:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.pex-card:disabled {
+  cursor: default;
+}
+
+.pex-card.is-up {
+  background: #fbf7ee;
+  animation: pex-flip 220ms ease-out;
+}
+
+.pex-card.is-match {
+  box-shadow: 0 0 0 3px var(--gold);
+}
+
+.pex-card.is-taken {
+  border: 2px dashed var(--line);
+  background: transparent;
+  opacity: 0.45;
+}
+
+.pex-card[data-state^='taken-A'] {
+  border-color: var(--a);
+}
+
+.pex-card[data-state^='taken-B'] {
+  border-color: var(--b);
+}
+
+@keyframes pex-flip {
+  from {
+    transform: rotateY(90deg);
+  }
+}
+
+.pex-picture {
+  width: 72%;
+  height: 72%;
+}
+
+.pex-fill {
+  fill: currentColor;
+}
+
+.pex-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.pex-card.is-taken .pex-picture {
+  filter: grayscale(0.3);
+}
+
+.pex-0 {
+  color: #d99a00;
+}
+
+.pex-1 {
+  color: #3b6fd8;
+}
+
+.pex-2 {
+  color: #ea7a12;
+}
+
+.pex-3 {
+  color: #e0294b;
+}
+
+.pex-4 {
+  color: #1f9d55;
+}
+
+.pex-5 {
+  color: #0e9fc7;
+}
+
+.pex-6 {
+  color: #6aa30a;
+}
+
+.pex-7 {
+  color: #9b4fd6;
+}
+
+.pex-8 {
+  color: #0f9488;
+}
+
+.pex-9 {
+  color: #a06a26;
+}
+
+.pex-10 {
+  color: #d9468f;
+}
+
+.pex-11 {
+  color: #4f5bd5;
+}
+
 /* ---------- Online ---------- */
 
 .card-title {

@@ -11,7 +11,14 @@ import {
 import { DRAW, win, type PlayerSlot } from '../core/types';
 import { ManualClock } from '../core/util/clock';
 import { commit } from '../core/util/commitReveal';
+import { createRng } from '../core/util/rng';
 import { logik } from '../games/logik';
+import { okoBere } from '../games/oko-bere';
+import type { OkoView } from '../games/oko-bere/logic';
+import { pexeso } from '../games/pexeso';
+import { pexesoAIMove } from '../games/pexeso/ai';
+import type { PexesoView } from '../games/pexeso/logic';
+import { prsi } from '../games/prsi';
 import type { LogikMove } from '../games/logik/logic';
 import { quickDraw } from '../games/quick-draw';
 import { rps } from '../games/rps';
@@ -19,7 +26,7 @@ import { InMemoryHub, type InMemoryTransport } from '../net/InMemoryTransport';
 import type { Peer } from '../net/Peer';
 import type { SessionBody } from '../net/protocol';
 import { HostRoom, joinRoom, newClientId, type Pairing } from '../net/room';
-import { run, runUntil, settledFlag } from '../test/helpers';
+import { run, runUntil, settle, settledFlag } from '../test/helpers';
 import { SeedExchange } from './exchanges';
 import { OnlineSession, type OnlinePhase, type RoundMount } from './OnlineSession';
 
@@ -581,6 +588,137 @@ describe('online zápas – skrytá informace (Logik)', () => {
     await toPlaying(s.host, s.guest);
     lastView(lk.views, 'A').ctx.submitSecret('A', [0, 0, 0, 0]);
     await run(clock, 71_000, 1000);
+    expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'afk' });
+  });
+});
+
+describe('online zápas – karty (mental poker)', () => {
+  /** Čeká na podmínku; ruční čas posouvá po malých krocích (kryptografie běží opravdu). */
+  async function until(cond: () => boolean, label: string, maxSteps = 4000): Promise<void> {
+    for (let i = 0; i < maxSteps && !cond(); i++) {
+      clock.advance(5);
+      await settle(1);
+    }
+    if (!cond()) throw new Error(`nedočkal jsem se: ${label}`);
+  }
+
+  const frameOf = (views: StubView[], player: PlayerSlot): RenderFrame | undefined =>
+    lastView(views, player).renders.at(-1)?.frame;
+
+  const cardsReady = (views: StubView[]): boolean =>
+    (['A', 'B'] as const).every((p) => frameOf(views, p)?.cards != null);
+
+  it('Pexeso: oba míchají, otáčí se přes klíče obou a výsledek i audit sedí', async () => {
+    const pex = stubbed(pexeso);
+    const s = await sessions([pex.module], { kind: 'vlastni', bestOf: 1, picks: ['pexeso'] });
+    await toPlaying(s.host, s.guest);
+    await until(() => cardsReady(pex.views), 'zamíchaný balíček');
+    const rng = createRng('pexeso-online');
+    const memory = new AIMemory();
+
+    for (let flips = 0; flips < 400 && s.host.phase.name === 'playing'; flips++) {
+      const player = (['A', 'B'] as const).find((p) => frameOf(pex.views, p)?.canAct.includes(p));
+      if (!player) {
+        clock.advance(20);
+        await settle(1);
+        continue;
+      }
+      const view = lastView(pex.views, player).renders.at(-1)?.view as PexesoView;
+      // Hraje jako těžká AI (pamatuje si všechno, co bylo vidět).
+      const move = pexesoAIMove(view, { difficulty: 'hard', rng, me: player, memory });
+      const before = view.moves;
+      lastView(pex.views, player).ctx.submit(player, move);
+      await until(
+        () =>
+          (lastView(pex.views, player).renders.at(-1)?.view as PexesoView).moves > before ||
+          s.host.phase.name !== 'playing',
+        'otočení',
+      );
+    }
+    await until(
+      () => s.host.phase.name === 'round-result' && s.guest.phase.name === 'round-result',
+      'konec kola',
+    );
+    const h = s.host.phase;
+    const g = s.guest.phase;
+    if (h.name !== 'round-result' || g.name !== 'round-result') throw new Error('fáze');
+    expect(g.result.outcome).toEqual(h.result.outcome);
+  });
+
+  it('Oko bere: rozhodnutí jsou zapečetěná, karty soupeře se odhalí až na konci', async () => {
+    const oko = stubbed(okoBere);
+    const s = await sessions([oko.module], { kind: 'vlastni', bestOf: 1, picks: ['oko-bere'] });
+    const seenByHost: SessionBody[] = [];
+    s.hostPairing.peer.onMessage((b) => seenByHost.push(b));
+    await toPlaying(s.host, s.guest);
+    await until(
+      () =>
+        (frameOf(oko.views, 'A')?.cards?.has(0) ?? false) &&
+        (frameOf(oko.views, 'B')?.cards?.has(1) ?? false),
+      'první karty',
+    );
+
+    // Každý zná jen svou kartu (A pozice 0, B pozice 1).
+    expect([...(frameOf(oko.views, 'A')?.cards?.keys() ?? [])]).toEqual([0]);
+    expect([...(frameOf(oko.views, 'B')?.cards?.keys() ?? [])]).toEqual([1]);
+
+    lastView(oko.views, 'B').ctx.submit('B', { kind: 'stand' });
+    await until(() => frameOf(oko.views, 'A')?.committed.includes('B') ?? false, 'závazek hosta');
+    // Hostitel ví jen, že se host rozhodl – ne jak.
+    expect(seenByHost.some((b) => b.type === 'game' && b.body.kind === 'move')).toBe(false);
+    expect(seenByHost.some((b) => b.type === 'game' && b.body.kind === 'reveal')).toBe(false);
+
+    lastView(oko.views, 'A').ctx.submit('A', { kind: 'draw' });
+    await until(
+      () => (lastView(oko.views, 'A').renders.at(-1)?.view as OkoView).hands.A.length === 2,
+      'líznutí hostitele',
+    );
+    await until(() => frameOf(oko.views, 'A')?.cards?.has(2) ?? false, 'karta hostitele');
+    expect(frameOf(oko.views, 'B')?.cards?.has(2)).toBe(false);
+    // Host už stojí – hostitel hraje sám (bez pečetění), dokud nestojí taky nebo nepřetáhne.
+    if (frameOf(oko.views, 'A')?.canAct.includes('A')) {
+      lastView(oko.views, 'A').ctx.submit('A', { kind: 'stand' });
+    }
+    await until(
+      () => s.host.phase.name === 'round-result' && s.guest.phase.name === 'round-result',
+      'konec kola',
+    );
+    const finalB = lastView(oko.views, 'B').renders.at(-1)?.view as OkoView;
+    expect(finalB.shown).toHaveLength(3);
+    const h = s.host.phase;
+    const g = s.guest.phase;
+    if (h.name !== 'round-result' || g.name !== 'round-result') throw new Error('fáze');
+    expect(g.result.outcome).toEqual(h.result.outcome);
+  });
+
+  it('Prší: host vyloží kartu, kterou nemůže doložit klíčem → prohra kontumací', async () => {
+    const game = stubbed(prsi);
+    const s = await sessions([game.module], { kind: 'vlastni', bestOf: 1, picks: ['prsi'] });
+    await toPlaying(s.host, s.guest);
+    await until(() => cardsReady(game.views), 'zamíchaný balíček');
+    // Pozice 4–7 jsou ruka hosta; klíč k ní hostitel nemá, tvrzení nejde ověřit.
+    s.guestPairing.peer.send({
+      type: 'game',
+      match: 1,
+      gameNo: 1,
+      replay: 0,
+      body: { kind: 'move', move: { kind: 'play', pos: 4, card: 31, suit: null }, auto: false },
+    });
+    await until(() => s.host.phase.name === 'match-result', 'kontumace');
+    expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'cheat' });
+  });
+
+  it('host, který se v Oko bere nerozhodne, prohraje kontumací', async () => {
+    const oko = stubbed(okoBere);
+    const s = await sessions(
+      [oko.module],
+      { kind: 'vlastni', bestOf: 1, picks: ['oko-bere'] },
+      { mountGuest: false },
+    );
+    await toPlaying(s.host, s.guest);
+    await until(() => frameOf(oko.views, 'A')?.cards != null, 'zamíchaný balíček');
+    lastView(oko.views, 'A').ctx.submit('A', { kind: 'stand' });
+    await run(clock, 41_000, 1000);
     expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'afk' });
   });
 });

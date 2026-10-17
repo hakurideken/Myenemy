@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { validateNickname } from '../core/nickname';
 
 /** Zvýšit při jakékoli nekompatibilní změně zpráv. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 export const BUILD_ID: string = __BUILD_ID__;
 /** Horní mez velikosti jedné zprávy (znaky kanonického JSON). */
 export const MAX_MESSAGE_CHARS = 32_000;
@@ -10,6 +10,11 @@ export const MAX_MESSAGE_CHARS = 32_000;
 export const clientIdSchema = z.string().regex(/^[0-9a-f]{16}$/);
 const hex32 = z.string().regex(/^[0-9a-f]{32}$/);
 const hex64 = z.string().regex(/^[0-9a-f]{64}$/);
+/** Číslo mental pokeru (nejvýš 2048 bitů). */
+const bigHex = z.string().regex(/^[0-9a-f]{1,512}$/);
+const cardPos = z.number().int().min(0).max(63);
+/** Pořadí současného zapečetěného tahu v karetních hrách (KNP: vždy 0). */
+const sealedStep = z.number().int().min(0).max(999).optional();
 /** Veřejný klíč P-256 (raw 65 B) v base64url. */
 const publicKeySchema = z.string().regex(/^[A-Za-z0-9_-]{87}$/);
 /** HMAC-SHA256 (32 B) v base64url. */
@@ -134,8 +139,20 @@ export const gameBodySchema = z.discriminatedUnion('kind', [
   /** Host → hostitel: tah (validuje moveSchema dané hry). */
   z.object({ kind: z.literal('move'), move: z.unknown(), auto: z.boolean() }),
   /** Zapečetěný tah: SHA-256(sůl ‖ tah). */
-  z.object({ kind: z.literal('commit'), player: playerSlotSchema, hash: hex64, auto: z.boolean() }),
-  z.object({ kind: z.literal('reveal'), player: playerSlotSchema, move: z.unknown(), salt: hex64 }),
+  z.object({
+    kind: z.literal('commit'),
+    player: playerSlotSchema,
+    hash: hex64,
+    auto: z.boolean(),
+    step: sealedStep,
+  }),
+  z.object({
+    kind: z.literal('reveal'),
+    player: playerSlotSchema,
+    move: z.unknown(),
+    salt: hex64,
+    step: sealedStep,
+  }),
   /** Závazek k tajným datům hry (rozmístění lodí, kód): SHA-256(sůl ‖ data). */
   z.object({ kind: z.literal('secret-commit'), player: playerSlotSchema, hash: hex64 }),
   /** Odhalení tajných dat po konci hry (validuje secretSchema dané hry). */
@@ -145,6 +162,22 @@ export const gameBodySchema = z.discriminatedUnion('kind', [
     secret: z.unknown(),
     salt: hex64,
   }),
+  /** Mental poker: balíček po kroku míchání 1–4. */
+  z.object({
+    kind: z.literal('deck'),
+    stage: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+    cards: z.array(bigHex).min(1).max(64),
+  }),
+  /** Mental poker: klíče vlastní vrstvy k pozicím, na které má soupeř nárok. */
+  z.object({
+    kind: z.literal('card-keys'),
+    keys: z
+      .array(z.object({ pos: cardPos, key: bigHex }))
+      .min(1)
+      .max(64),
+  }),
+  /** Mental poker: všechny klíče po konci hry (ověření celého balíčku). */
+  z.object({ kind: z.literal('deck-audit'), keys: z.array(bigHex).min(1).max(64) }),
 ]);
 
 export const sessionBodySchema = z.discriminatedUnion('type', [
