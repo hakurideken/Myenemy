@@ -18,6 +18,9 @@ export const PICTURE_NAMES: readonly string[] = [
   'klíč',
   'zvonek',
   'ryba',
+  'houba',
+  'jablko',
+  'mrak',
 ];
 
 type Shape = { readonly d: string; readonly stroke?: boolean };
@@ -44,6 +47,12 @@ const PICTURES: readonly (readonly Shape[])[] = [
   [{ d: 'M-6-5A5 5 0 1 1-6 5A5 5 0 1 1-6-5ZM-1 0H14M9 0V5M13 0V4', stroke: true }],
   [{ d: 'M-10 7C-9-6-6-11 0-11C6-11 9-6 10 7Z' }, { d: 'M-13 8H13M0 8V12', stroke: true }],
   [{ d: 'M-12 0C-6-8 6-8 10 0C6 8-6 8-12 0ZM10 0L15-6V6Z' }],
+  [{ d: 'M-13 1C-13-10 13-10 13 1ZM-4 1H4L5 12H-5Z' }],
+  [
+    { d: 'M0-5C6-11 14-5 12 4C10 12 4 14 0 11C-4 14-10 12-12 4C-14-5-6-11 0-5Z' },
+    { d: 'M0-5C0-9 2-12 4-14', stroke: true },
+  ],
+  [{ d: 'M-12 9A6 6 0 0 1-11-3A8 8 0 0 1 4-7A7 7 0 0 1 13 2A5 5 0 0 1 12 9Z' }],
 ];
 
 export function pictureIcon(pair: number): SVGSVGElement {

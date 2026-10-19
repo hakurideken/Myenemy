@@ -1,7 +1,8 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
+import { otherPlayer } from '../../core/types';
 import { h, setText } from '../../ui/dom';
 import { MARK_LABEL, outcomeMessage, playerMark, statusLine, turnMessage } from '../shared/board';
-import type { TttMove, TttView } from './logic';
+import { MAX_MARKS, nextToVanish, type TttMove, type TttView } from './logic';
 
 /** Klávesy 1–9 = pole zleva doprava, shora dolů. */
 function cellForKey(code: string): number | null {
@@ -23,7 +24,12 @@ export function createTttView(ctx: ViewContext<TttMove>): GameView<TttView> {
     { class: 'ttt-board', role: 'group', 'aria-label': 'Hrací deska 3×3' },
     cells,
   );
-  const container = h('div', { class: 'board-game ttt' }, status, board);
+  const hint = h(
+    'p',
+    { class: 'ttt-hint' },
+    `Každý má na desce nejvýš ${MAX_MARKS} značky. Vybledlá značka zmizí, až její hráč položí další.`,
+  );
+  const container = h('div', { class: 'board-game ttt' }, status, board, hint);
   ctx.root.append(container);
 
   const active = (): boolean =>
@@ -49,22 +55,37 @@ export function createTttView(ctx: ViewContext<TttMove>): GameView<TttView> {
       latest = view;
       frame = f;
       const canPlay = active();
+      const fading = new Set(
+        (['A', 'B'] as const).flatMap((p) => {
+          const cell = nextToVanish(view, p);
+          return cell === null ? [] : [cell];
+        }),
+      );
+      // Kdo právě táhl, tomu zmizela nejstarší značka – chvíli ji ukázat, jak mizí.
+      const ghostOwner = otherPlayer(view.turn);
       view.cells.forEach((owner, i) => {
         const button = cells[i];
         if (!button) return;
-        if (button.dataset.owner !== (owner ?? '')) {
-          button.dataset.owner = owner ?? '';
+        const ghost = owner === null && view.vanished === i;
+        const key = owner ?? (ghost ? `ghost-${ghostOwner}` : '');
+        if (button.dataset.owner !== key) {
+          button.dataset.owner = key;
           button.replaceChildren(
-            owner ? playerMark(owner) : h('span', { class: 'cell-hint' }, i + 1),
+            owner
+              ? playerMark(owner)
+              : ghost
+                ? h('span', { class: 'ttt-ghost', 'aria-hidden': 'true' }, playerMark(ghostOwner))
+                : h('span', { class: 'cell-hint' }, i + 1),
           );
         }
         const row = Math.floor(i / 3) + 1;
         const col = (i % 3) + 1;
-        button.setAttribute(
-          'aria-label',
-          `Řádek ${row}, sloupec ${col}: ${owner ? `${MARK_LABEL[owner]} (${ctx.names[owner]})` : 'prázdné'}`,
-        );
+        const what = owner
+          ? `${MARK_LABEL[owner]} (${ctx.names[owner]})${fading.has(i) ? ', zmizí jako další' : ''}`
+          : 'prázdné';
+        button.setAttribute('aria-label', `Řádek ${row}, sloupec ${col}: ${what}`);
         button.disabled = owner !== null || !canPlay;
+        button.classList.toggle('is-fading', fading.has(i) && !f.finished);
         button.classList.toggle('is-win', view.winLine?.includes(i) ?? false);
         button.classList.toggle('is-last', view.last === i);
       });

@@ -6,6 +6,7 @@ import { pexesoAIMove } from './ai';
 import {
   CARDS,
   FLIP_LIMIT,
+  PAIRS,
   pairOf,
   pexesoCards,
   pexesoLogic as logic,
@@ -32,7 +33,7 @@ describe('Pexeso – pravidla', () => {
   it('obě kopie dvojice mají jiné číslo karty, ale stejný obrázek', () => {
     expect(pairOf(0)).toBe(pairOf(1));
     expect(pairOf(1)).not.toBe(pairOf(2));
-    expect(CARDS).toBe(24);
+    expect(CARDS).toBe(30);
   });
 
   it('dvojice: hráč ji bere a hraje znovu', () => {
@@ -71,17 +72,18 @@ describe('Pexeso – pravidla', () => {
     expect(logic.legal(s, 'A', { kind: 'flip', pos: 2 })).toBe(false);
   });
 
-  it('vyhrává víc dvojic, 6:6 je remíza', () => {
+  it('vyhrává víc dvojic; při lichém počtu dvojic remíza nenastane', () => {
     const all = (owner: (i: number) => PlayerSlot): PexesoState => ({
       ...start(),
       taken: Array.from({ length: CARDS }, (_, i) => owner(i)),
       score: {
-        A: Array.from({ length: 12 }, (_, i) => owner(2 * i)).filter((p) => p === 'A').length,
-        B: Array.from({ length: 12 }, (_, i) => owner(2 * i)).filter((p) => p === 'B').length,
+        A: Array.from({ length: PAIRS }, (_, i) => owner(2 * i)).filter((p) => p === 'A').length,
+        B: Array.from({ length: PAIRS }, (_, i) => owner(2 * i)).filter((p) => p === 'B').length,
       },
     });
-    expect(logic.outcome(all((i) => (i < 14 ? 'A' : 'B')))).toEqual(win('A'));
-    expect(logic.outcome(all((i) => (i < 12 ? 'A' : 'B')))).toEqual(DRAW);
+    expect(PAIRS % 2).toBe(1);
+    expect(logic.outcome(all((i) => (i < 16 ? 'A' : 'B')))).toEqual(win('A'));
+    expect(logic.outcome(all((i) => (i < 14 ? 'A' : 'B')))).toEqual(win('B'));
     expect(logic.outcome(start())).toBeNull();
   });
 });

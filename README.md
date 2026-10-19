@@ -184,7 +184,7 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
 
 ## Jak otestovat fázi 4 – reakční a tahové hry
 
-1. `npm test` – pravidla a remízy všech šesti her, AI (těžká v Piškvorkách nikdy neprohraje,
+1. `npm test` – pravidla a remízy všech šesti her, AI (těžká v Piškvorkách hraje dokonale,
    v Sirkách z vyhrané pozice vždy vyhraje, v Tečkách a čtverečcích přesně propočítá koncovku)
    a obecný kontrakt v `registry.test.ts` (platné tahy AI, pohledy projdou schématem).
 2. Nejrychleji: **Proti AI → Vlastní výběr → best of 1 → Vybrat hry** a jedna konkrétní hra.
@@ -192,7 +192,8 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
      se nepočítá.
    - **Postřeh:** po výzvě „zelený trojúhelník“ apod. klepni na správný cíl (klávesy 1–4).
      Cíl jde poznat podle barvy i podle tvaru. Špatný cíl = prohra kola.
-   - **Piškvorky:** klávesy 1–9. Těžká AI je neporazitelná – zkus aspoň remízu.
+   - **Piškvorky:** klávesy 1–9. Každý má na desce nejvýš 3 značky (viz níže „Úpravy po
+     fázi 5“).
    - **Čtyři v řadě:** klávesy 1–7, kámen „spadne“ dolů. Těžká AI hledá 7 tahů dopředu.
    - **Sirky:** „Vzít 1/2/3“; při najetí se sirky, které bys vzal, nadzvednou. Trik: nech
      soupeři počet, který dává zbytek 1 po dělení čtyřmi.
@@ -239,7 +240,7 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
    - **Prší:** klikni na zvýrazněnou kartu; svrškem zvolíš barvu (1–4). Na sedmu musíš dát
      sedmu, nebo líznout (2, 4, …), na eso dát eso, nebo stát – bez sedmy / esa se to
      provede samo. Když dojde balíček, otočí se odhazovací.
-   - **Pexeso duel:** otoč dvě kartičky; dvojice = bereš a hraješ znovu. Karty z posledního
+   - **Pexeso duel:** 15 dvojic (30 kartiček). Otoč dvě kartičky; dvojice = bereš a hraješ znovu. Karty z posledního
      tahu zůstanou vidět, dokud někdo neotočí další.
 3. **Dva hráči:** Oko bere a Prší přes „Předej zařízení“ (každý vidí jen svou ruku), Pexeso
    na společné desce.
@@ -267,6 +268,27 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
    mají české popisy („srdcová sedma“, „C5: zásah“), časovač upozorní jednou na posledních
    5 sekund.
 7. **Instalace:** v Chrome / Edge na nasazené adrese jde hru „nainstalovat“ (manifest).
+
+## Úpravy po fázi 5
+
+**Piškvorky bez remízy.** Každý hráč smí mít na desce 3×3 nejvýš 3 značky. Když položí
+čtvrtou, jeho nejstarší značka zmizí. Pole, kde ještě leží, v tom tahu obsadit nejde.
+Značka, která zmizí jako další, je vybledlá (s čárkovaným rámečkem) a při zmizení se
+krátce rozplyne. Hraje se, dokud někdo nesloží trojici. Pojistka: po 60 tazích bez trojice
+je kolo nerozhodné (rozhodující kolo, po třech remízách los).
+
+- Těžká AI hraje dokonale. Celá hra je vyřešená retrográdní analýzou (asi 147 tisíc
+  pozic, spočítá se jednou za ~0,3 s). Kdo začíná, může si vynutit výhru do 13 tahů,
+  takže těžká AI jako začínající vyhraje vždy. Začínající hráč se střídá každé kolo.
+- Střední AI vyhraje nebo zablokuje a hlídá, aby jí zmizelá značka neotevřela soupeři
+  řadu. Lehká hraje většinou náhodně.
+
+**Pexeso s 15 dvojicemi.** 30 kartiček v mřížce 5 × 6 a tři nové obrázky (houba, jablko,
+mrak). Při lichém počtu dvojic remíza nenastane – jen po pojistce 300 otočení.
+
+**Jak otestovat:** Proti AI → Vlastní výběr → best of 1 → Piškvorky. Polož 4 značky
+a sleduj, že nejstarší (vybledlá) zmizí. Pak zkus těžkou AI, když začíná ona, a když
+začínáš ty. U Pexesa zkontroluj, že je 30 kartiček a celá deska je vidět i na mobilu.
 
 ## Architektura
 

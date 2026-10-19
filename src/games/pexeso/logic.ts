@@ -9,7 +9,8 @@ import {
   type PlayerSlot,
 } from '../../core/types';
 
-export const PAIRS = 12;
+/** Lichý počet dvojic – remíza nastat nemůže (jen po limitu otočení). */
+export const PAIRS = 15;
 export const CARDS = PAIRS * 2;
 export const COLS = 6;
 /** Pojistka: po tolika otočeních rozhodne stav dvojic (jinak by šlo otáčet donekonečna). */

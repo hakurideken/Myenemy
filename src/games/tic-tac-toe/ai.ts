@@ -1,80 +1,76 @@
 import type { AIContext } from '../../core/MiniGame';
 import { otherPlayer, type PlayerSlot } from '../../core/types';
 import type { Rng } from '../../core/util/rng';
-import { findWinLine, isFull, LINES, type Cell, type TttMove, type TttView } from './logic';
+import { tttLogic, type TttMove, type TttState, type TttView } from './logic';
+import { solution, VALUE } from './solver';
 
-const empties = (cells: readonly Cell[]): number[] =>
-  cells.flatMap((c, i) => (c === null ? [i] : []));
+const freeCells = (s: TttState): number[] => s.cells.flatMap((c, i) => (c === null ? [i] : []));
 
-/** Pole, kterým hráč hned dokončí trojici. */
-export function winningCell(cells: readonly Cell[], player: PlayerSlot): number | null {
-  for (const [a, b, c] of LINES) {
-    const line = [a, b, c];
-    const mine = line.filter((i) => cells[i] === player).length;
-    const free = line.filter((i) => cells[i] === null);
-    if (mine === 2 && free.length === 1) return free[0] ?? null;
-  }
-  return null;
+/** Stav, jako by byl na tahu daný hráč (pro „co kdyby“ úvahy). */
+const asTurn = (s: TttState, player: PlayerSlot): TttState => ({ ...s, turn: player });
+
+/** Pole, kterými hráč hned vyhraje – s ohledem na to, že mu zmizí nejstarší značka. */
+export function winningCells(s: TttState, player: PlayerSlot): number[] {
+  const state = asTurn(s, player);
+  return freeCells(state).filter((cell) => tttLogic.apply(state, player, { cell }).winLine);
 }
 
-/** Negamax: skóre z pohledu hráče na tahu (rychlejší výhra = vyšší skóre). */
-function negamax(cells: Cell[], player: PlayerSlot, depth: number): number {
-  if (findWinLine(cells)) return -(10 - depth);
-  if (isFull(cells)) return 0;
-  let best = -Infinity;
-  for (const i of empties(cells)) {
-    cells[i] = player;
-    best = Math.max(best, -negamax(cells, otherPlayer(player), depth + 1));
-    cells[i] = null;
+/** Tahy, po kterých soupeř nemůže hned vyhrát (zmizelá značka může otevřít řadu). */
+function safeCells(s: TttState, player: PlayerSlot): number[] {
+  const opp = otherPlayer(player);
+  return freeCells(s).filter(
+    (cell) => winningCells(tttLogic.apply(asTurn(s, player), player, { cell }), opp).length === 0,
+  );
+}
+
+/** Dokonalá hra podle vyřešeného stromu: vyhrát co nejdřív, prohrávat co nejpozději. */
+export function bestMoves(s: TttState, player: PlayerSlot): number[] {
+  const solved = solution();
+  let best: number[] = [];
+  let bestScore = -Infinity;
+  for (const cell of freeCells(s)) {
+    const next = tttLogic.apply(asTurn(s, player), player, { cell });
+    // Hodnota je z pohledu soupeře (ten je po tahu na řadě).
+    const { value, dist } = next.winLine
+      ? { value: VALUE.LOSS, dist: 0 }
+      : solved.lookup(next.marks.A, next.marks.B, next.turn === 'A');
+    const score = value === VALUE.LOSS ? 1000 - dist : value === VALUE.WIN ? -1000 + dist : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      best = [cell];
+    } else if (score === bestScore) {
+      best.push(cell);
+    }
   }
   return best;
 }
 
-/** Všechny nejlepší tahy (dokonalá hra). */
-export function bestMoves(cells: readonly Cell[], player: PlayerSlot): number[] {
-  const board = [...cells];
-  let best = -Infinity;
-  let moves: number[] = [];
-  for (const i of empties(board)) {
-    board[i] = player;
-    const score = -negamax(board, otherPlayer(player), 1);
-    board[i] = null;
-    if (score > best) {
-      best = score;
-      moves = [i];
-    } else if (score === best) {
-      moves.push(i);
-    }
-  }
-  return moves;
-}
-
-function preferredCell(cells: readonly Cell[], rng: Rng): number {
+function preferredCell(cells: readonly number[], rng: Rng): number {
   for (const group of [[4], [0, 2, 6, 8], [1, 3, 5, 7]]) {
-    const free = group.filter((i) => cells[i] === null);
+    const free = group.filter((i) => cells.includes(i));
     if (free.length > 0) return rng.pick(free);
   }
-  return rng.pick(empties(cells));
+  return rng.pick(cells);
 }
 
 /**
  * lehká  – většinou náhodně, někdy si všimne výhry,
- * střední – vyhraje / zablokuje, jinak střed a rohy (občas chybuje),
- * těžká  – dokonalá hra (nikdy neprohraje).
+ * střední – vyhraje / zablokuje a hlídá, aby zmizelá značka neotevřela soupeři řadu,
+ * těžká  – dokonalá hra podle vyřešeného stromu (kdo začíná, může si vynutit výhru).
  */
 export function tttAIMove(view: TttView, ai: AIContext): TttMove {
-  const { cells } = view;
   const { rng, difficulty, me } = ai;
-  if (difficulty === 'hard') return { cell: rng.pick(bestMoves(cells, me)) };
+  const free = freeCells(view);
+  if (difficulty === 'hard') return { cell: rng.pick(bestMoves(view, me)) };
 
-  const winNow = winningCell(cells, me);
+  const winNow = winningCells(view, me);
   if (difficulty === 'easy') {
-    if (winNow !== null && rng.chance(0.4)) return { cell: winNow };
-    return { cell: rng.pick(empties(cells)) };
+    if (winNow.length > 0 && rng.chance(0.4)) return { cell: rng.pick(winNow) };
+    return { cell: rng.pick(free) };
   }
-  if (winNow !== null) return { cell: winNow };
-  const block = winningCell(cells, otherPlayer(me));
-  if (block !== null && rng.chance(0.9)) return { cell: block };
-  if (rng.chance(0.2)) return { cell: rng.pick(empties(cells)) };
-  return { cell: preferredCell(cells, rng) };
+  if (winNow.length > 0) return { cell: rng.pick(winNow) };
+  const safe = safeCells(view, me);
+  const pool = safe.length > 0 && rng.chance(0.9) ? safe : free;
+  if (rng.chance(0.15)) return { cell: rng.pick(pool) };
+  return { cell: preferredCell(pool, rng) };
 }

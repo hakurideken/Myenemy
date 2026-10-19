@@ -1768,6 +1768,45 @@ legend {
   border-color: var(--muted);
 }
 
+/* Značka, která zmizí, až její hráč položí další. */
+.ttt-cell.is-fading .mark {
+  opacity: 0.35;
+}
+
+.ttt-cell.is-fading {
+  border-style: dashed;
+}
+
+.ttt-ghost {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.ttt-cell .ttt-ghost .mark {
+  animation: ttt-vanish 700ms ease-in forwards;
+}
+
+@keyframes ttt-vanish {
+  from {
+    opacity: 0.35;
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.ttt-hint {
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
 .ttt-cell.is-win {
   border-color: var(--gold);
   background: rgb(255 200 61 / 14%);
@@ -3343,7 +3382,8 @@ legend {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
-  width: min(100%, 560px, 82dvh);
+  /* 5 řad kartiček 3 : 4 – šířka podle výšky okna, ať je vidět celá deska. */
+  width: min(100%, 560px, calc((100dvh - 230px) * 0.9));
 }
 
 .pex-card {
@@ -3474,6 +3514,18 @@ legend {
 
 .pex-11 {
   color: #4f5bd5;
+}
+
+.pex-12 {
+  color: #92400e;
+}
+
+.pex-13 {
+  color: #c81e1e;
+}
+
+.pex-14 {
+  color: #64748b;
 }
 
 /* ---------- Online ---------- */

@@ -21,7 +21,7 @@ export const pexeso = defineGame<PexesoState, PexesoMove, PexesoView>({
   rules: [
     `${PAIRS} dvojic kartiček lícem dolů. Na tahu otočíš dvě – když jsou stejné, bereš je a hraješ znovu.`,
     'Když stejné nejsou, otočí se zpět a hraje soupeř. Pamatuj si, co už bylo vidět!',
-    `Vyhrává, kdo má víc dvojic; ${PAIRS / 2}:${PAIRS / 2} je remíza. Po ${FLIP_LIMIT} otočeních rozhodne dosavadní stav. Na otočení máš 45 s.`,
+    `Vyhrává, kdo má víc dvojic – při ${PAIRS} dvojicích remíza nenastane. Po ${FLIP_LIMIT} otočeních rozhodne dosavadní stav. Na otočení máš 45 s.`,
     'Online se kartičky míchají šifrovaně u obou hráčů – rozložení nezná ani hostitel.',
   ],
   controls: (mode) =>
