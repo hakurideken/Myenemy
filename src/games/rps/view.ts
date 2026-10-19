@@ -7,6 +7,7 @@ import {
   type PlayerSlot,
 } from '../../core/types';
 import type { TimerHandle } from '../../core/util/clock';
+import { translations } from '../../i18n';
 import { h, setText } from '../../ui/dom';
 import { rpsIcon } from './icons';
 import {
@@ -17,6 +18,37 @@ import {
   type RpsMove,
   type RpsView,
 } from './logic';
+
+const t = translations(
+  {
+    yourChoice: 'Tvoje volba',
+    draw: 'remíza',
+    wins: (name: string) => `vyhrává ${name}`,
+    shake: 'Kámen… nůžky… papír!',
+    reveal: 'Odhalení!',
+    pickNamed: (name: string) => `${name}, vyber zbraň`,
+    pick: 'Vyber zbraň',
+    chosen: (choice: string) => `Vybráno: ${choice}.`,
+    revealing: 'Odhalujeme…',
+    waitingOpponent: 'Čekám na soupeře…',
+    opponentReady: 'Soupeř už má vybráno!',
+    opponentChoosing: 'Soupeř vybírá…',
+  },
+  {
+    yourChoice: 'Your choice',
+    draw: 'draw',
+    wins: (name: string) => `${name} wins`,
+    shake: 'Rock… paper… scissors!',
+    reveal: 'Reveal!',
+    pickNamed: (name: string) => `${name}, pick your weapon`,
+    pick: 'Pick your weapon',
+    chosen: (choice: string) => `Chosen: ${choice}.`,
+    revealing: 'Revealing…',
+    waitingOpponent: 'Waiting for the opponent…',
+    opponentReady: 'The opponent has already chosen!',
+    opponentChoosing: 'The opponent is choosing…',
+  },
+);
 
 const KEYS: Partial<Record<string, RpsChoice>> = {
   Digit1: 'rock',
@@ -71,7 +103,7 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
   );
   const picker = h(
     'div',
-    { class: 'rps-picker', role: 'group', 'aria-label': 'Tvoje volba' },
+    { class: 'rps-picker', role: 'group', 'aria-label': t.yourChoice },
     buttons,
   );
 
@@ -134,7 +166,7 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
       side.el.classList.toggle('is-winner', outcome.kind === 'win' && outcome.winner === p);
       side.el.classList.toggle('is-loser', outcome.kind === 'win' && outcome.winner !== p);
     }
-    const result = outcome.kind === 'draw' ? 'remíza' : `vyhrává ${ctx.names[outcome.winner]}`;
+    const result = outcome.kind === 'draw' ? t.draw : t.wins(ctx.names[outcome.winner]);
     setText(verdict, `${describeRps(revealed)} – ${result}`);
   }
 
@@ -149,7 +181,7 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
     }
     container.classList.add('is-shaking');
     for (const p of PLAYER_SLOTS) sides[p].icon.replaceChildren(rpsIcon('rock'));
-    setText(verdict, 'Kámen… nůžky… papír!');
+    setText(verdict, t.shake);
     timers.push(ctx.clock.setTimeout(() => showFinal(revealed, outcome), RPS_SHAKE_MS));
   }
 
@@ -161,10 +193,10 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
       setText(
         prompt,
         f.finished
-          ? 'Odhalení!'
+          ? t.reveal
           : ctx.mode === 'local'
-            ? `${ctx.names[f.perspective]}, vyber zbraň`
-            : 'Vyber zbraň',
+            ? t.pickNamed(ctx.names[f.perspective])
+            : t.pick,
       );
       const mine = myChoice();
       const opponentReady = view.opponentReady || f.committed.includes(otherPlayer(f.perspective));
@@ -177,9 +209,9 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
       if (!f.finished) {
         let text: string;
         if (mine) {
-          text = `Vybráno: ${CHOICE_LABEL[mine]}. ${opponentReady ? 'Odhalujeme…' : 'Čekám na soupeře…'}`;
+          text = `${t.chosen(CHOICE_LABEL[mine])} ${opponentReady ? t.revealing : t.waitingOpponent}`;
         } else {
-          text = opponentReady ? 'Soupeř už má vybráno!' : 'Soupeř vybírá…';
+          text = opponentReady ? t.opponentReady : t.opponentChoosing;
         }
         setText(status, text);
       }

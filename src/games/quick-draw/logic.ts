@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import type { GameLogic } from '../../core/MiniGame';
 import { DRAW, PLAYER_SLOTS, win, type Outcome, type PlayerSlot } from '../../core/types';
+import { translations } from '../../i18n';
+
+const t = translations(
+  { falseStart: 'předčasně', timeout: 'nestihl' },
+  { falseStart: 'too early', timeout: 'too late' },
+);
 
 /** Rychlejší „reakce“ je odhad, ne reakce – počítá se jako předčasný výstřel (jako ve sprintu). */
 export const MIN_REACTION_MS = 100;
@@ -78,5 +84,5 @@ export const quickDrawLogic: GameLogic<QuickDrawState, QuickDrawMove, QuickDrawV
 export function formatResult(result: QuickDrawResult | undefined): string {
   if (!result) return '…';
   if (result.kind === 'reacted') return `${result.ms} ms`;
-  return result.kind === 'false-start' ? 'předčasně' : 'nestihl';
+  return result.kind === 'false-start' ? t.falseStart : t.timeout;
 }

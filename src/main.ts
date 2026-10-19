@@ -1,6 +1,7 @@
 import './styles/main.css';
 import { InMemoryHub, type InMemoryTransport } from './net/InMemoryTransport';
 import { roomFromSearch } from './net/room';
+import { lang } from './i18n';
 import { App } from './ui/App';
 import { h } from './ui/dom';
 
@@ -8,6 +9,7 @@ const root = document.getElementById('app');
 if (!root) throw new Error('Chybí kořenový element #app');
 
 const params = new URLSearchParams(window.location.search);
+document.documentElement.lang = lang();
 
 if (import.meta.env.DEV && params.has('duo')) {
   // Vývoj: dva hráči vedle sebe v jedné záložce, spojení přes InMemoryTransport (bez internetu).

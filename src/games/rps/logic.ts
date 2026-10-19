@@ -8,6 +8,28 @@ import {
   type PerPlayer,
   type PlayerSlot,
 } from '../../core/types';
+import { translations } from '../../i18n';
+
+const t = translations(
+  {
+    choice: { rock: 'Kámen', scissors: 'Nůžky', paper: 'Papír' },
+    verdict: {
+      rock: 'kámen tupí nůžky',
+      scissors: 'nůžky stříhají papír',
+      paper: 'papír balí kámen',
+    },
+    bothChose: (choice: string) => `Oba zvolili ${choice}`,
+  },
+  {
+    choice: { rock: 'Rock', scissors: 'Scissors', paper: 'Paper' },
+    verdict: {
+      rock: 'rock crushes scissors',
+      scissors: 'scissors cut paper',
+      paper: 'paper covers rock',
+    },
+    bothChose: (choice: string) => `Both chose ${choice}`,
+  },
+);
 
 export const RPS_CHOICES = ['rock', 'scissors', 'paper'] as const;
 export type RpsChoice = (typeof RPS_CHOICES)[number];
@@ -26,17 +48,9 @@ export const COUNTER: Record<RpsChoice, RpsChoice> = {
   paper: 'scissors',
 };
 
-export const CHOICE_LABEL: Record<RpsChoice, string> = {
-  rock: 'Kámen',
-  scissors: 'Nůžky',
-  paper: 'Papír',
-};
+export const CHOICE_LABEL: Record<RpsChoice, string> = t.choice;
 
-const VERDICT: Record<RpsChoice, string> = {
-  rock: 'kámen tupí nůžky',
-  scissors: 'nůžky stříhají papír',
-  paper: 'papír balí kámen',
-};
+const VERDICT: Record<RpsChoice, string> = t.verdict;
 
 export interface RpsMove {
   readonly choice: RpsChoice;
@@ -97,7 +111,7 @@ export const rpsLogic: GameLogic<RpsState, RpsMove, RpsView> = {
 
 export function describeRps(revealed: PerPlayer<RpsChoice>): string {
   const outcome = judgeRps(revealed.A, revealed.B);
-  if (outcome.kind === 'draw') return `Oba zvolili ${CHOICE_LABEL[revealed.A].toLowerCase()}`;
+  if (outcome.kind === 'draw') return t.bothChose(CHOICE_LABEL[revealed.A].toLowerCase());
   const verdict = VERDICT[revealed[outcome.winner]];
   return verdict.charAt(0).toUpperCase() + verdict.slice(1);
 }

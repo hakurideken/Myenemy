@@ -1,4 +1,7 @@
+import { translations } from '../../i18n';
 import { h, uid } from '../dom';
+
+const t = translations({ stay: 'Zůstat' }, { stay: 'Stay' });
 
 /**
  * Zbytek obrazovky za dialogem: neklikatelný, mimo Tab i mimo čtečku obrazovky.
@@ -50,7 +53,7 @@ export function confirmDialog(host: HTMLElement, o: ConfirmOptions): Promise<boo
     const titleId = uid('dialog-title');
     const textId = uid('dialog-text');
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const cancel = h('button', { type: 'button', class: 'btn' }, o.cancel ?? 'Zůstat');
+    const cancel = h('button', { type: 'button', class: 'btn' }, o.cancel ?? t.stay);
     const confirm = h('button', { type: 'button', class: 'btn btn-danger' }, o.confirm);
     const dialog = h(
       'div',

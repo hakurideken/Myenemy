@@ -1,6 +1,7 @@
 import type { GameView, ViewContext } from '../../core/MiniGame';
 import { otherPlayer, type Outcome, type PlayerSlot } from '../../core/types';
 import type { TimerHandle } from '../../core/util/clock';
+import { translations } from '../../i18n';
 import { h, setText, svg } from '../../ui/dom';
 import {
   formatResult,
@@ -9,6 +10,49 @@ import {
   type QuickDrawResult,
   type QuickDrawView,
 } from './logic';
+
+const t = translations(
+  {
+    draw: 'Remíza',
+    winner: 'Vítěz!',
+    falseStart: 'Předčasně!',
+    timeout: 'Nestihl',
+    slower: 'Pomalejší',
+    getReady: 'Připrav se…',
+    splitHint: (key: string) => `Klávesa ${key} nebo klepni sem`,
+    soloHint: 'Mezerník, Enter nebo klepni kamkoli',
+    opponentWaiting: 'čeká na signál',
+    opponentAiming: 'míří…',
+    opponentFired: 'vystřelil!',
+    opponentFalseStart: 'vystřelil předčasně!',
+    signalLive: 'Pal!',
+    signal: 'PAL!',
+    shot: 'Výstřel!',
+    youTimedOut: 'Nestihl jsi!',
+    drawLive: 'Remíza.',
+    winnerLive: (name: string) => `Vítěz: ${name}.`,
+  },
+  {
+    draw: 'Draw',
+    winner: 'Winner!',
+    falseStart: 'Too early!',
+    timeout: 'Too late',
+    slower: 'Slower',
+    getReady: 'Get ready…',
+    splitHint: (key: string) => `Press ${key} or tap here`,
+    soloHint: 'Space, Enter or tap anywhere',
+    opponentWaiting: 'waiting for the signal',
+    opponentAiming: 'aiming…',
+    opponentFired: 'fired!',
+    opponentFalseStart: 'fired too early!',
+    signalLive: 'Fire!',
+    signal: 'FIRE!',
+    shot: 'Bang!',
+    youTimedOut: 'Too late!',
+    drawLive: 'Draw.',
+    winnerLive: (name: string) => `Winner: ${name}.`,
+  },
+);
 
 const SPLIT_KEYS: Partial<Record<string, PlayerSlot>> = { KeyA: 'A', KeyL: 'B' };
 const SOLO_KEYS = new Set(['Space', 'Enter']);
@@ -39,11 +83,11 @@ function finalStatus(
   result: QuickDrawResult | undefined,
   outcome: Outcome,
 ): string {
-  if (outcome.kind === 'draw') return 'Remíza';
-  if (outcome.winner === player) return 'Vítěz!';
-  if (result?.kind === 'false-start') return 'Předčasně!';
-  if (result?.kind === 'timeout') return 'Nestihl';
-  return 'Pomalejší';
+  if (outcome.kind === 'draw') return t.draw;
+  if (outcome.winner === player) return t.winner;
+  if (result?.kind === 'false-start') return t.falseStart;
+  if (result?.kind === 'timeout') return t.timeout;
+  return t.slower;
 }
 
 export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<QuickDrawView> {
@@ -60,11 +104,9 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
   const arena = h('div', { class: `qd ${split ? 'qd--split' : 'qd--solo'}`, tabindex: '-1' });
 
   const lanes: Lane[] = ctx.localPlayers.map((player) => {
-    const status = h('span', { class: 'qd-status' }, 'Připrav se…');
+    const status = h('span', { class: 'qd-status' }, t.getReady);
     const time = h('span', { class: 'qd-time' });
-    const hint = split
-      ? `Klávesa ${player === 'A' ? 'A' : 'L'} nebo klepni sem`
-      : 'Mezerník, Enter nebo klepni kamkoli';
+    const hint = split ? t.splitHint(player === 'A' ? 'A' : 'L') : t.soloHint;
     const el = h(
       'div',
       {
@@ -84,7 +126,7 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
   });
 
   const opponent = split ? null : otherPlayer(ctx.localPlayers[0] ?? 'A');
-  const opponentStatus = h('span', { class: 'qd-opponent-status' }, 'čeká na signál');
+  const opponentStatus = h('span', { class: 'qd-opponent-status' }, t.opponentWaiting);
   const opponentEl = opponent
     ? h(
         'div',
@@ -129,7 +171,7 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
     });
     arena.classList.remove('is-waiting');
     arena.classList.add('is-signal');
-    live.textContent = 'Pal!';
+    live.textContent = t.signalLive;
     ctx.sfx.play('signal');
     ctx.sfx.vibrate(60);
     for (const lane of lanes) {
@@ -145,9 +187,9 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
   }
 
   function laneStatus(result: QuickDrawResult | undefined): string {
-    if (!result) return signalShown ? 'PAL!' : 'Připrav se…';
-    if (result.kind === 'reacted') return 'Výstřel!';
-    return result.kind === 'false-start' ? 'Předčasně!' : 'Nestihl jsi!';
+    if (!result) return signalShown ? t.signal : t.getReady;
+    if (result.kind === 'reacted') return t.shot;
+    return result.kind === 'false-start' ? t.falseStart : t.youTimedOut;
   }
 
   function update(): void {
@@ -168,9 +210,10 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
     }
     if (opponent && opponentEl) {
       const result = results[opponent];
-      let text = signalShown ? 'míří…' : 'čeká na signál';
+      let text = signalShown ? t.opponentAiming : t.opponentWaiting;
       if (result && outcome) text = formatResult(result);
-      else if (result) text = result.kind === 'false-start' ? 'vystřelil předčasně!' : 'vystřelil!';
+      else if (result)
+        text = result.kind === 'false-start' ? t.opponentFalseStart : t.opponentFired;
       setText(opponentStatus, text);
       opponentEl.classList.toggle('is-done', result !== undefined);
       opponentEl.classList.toggle(
@@ -181,7 +224,7 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
     arena.classList.toggle('is-finished', outcome !== null);
     if (outcome) {
       live.textContent =
-        outcome.kind === 'draw' ? 'Remíza.' : `Vítěz: ${ctx.names[outcome.winner]}.`;
+        outcome.kind === 'draw' ? t.drawLive : t.winnerLive(ctx.names[outcome.winner]);
     }
   }
 

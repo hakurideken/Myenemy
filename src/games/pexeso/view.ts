@@ -1,27 +1,67 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
+import { translations } from '../../i18n';
 import { h, setText, svg } from '../../ui/dom';
 import { outcomeMessage, turnMessage } from '../shared/board';
 import { cardBack } from '../shared/cardView';
 import { CARDS, COLS, pairOf, ROWS, seenCard, type PexesoMove, type PexesoView } from './logic';
 
+const t = translations(
+  {
+    pictures: [
+      'slunce',
+      'měsíc',
+      'hvězda',
+      'srdce',
+      'list',
+      'kapka',
+      'blesk',
+      'koruna',
+      'kotva',
+      'klíč',
+      'zvonek',
+      'ryba',
+      'houba',
+      'jablko',
+      'mrak',
+    ] as readonly string[],
+    grid: (rows: number, cols: number) => `Pexeso ${rows}×${cols}`,
+    takenBy: (name: string) => `sebral(a) ${name}`,
+    faceDown: 'otočená lícem dolů',
+    cell: (row: number, col: number, what: string) => `Řada ${row}, pozice ${col}: ${what}`,
+    shuffling: 'Míchám kartičky…',
+    found: (name: string) => `${name} našel(a) dvojici! `,
+    noMatch: 'Není to dvojice. ',
+  },
+  {
+    pictures: [
+      'sun',
+      'moon',
+      'star',
+      'heart',
+      'leaf',
+      'drop',
+      'lightning',
+      'crown',
+      'anchor',
+      'key',
+      'bell',
+      'fish',
+      'mushroom',
+      'apple',
+      'cloud',
+    ],
+    grid: (rows, cols) => `Memory ${rows}×${cols}`,
+    takenBy: (name) => `taken by ${name}`,
+    faceDown: 'face down',
+    cell: (row, col, what) => `Row ${row}, position ${col}: ${what}`,
+    shuffling: 'Shuffling the cards…',
+    found: (name) => `${name} found a pair! `,
+    noMatch: 'Not a pair. ',
+  },
+);
+
 /** Obrázky dvojic: každý má vlastní tvar i barvu (rozliší je i barvoslepý hráč). */
-export const PICTURE_NAMES: readonly string[] = [
-  'slunce',
-  'měsíc',
-  'hvězda',
-  'srdce',
-  'list',
-  'kapka',
-  'blesk',
-  'koruna',
-  'kotva',
-  'klíč',
-  'zvonek',
-  'ryba',
-  'houba',
-  'jablko',
-  'mrak',
-];
+export const PICTURE_NAMES: readonly string[] = t.pictures;
 
 type Shape = { readonly d: string; readonly stroke?: boolean };
 
@@ -88,7 +128,7 @@ export function createPexesoView(ctx: ViewContext<PexesoMove>): GameView<PexesoV
   );
   const grid = h(
     'div',
-    { class: 'pex-grid', role: 'group', 'aria-label': `Pexeso ${ROWS}×${COLS}` },
+    { class: 'pex-grid', role: 'group', 'aria-label': t.grid(ROWS, COLS) },
     cells,
   );
   const container = h(
@@ -136,11 +176,11 @@ export function createPexesoView(ctx: ViewContext<PexesoMove>): GameView<PexesoV
         const row = Math.floor(p / COLS) + 1;
         const col = (p % COLS) + 1;
         const what = owner
-          ? `sebral(a) ${ctx.names[owner]}`
+          ? t.takenBy(ctx.names[owner])
           : faceUp
             ? (PICTURE_NAMES[pairOf(card ?? 0)] ?? '')
-            : 'otočená lícem dolů';
-        cell.setAttribute('aria-label', `Řada ${row}, pozice ${col}: ${what}`);
+            : t.faceDown;
+        cell.setAttribute('aria-label', t.cell(row, col, what));
         cell.disabled = owner !== null || !canFlip || view.flipped.includes(p);
         cell.classList.toggle('is-match', !!view.last?.match && peek.includes(p));
       });
@@ -150,15 +190,15 @@ export function createPexesoView(ctx: ViewContext<PexesoMove>): GameView<PexesoV
         scores[p].classList.toggle('is-turn', f.finished === null && view.turn === p);
       }
       let text: string;
-      if (f.cards === null) text = 'Míchám kartičky…';
+      if (f.cards === null) text = t.shuffling;
       else if (f.finished) text = outcomeMessage(ctx, f.finished);
       else {
         const last = view.last;
         const prefix =
           view.flipped.length === 0 && last
             ? last.match
-              ? `${ctx.names[last.player]} našel(a) dvojici! `
-              : 'Není to dvojice. '
+              ? t.found(ctx.names[last.player])
+              : t.noMatch
             : '';
         text = `${prefix}${turnMessage(ctx, view.turn, f)}`;
       }

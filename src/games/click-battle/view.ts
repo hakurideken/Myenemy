@@ -1,6 +1,7 @@
 import type { GameView, ViewContext } from '../../core/MiniGame';
 import { otherPlayer, type Outcome, type PlayerSlot } from '../../core/types';
 import type { TimerHandle } from '../../core/util/clock';
+import { translations } from '../../i18n';
 import { h, setText } from '../../ui/dom';
 import {
   COUNTDOWN_MS,
@@ -10,6 +11,43 @@ import {
   type ClickResult,
   type ClickView,
 } from './logic';
+
+const t = translations(
+  {
+    getReady: 'Připrav se…',
+    splitHint: (key: string) => `Klávesa ${key} nebo klepej sem`,
+    soloHint: 'Mezerník, Enter nebo klepej kamkoli',
+    opponentWaiting: 'čeká na start',
+    opponentClicking: 'kliká…',
+    opponentDone: 'má hotovo',
+    goLive: 'Klikej!',
+    go: 'KLIKEJ!',
+    draw: 'Remíza',
+    winner: '★ Vítěz!',
+    slower: 'Pomalejší',
+    invalid: 'Neplatné',
+    done: 'Hotovo',
+    drawLive: 'Remíza.',
+    winnerLive: (name: string) => `Vítěz: ${name}.`,
+  },
+  {
+    getReady: 'Get ready…',
+    splitHint: (key: string) => `Mash ${key} or tap here`,
+    soloHint: 'Mash Space, Enter or tap anywhere',
+    opponentWaiting: 'waiting for the start',
+    opponentClicking: 'clicking…',
+    opponentDone: 'done',
+    goLive: 'Click!',
+    go: 'CLICK!',
+    draw: 'Draw',
+    winner: '★ Winner!',
+    slower: 'Slower',
+    invalid: 'Invalid',
+    done: 'Done',
+    drawLive: 'Draw.',
+    winnerLive: (name: string) => `Winner: ${name}.`,
+  },
+);
 
 const SPLIT_KEYS: Partial<Record<string, PlayerSlot>> = { KeyA: 'A', KeyL: 'B' };
 const SOLO_KEYS = new Set(['Space', 'Enter']);
@@ -42,10 +80,8 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
 
   const lanes: Lane[] = ctx.localPlayers.map((player) => {
     const big = h('span', { class: 'cb-big' }, '3');
-    const status = h('span', { class: 'cb-status' }, 'Připrav se…');
-    const hint = split
-      ? `Klávesa ${player === 'A' ? 'A' : 'L'} nebo klepej sem`
-      : 'Mezerník, Enter nebo klepej kamkoli';
+    const status = h('span', { class: 'cb-status' }, t.getReady);
+    const hint = split ? t.splitHint(player === 'A' ? 'A' : 'L') : t.soloHint;
     const el = h(
       'div',
       {
@@ -65,7 +101,7 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
   });
 
   const opponent = split ? null : otherPlayer(ctx.localPlayers[0] ?? 'A');
-  const opponentStatus = h('span', { class: 'qd-opponent-status' }, 'čeká na start');
+  const opponentStatus = h('span', { class: 'qd-opponent-status' }, t.opponentWaiting);
   const opponentEl = opponent
     ? h(
         'div',
@@ -126,7 +162,7 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
     phase = 'live';
     arena.classList.add('is-live');
     arena.style.setProperty('--cb-duration', `${DURATION_MS}ms`);
-    live.textContent = 'Klikej!';
+    live.textContent = t.goLive;
     ctx.sfx.play('signal');
     ctx.sfx.vibrate(60);
     for (const lane of lanes) setText(lane.big, '0');
@@ -148,12 +184,12 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
 
   function laneStatus(lane: Lane, result: ClickResult | undefined): string {
     if (outcome) {
-      if (outcome.kind === 'draw') return 'Remíza';
-      return outcome.winner === lane.player ? '★ Vítěz!' : 'Pomalejší';
+      if (outcome.kind === 'draw') return t.draw;
+      return outcome.winner === lane.player ? t.winner : t.slower;
     }
-    if (phase === 'countdown' || phase === 'waiting') return 'Připrav se…';
-    if (phase === 'live') return 'KLIKEJ!';
-    return result?.kind === 'invalid' ? 'Neplatné' : 'Hotovo';
+    if (phase === 'countdown' || phase === 'waiting') return t.getReady;
+    if (phase === 'live') return t.go;
+    return result?.kind === 'invalid' ? t.invalid : t.done;
   }
 
   function update(): void {
@@ -169,9 +205,9 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
       );
     }
     if (opponent && opponentEl && latest) {
-      let text = phase === 'live' ? 'kliká…' : 'čeká na start';
+      let text = phase === 'live' ? t.opponentClicking : t.opponentWaiting;
       if (outcome && results) text = formatClicks(results[opponent]);
-      else if (latest.opponentDone) text = 'má hotovo';
+      else if (latest.opponentDone) text = t.opponentDone;
       setText(opponentStatus, text);
       opponentEl.classList.toggle(
         'is-winner',
@@ -181,7 +217,7 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
     arena.classList.toggle('is-finished', outcome !== null);
     if (outcome) {
       live.textContent =
-        outcome.kind === 'draw' ? 'Remíza.' : `Vítěz: ${ctx.names[outcome.winner]}.`;
+        outcome.kind === 'draw' ? t.drawLive : t.winnerLive(ctx.names[outcome.winner]);
     }
   }
 

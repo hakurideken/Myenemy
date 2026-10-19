@@ -1,12 +1,65 @@
 import type { CardAt, GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
 import { otherPlayer, type PlayerSlot } from '../../core/types';
+import { translations } from '../../i18n';
 import { h, setText } from '../../ui/dom';
 import { outcomeMessage } from '../shared/board';
 import { cardNode, suitIcon, suitName } from '../shared/cardView';
 import { cardName, RANK, rankOf, SUIT_COUNT, suitOf } from '../shared/marias';
 import { activeSuit, canPlay, handCards, topCard, type PrsiMove, type PrsiView } from './logic';
 
-const plural = (n: number): string => (n === 1 ? 'kartu' : n >= 2 && n <= 4 ? 'karty' : 'karet');
+const t = translations(
+  {
+    yourCards: 'Tvoje karty',
+    stand: 'Stojím',
+    suitButton: (suit: string, key: number) => `Barva ${suit} (klávesa ${key})`,
+    chooserLabel: 'Svršek: zvol barvu',
+    chooserTitle: 'Svršek – jakou barvu chceš?',
+    unplayable: ' (nejde zahrát)',
+    draw: 'Líznout',
+    drawN: (n: number) => `Líznout ${n}`,
+    you: 'Ty',
+    suitChosen: (suit: string) => ` → barva ${suit}`,
+    drew: (who: string, n: number) =>
+      `${who}: lízl(a) ${n} ${n === 1 ? 'kartu' : n >= 2 && n <= 4 ? 'karty' : 'karet'}`,
+    stood: (who: string) => `${who}: stojí (eso)`,
+    cardCount: (n: number) => `${n} ${n === 1 ? 'karta' : n >= 2 && n <= 4 ? 'karty' : 'karet'}`,
+    drawPile: (n: number) => `Lízací balíček (${n} karet)`,
+    seven: (n: number) => `Sedma! Líže se ${n}.`,
+    ace: 'Eso! Stojíš, nebo dáš eso.',
+    suit: (suit: string) => `Barva: ${suit}`,
+    shuffling: 'Míchám balíček…',
+    firstCard: 'Otáčím první kartu…',
+    turnNamed: (name: string) => `Na tahu: ${name}`,
+    yourTurn: 'Jsi na tahu',
+    thinking: (name: string) => `${name} přemýšlí…`,
+    theirTurn: (name: string) => `Na tahu je ${name}`,
+  },
+  {
+    yourCards: 'Your cards',
+    stand: 'Stand',
+    suitButton: (suit, key) => `${suit} (key ${key})`,
+    chooserLabel: 'Ober: choose a suit',
+    chooserTitle: 'Ober – which suit do you want?',
+    unplayable: ' (can’t be played)',
+    draw: 'Draw',
+    drawN: (n) => `Draw ${n}`,
+    you: 'You',
+    suitChosen: (suit) => ` → suit ${suit}`,
+    drew: (who, n) => `${who}: drew ${n} ${n === 1 ? 'card' : 'cards'}`,
+    stood: (who) => `${who}: stands (ace)`,
+    cardCount: (n) => `${n} ${n === 1 ? 'card' : 'cards'}`,
+    drawPile: (n) => `Draw pile (${n} ${n === 1 ? 'card' : 'cards'})`,
+    seven: (n) => `Seven! ${n} cards to draw.`,
+    ace: 'Ace! Stand or play an ace.',
+    suit: (suit) => `Suit: ${suit}`,
+    shuffling: 'Shuffling the deck…',
+    firstCard: 'Turning the first card…',
+    turnNamed: (name) => `${name}’s turn`,
+    yourTurn: 'Your turn',
+    thinking: (name) => `${name} is thinking…`,
+    theirTurn: (name) => `${name}’s turn`,
+  },
+);
 
 const bySuitAndRank = (a: CardAt, b: CardAt): number =>
   suitOf(a.card) - suitOf(b.card) || rankOf(a.card) - rankOf(b.card);
@@ -48,12 +101,12 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
   );
 
   const myName = h('h3', { class: 'prsi-name' });
-  const hand = h('div', { class: 'prsi-hand', role: 'group', 'aria-label': 'Tvoje karty' });
+  const hand = h('div', { class: 'prsi-hand', role: 'group', 'aria-label': t.yourCards });
   const drawButton = h('button', { type: 'button', class: 'btn', onclick: () => draw() });
   const standButton = h(
     'button',
     { type: 'button', class: 'btn', onclick: () => stand() },
-    'Stojím',
+    t.stand,
     h('kbd', null, 'S'),
   );
   const suitButtons = Array.from({ length: SUIT_COUNT }, (_, suit) =>
@@ -62,7 +115,7 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
       {
         type: 'button',
         class: 'prsi-suit',
-        'aria-label': `Barva ${suitName(suit)} (klávesa ${suit + 1})`,
+        'aria-label': t.suitButton(suitName(suit), suit + 1),
         onclick: () => chooseSuit(suit),
       },
       suitIcon(suit),
@@ -71,8 +124,8 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
   );
   const chooser = h(
     'div',
-    { class: 'prsi-chooser', role: 'group', 'aria-label': 'Svršek: zvol barvu', hidden: true },
-    h('p', { class: 'prsi-chooser-title' }, 'Svršek – jakou barvu chceš?'),
+    { class: 'prsi-chooser', role: 'group', 'aria-label': t.chooserLabel, hidden: true },
+    h('p', { class: 'prsi-chooser-title' }, t.chooserTitle),
     h('div', { class: 'prsi-suits' }, suitButtons),
   );
   const actions = h('div', { class: 'prsi-actions' }, drawButton, standButton);
@@ -174,7 +227,7 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
           {
             type: 'button',
             class: `prsi-card${playable ? ' is-playable' : ''}`,
-            'aria-label': `${cardName(card.card)}${playable ? '' : active ? ' (nejde zahrát)' : ''}`,
+            'aria-label': `${cardName(card.card)}${playable ? '' : active ? t.unplayable : ''}`,
             onclick: () => play(card),
           },
           cardNode(card.card),
@@ -194,7 +247,7 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
     drawButton.hidden = view.ace;
     standButton.hidden = !view.ace;
     drawButton.replaceChildren(
-      view.penalty > 0 ? `Líznout ${view.penalty}` : 'Líznout',
+      view.penalty > 0 ? t.drawN(view.penalty) : t.draw,
       h('kbd', null, 'L'),
     );
     pile.disabled = !active || view.ace;
@@ -204,14 +257,14 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
     const last = view.last;
     if (!last) return '';
     const who =
-      ctx.localPlayers.length === 1 && last.player === me() ? 'Ty' : ctx.names[last.player];
+      ctx.localPlayers.length === 1 && last.player === me() ? t.you : ctx.names[last.player];
     switch (last.kind) {
       case 'play':
-        return `${who}: ${cardName(last.card)}${last.suit !== null ? ` → barva ${suitName(last.suit)}` : ''}`;
+        return `${who}: ${cardName(last.card)}${last.suit !== null ? t.suitChosen(suitName(last.suit)) : ''}`;
       case 'draw':
-        return `${who}: lízl(a) ${last.count} ${plural(last.count)}`;
+        return t.drew(who, last.count);
       case 'stand':
-        return `${who}: stojí (eso)`;
+        return t.stood(who);
     }
   }
 
@@ -225,18 +278,15 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
       const mineSlot = me();
       const opp = otherPlayer(mineSlot);
       const local = ctx.localPlayers.length > 1;
-      setText(myName, local ? ctx.names[mineSlot] : 'Tvoje karty');
+      setText(myName, local ? ctx.names[mineSlot] : t.yourCards);
       setText(theirName, ctx.names[opp]);
       const count = view.hands[opp].length;
-      setText(
-        theirCount,
-        `${count} ${count === 1 ? 'karta' : count >= 2 && count <= 4 ? 'karty' : 'karet'}`,
-      );
+      setText(theirCount, t.cardCount(count));
       if (theirFan.childElementCount !== count) {
         theirFan.replaceChildren(...Array.from({ length: count }, () => cardNode(null)));
       }
       setText(pileCount, String(view.drawPile.length));
-      pile.setAttribute('aria-label', `Lízací balíček (${view.drawPile.length} karet)`);
+      pile.setAttribute('aria-label', t.drawPile(view.drawPile.length));
 
       const top = topCard(view);
       const topKey = top === undefined ? '' : String(top);
@@ -248,11 +298,11 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
       setText(
         effect,
         view.penalty > 0
-          ? `Sedma! Líže se ${view.penalty}.`
+          ? t.seven(view.penalty)
           : view.ace
-            ? 'Eso! Stojíš, nebo dáš eso.'
+            ? t.ace
             : view.suit !== null && suit !== null
-              ? `Barva: ${suitName(suit)}`
+              ? t.suit(suitName(suit))
               : '',
       );
 
@@ -262,12 +312,11 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
       mine.classList.toggle('is-active', myTurn());
 
       let text: string;
-      if (f.cards === null) text = 'Míchám balíček…';
-      else if (top === undefined) text = 'Otáčím první kartu…';
+      if (f.cards === null) text = t.shuffling;
+      else if (top === undefined) text = t.firstCard;
       else if (f.finished) text = outcomeMessage(ctx, f.finished);
-      else if (myTurn()) text = local ? `Na tahu: ${ctx.names[mineSlot]}` : 'Jsi na tahu';
-      else
-        text = ctx.mode === 'pve' ? `${ctx.names[opp]} přemýšlí…` : `Na tahu je ${ctx.names[opp]}`;
+      else if (myTurn()) text = local ? t.turnNamed(ctx.names[mineSlot]) : t.yourTurn;
+      else text = ctx.mode === 'pve' ? t.thinking(ctx.names[opp]) : t.theirTurn(ctx.names[opp]);
       setText(status, text);
     },
     destroy() {

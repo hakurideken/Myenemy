@@ -1,6 +1,7 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
 import { otherPlayer, type PerPlayer, type PlayerSlot } from '../../core/types';
 import { createRng, randomSeed } from '../../core/util/rng';
+import { translations } from '../../i18n';
 import { h, setText, svg } from '../../ui/dom';
 import { outcomeMessage } from '../shared/board';
 import {
@@ -16,15 +17,83 @@ import {
   type LogikView,
 } from './logic';
 
+const t = translations(
+  {
+    colorNames: ['červená', 'modrá', 'zelená', 'žlutá', 'fialová', 'oranžová'],
+    feedback: (black: number, white: number) => `${black} přesně, ${white} jen barvou`,
+    awaitingAnswer: 'čeká na odpověď',
+    attemptRow: (n: number, code: string, result: string) => `Pokus ${n}: ${code} – ${result}`,
+    addColor: (name: string, key: number) => `Přidat barvu ${name} (klávesa ${key})`,
+    random: 'Náhodně',
+    done: 'Hotovo',
+    draftCode: 'Sestavovaný kód',
+    colors: 'Barvy',
+    legendExact: 'barva i místo',
+    legendColor: 'jen barva',
+    slotEmpty: (n: number) => `Pozice ${n}: prázdná`,
+    slotFilled: (n: number, name: string) => `Pozice ${n}: ${name} (klepnutím smažeš)`,
+    setCode: 'Zvolit kód',
+    guess: 'Tipnout',
+    secretTitle: 'Tvůj tajný kód pro soupeře',
+    attemptOf: (round: number, max: number) => `Pokus ${round} z ${max}`,
+    noAttempts: 'Zatím žádný pokus.',
+    crackedOn: (name: string, attempt: number) => `${name} prolomil(a) kód na ${attempt}. pokus`,
+    nobodyCracked: 'Kód nikdo neprolomil. ',
+    chooseSecret: 'Zvol tajný kód, který bude soupeř hádat.',
+    sendingHash: 'Odesílám otisk kódu…',
+    waitingForCode: (name: string) => `Kód je zvolený. Čekám, až si ${name} zvolí svůj…`,
+    lastGuess: (feedback: string) => `minulý tip – ${feedback}. Sestav další.`,
+    firstGuess: 'sestav svůj první tip.',
+    thinking: (name: string) => `${name} přemýšlí…`,
+    waitingForGuess: (name: string) => `Čekám na tip: ${name}…`,
+    guessesCode: (guesser: string, owner: string) => `${guesser} hádá kód: ${owner}`,
+    yourAttempts: 'Tvoje pokusy',
+    attemptsOf: (name: string) => `Pokusy: ${name}`,
+    secretCodeLabel: 'Tajný kód: ',
+    yourCodeLabel: 'Tvůj kód: ',
+    yourCode: (code: string) => `Tvůj kód: ${code}`,
+    noCodeYet: 'Kód zatím není zvolený',
+  },
+  {
+    colorNames: ['red', 'blue', 'green', 'yellow', 'purple', 'orange'],
+    feedback: (black: number, white: number) => `${black} exact, ${white} color only`,
+    awaitingAnswer: 'awaiting answer',
+    attemptRow: (n: number, code: string, result: string) => `Attempt ${n}: ${code} – ${result}`,
+    addColor: (name: string, key: number) => `Add ${name} (key ${key})`,
+    random: 'Random',
+    done: 'Done',
+    draftCode: 'Code being built',
+    colors: 'Colors',
+    legendExact: 'color and place',
+    legendColor: 'color only',
+    slotEmpty: (n: number) => `Position ${n}: empty`,
+    slotFilled: (n: number, name: string) => `Position ${n}: ${name} (tap to clear)`,
+    setCode: 'Set code',
+    guess: 'Guess',
+    secretTitle: 'Your secret code for the opponent',
+    attemptOf: (round: number, max: number) => `Attempt ${round} of ${max}`,
+    noAttempts: 'No attempts yet.',
+    crackedOn: (name: string, attempt: number) => `${name} cracked the code on attempt ${attempt}`,
+    nobodyCracked: 'Nobody cracked the code. ',
+    chooseSecret: 'Choose a secret code for the opponent to guess.',
+    sendingHash: 'Sending the code hash…',
+    waitingForCode: (name: string) => `Code set. Waiting for ${name} to set theirs…`,
+    lastGuess: (feedback: string) => `last guess – ${feedback}. Build the next one.`,
+    firstGuess: 'build your first guess.',
+    thinking: (name: string) => `${name} is thinking…`,
+    waitingForGuess: (name: string) => `Waiting for a guess from ${name}…`,
+    guessesCode: (guesser: string, owner: string) => `${guesser} guesses the code of ${owner}`,
+    yourAttempts: 'Your attempts',
+    attemptsOf: (name: string) => `Attempts: ${name}`,
+    secretCodeLabel: 'Secret code: ',
+    yourCodeLabel: 'Your code: ',
+    yourCode: (code: string) => `Your code: ${code}`,
+    noCodeYet: 'No code set yet',
+  },
+);
+
 /** Barvy mají i vlastní symbol – rozliší je i barvoslepý hráč. */
-export const COLOR_NAMES: readonly string[] = [
-  'červená',
-  'modrá',
-  'zelená',
-  'žlutá',
-  'fialová',
-  'oranžová',
-];
+export const COLOR_NAMES: readonly string[] = t.colorNames;
 
 const SYMBOLS: readonly string[] = [
   // kruh, čtverec, trojúhelník, kosočtverec, hvězda, kříž
@@ -54,7 +123,7 @@ export function pegIcon(color: number | null): SVGSVGElement {
 
 const codeText = (code: Code): string => code.map((c) => COLOR_NAMES[c] ?? '?').join(', ');
 
-export const feedbackText = (f: Feedback): string => `${f.black} přesně, ${f.white} jen barvou`;
+export const feedbackText = (f: Feedback): string => t.feedback(f.black, f.white);
 
 function feedbackPegs(f: Feedback | null): HTMLElement {
   const pegs: HTMLElement[] = [];
@@ -64,7 +133,7 @@ function feedbackPegs(f: Feedback | null): HTMLElement {
   }
   return h(
     'span',
-    { class: 'lk-feedback', role: 'img', 'aria-label': f ? feedbackText(f) : 'čeká na odpověď' },
+    { class: 'lk-feedback', role: 'img', 'aria-label': f ? feedbackText(f) : t.awaitingAnswer },
     pegs,
   );
 }
@@ -74,7 +143,11 @@ function guessRow(index: number, guess: Guess): HTMLElement {
     'li',
     {
       class: `lk-row${cracked(guess) ? ' is-cracked' : ''}`,
-      'aria-label': `Pokus ${index + 1}: ${codeText(guess.code)} – ${guess.feedback ? feedbackText(guess.feedback) : 'čeká na odpověď'}`,
+      'aria-label': t.attemptRow(
+        index + 1,
+        codeText(guess.code),
+        guess.feedback ? feedbackText(guess.feedback) : t.awaitingAnswer,
+      ),
     },
     h('span', { class: 'lk-row-no', 'aria-hidden': 'true' }, index + 1),
     h(
@@ -108,7 +181,7 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
       {
         type: 'button',
         class: 'lk-color',
-        'aria-label': `Přidat barvu ${COLOR_NAMES[color] ?? ''} (klávesa ${color + 1})`,
+        'aria-label': t.addColor(COLOR_NAMES[color] ?? '', color + 1),
         onclick: () => addColor(color),
       },
       pegIcon(color),
@@ -118,20 +191,20 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
   const randomButton = h(
     'button',
     { type: 'button', class: 'btn btn-ghost', onclick: () => randomize() },
-    'Náhodně',
+    t.random,
   );
   const submitButton = h(
     'button',
     { type: 'button', class: 'btn btn-primary', onclick: () => submitDraft() },
-    'Hotovo',
+    t.done,
   );
   const editorTitle = h('h3', { class: 'lk-editor-title' });
   const editor = h(
     'div',
     { class: 'lk-editor' },
     editorTitle,
-    h('div', { class: 'lk-slots', role: 'group', 'aria-label': 'Sestavovaný kód' }, slots),
-    h('div', { class: 'lk-palette', role: 'group', 'aria-label': 'Barvy' }, palette),
+    h('div', { class: 'lk-slots', role: 'group', 'aria-label': t.draftCode }, slots),
+    h('div', { class: 'lk-palette', role: 'group', 'aria-label': t.colors }, palette),
     h('div', { class: 'lk-editor-actions' }, randomButton, submitButton),
   );
 
@@ -152,8 +225,8 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
   const legend = h(
     'p',
     { class: 'lk-legend' },
-    h('span', null, h('span', { class: 'lk-fb lk-fb--black' }), 'barva i místo'),
-    h('span', null, h('span', { class: 'lk-fb lk-fb--white' }), 'jen barva'),
+    h('span', null, h('span', { class: 'lk-fb lk-fb--black' }), t.legendExact),
+    h('span', null, h('span', { class: 'lk-fb lk-fb--white' }), t.legendColor),
   );
   const container = h('div', { class: 'board-game lk' }, status, editor, boards, legend);
   ctx.root.append(container);
@@ -236,18 +309,15 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
       }
       slot.setAttribute(
         'aria-label',
-        `Pozice ${i + 1}: ${color === null ? 'prázdná' : `${COLOR_NAMES[color] ?? ''} (klepnutím smažeš)`}`,
+        color === null ? t.slotEmpty(i + 1) : t.slotFilled(i + 1, COLOR_NAMES[color] ?? ''),
       );
     });
     const complete = d.every((c) => c !== null);
     submitButton.disabled = !complete;
-    setText(submitButton, mode === 'secret' ? 'Zvolit kód' : 'Tipnout');
+    setText(submitButton, mode === 'secret' ? t.setCode : t.guess);
     randomButton.hidden = mode !== 'secret';
     const round = latest ? latest.guesses[me()].length + 1 : 1;
-    setText(
-      editorTitle,
-      mode === 'secret' ? 'Tvůj tajný kód pro soupeře' : `Pokus ${round} z ${MAX_ROUNDS}`,
-    );
+    setText(editorTitle, mode === 'secret' ? t.secretTitle : t.attemptOf(round, MAX_ROUNDS));
   }
 
   function renderRows(list: HTMLElement, guesses: readonly Guess[], key: 'mine' | 'theirs'): void {
@@ -256,7 +326,7 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
     rendered[key] = signature;
     list.replaceChildren(...guesses.map((g, i) => guessRow(i, g)));
     if (guesses.length === 0) {
-      list.append(h('li', { class: 'lk-empty' }, 'Zatím žádný pokus.'));
+      list.append(h('li', { class: 'lk-empty' }, t.noAttempts));
     }
   }
 
@@ -267,24 +337,22 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
     if (f.finished) {
       const parts = (['A', 'B'] as const)
         .filter((p) => cracked(view.guesses[p].at(-1)))
-        .map((p) => `${ctx.names[p]} prolomil(a) kód na ${view.guesses[p].length}. pokus`);
-      const detail = parts.length > 0 ? `${parts.join(', ')}. ` : 'Kód nikdo neprolomil. ';
+        .map((p) => t.crackedOn(ctx.names[p], view.guesses[p].length));
+      const detail = parts.length > 0 ? `${parts.join(', ')}. ` : t.nobodyCracked;
       return `${detail}${outcomeMessage(ctx, f.finished)}`;
     }
     const mode = editing();
-    if (mode === 'secret') return 'Zvol tajný kód, který bude soupeř hádat.';
-    if (!view.ready[mine]) return 'Odesílám otisk kódu…';
-    if (!view.ready[opp]) return `Kód je zvolený. Čekám, až si ${ctx.names[opp]} zvolí svůj…`;
+    if (mode === 'secret') return t.chooseSecret;
+    if (!view.ready[mine]) return t.sendingHash;
+    if (!view.ready[opp]) return t.waitingForCode(ctx.names[opp]);
     if (mode === 'guess') {
       const last = view.guesses[mine].at(-1);
-      const text = last?.feedback
-        ? `minulý tip – ${feedbackText(last.feedback)}. Sestav další.`
-        : 'sestav svůj první tip.';
+      const text = last?.feedback ? t.lastGuess(feedbackText(last.feedback)) : t.firstGuess;
       return local
         ? `${ctx.names[mine]}: ${text}`
         : `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
     }
-    return ctx.mode === 'pve' ? `${ctx.names[opp]} přemýšlí…` : `Čekám na tip: ${ctx.names[opp]}…`;
+    return ctx.mode === 'pve' ? t.thinking(ctx.names[opp]) : t.waitingForGuess(ctx.names[opp]);
   }
 
   function onKey(event: KeyboardEvent): void {
@@ -317,20 +385,17 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
       renderRows(myRows, view.guesses[mine], 'mine');
       renderRows(theirRows, view.guesses[opp], 'theirs');
       const local = ctx.localPlayers.length > 1;
-      setText(myTitle, local ? `${ctx.names[mine]} hádá kód: ${ctx.names[opp]}` : 'Tvoje pokusy');
+      setText(myTitle, local ? t.guessesCode(ctx.names[mine], ctx.names[opp]) : t.yourAttempts);
       setText(
         theirTitle,
-        local ? `${ctx.names[opp]} hádá kód: ${ctx.names[mine]}` : `Pokusy: ${ctx.names[opp]}`,
+        local ? t.guessesCode(ctx.names[opp], ctx.names[mine]) : t.attemptsOf(ctx.names[opp]),
       );
       const secret = mySecret();
       secretCode.replaceChildren(
-        h('span', null, local ? 'Tajný kód: ' : 'Tvůj kód: '),
+        h('span', null, local ? t.secretCodeLabel : t.yourCodeLabel),
         ...(secret ? secret.map((c) => pegIcon(c)) : [h('span', null, '—')]),
       );
-      secretCode.setAttribute(
-        'aria-label',
-        secret ? `Tvůj kód: ${codeText(secret)}` : 'Kód zatím není zvolený',
-      );
+      secretCode.setAttribute('aria-label', secret ? t.yourCode(codeText(secret)) : t.noCodeYet);
       setText(status, statusText(view, f));
       const after = view.guesses[mine].filter((g) => g.feedback).length;
       if (after > before && !f.finished) ctx.sfx.play('tick');

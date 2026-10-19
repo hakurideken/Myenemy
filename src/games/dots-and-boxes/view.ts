@@ -1,8 +1,32 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
 import type { PlayerSlot } from '../../core/types';
+import { translations } from '../../i18n';
 import { h, setText } from '../../ui/dom';
 import { outcomeMessage, playerMark, statusLine, turnMessage } from '../shared/board';
 import { boxIndex, DOTS, hLine, vLine, type DotsMove, type DotsView } from './logic';
+
+const t = translations(
+  {
+    grid: 'Hrací pole 4×4',
+    hLine: (row: number, a: number, b: number) =>
+      `Vodorovná čára, řada teček ${row}, mezi tečkami ${a} a ${b}`,
+    vLine: (col: number, a: number, b: number) =>
+      `Svislá čára, sloupec teček ${col}, mezi řadami ${a} a ${b}`,
+    box: (name: string) => `Políčko: ${name}`,
+    boxFree: 'Políčko: volné',
+    bonus: (name: string) => `${name} uzavřel(a) políčko a hraje znovu.`,
+  },
+  {
+    grid: '4×4 game board',
+    hLine: (row: number, a: number, b: number) =>
+      `Horizontal line, dot row ${row}, between dots ${a} and ${b}`,
+    vLine: (col: number, a: number, b: number) =>
+      `Vertical line, dot column ${col}, between rows ${a} and ${b}`,
+    box: (name: string) => `Box: ${name}`,
+    boxFree: 'Box: unclaimed',
+    bonus: (name: string) => `${name} closed a box and goes again.`,
+  },
+);
 
 export function createDotsView(ctx: ViewContext<DotsMove>): GameView<DotsView> {
   let frame: RenderFrame | null = null;
@@ -11,7 +35,7 @@ export function createDotsView(ctx: ViewContext<DotsMove>): GameView<DotsView> {
   const status = statusLine();
   const lineButtons = new Map<number, HTMLButtonElement>();
   const boxCells = new Map<number, HTMLElement>();
-  const grid = h('div', { class: 'dots-grid', role: 'group', 'aria-label': 'Hrací pole 4×4' });
+  const grid = h('div', { class: 'dots-grid', role: 'group', 'aria-label': t.grid });
 
   // Mřížka 9×9: tečky na sudých/sudých, čáry mezi nimi, políčka na lichých/lichých.
   for (let r = 0; r < 2 * DOTS - 1; r++) {
@@ -27,8 +51,8 @@ export function createDotsView(ctx: ViewContext<DotsMove>): GameView<DotsView> {
         const horizontal = r % 2 === 0;
         const line = horizontal ? hLine(r / 2, (c - 1) / 2) : vLine((r - 1) / 2, c / 2);
         const label = horizontal
-          ? `Vodorovná čára, řada teček ${r / 2 + 1}, mezi tečkami ${(c - 1) / 2 + 1} a ${(c + 1) / 2 + 1}`
-          : `Svislá čára, sloupec teček ${c / 2 + 1}, mezi řadami ${(r - 1) / 2 + 1} a ${(r + 1) / 2 + 1}`;
+          ? t.hLine(r / 2 + 1, (c - 1) / 2 + 1, (c + 1) / 2 + 1)
+          : t.vLine(c / 2 + 1, (r - 1) / 2 + 1, (r + 1) / 2 + 1);
         const button = h('button', {
           type: 'button',
           class: `dots-line dots-line--${horizontal ? 'h' : 'v'}`,
@@ -83,10 +107,7 @@ export function createDotsView(ctx: ViewContext<DotsMove>): GameView<DotsView> {
         if (cell.dataset.owner !== (owner ?? '')) {
           cell.dataset.owner = owner ?? '';
           cell.replaceChildren(...(owner ? [playerMark(owner)] : []));
-          cell.setAttribute(
-            'aria-label',
-            owner ? `Políčko: ${ctx.names[owner]}` : 'Políčko: volné',
-          );
+          cell.setAttribute('aria-label', owner ? t.box(ctx.names[owner]) : t.boxFree);
         }
       }
       for (const p of ['A', 'B'] as const) {
@@ -100,7 +121,7 @@ export function createDotsView(ctx: ViewContext<DotsMove>): GameView<DotsView> {
         status,
         f.finished
           ? outcomeMessage(ctx, f.finished)
-          : `${bonus ? `${ctx.names[view.turn]} uzavřel(a) políčko a hraje znovu. ` : ''}${turnMessage(ctx, view.turn, f)}`,
+          : `${bonus ? `${t.bonus(ctx.names[view.turn])} ` : ''}${turnMessage(ctx, view.turn, f)}`,
       );
     },
     destroy() {

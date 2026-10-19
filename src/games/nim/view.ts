@@ -1,4 +1,5 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
+import { translations } from '../../i18n';
 import { h, setText, svg } from '../../ui/dom';
 import { plural } from '../../ui/labels';
 import { outcomeMessage, statusLine, turnMessage } from '../shared/board';
@@ -14,6 +15,26 @@ function matchIcon(): SVGSVGElement {
 }
 
 const matchesWord = (n: number): string => plural(n, 'sirka', 'sirky', 'sirek');
+
+const t = translations(
+  {
+    take: (n: number) => `Vzít ${n}`,
+    controls: 'Kolik sirek vzít',
+    remaining: (n: number) => `Zbývá ${n} ${matchesWord(n)}`,
+    took: (name: string, n: number) => `${name} vzal(a) ${n} ${matchesWord(n)}.`,
+    start: (n: number) => `Na stole je ${n} ${matchesWord(n)}. Kdo vezme poslední, prohrává.`,
+    tookLast: (name: string) => `${name} vzal(a) poslední sirku.`,
+  },
+  {
+    take: (n: number) => `Take ${n}`,
+    controls: 'How many matches to take',
+    remaining: (n: number) => `${n} ${n === 1 ? 'match' : 'matches'} left`,
+    took: (name: string, n: number) => `${name} took ${n} ${n === 1 ? 'match' : 'matches'}.`,
+    start: (n: number) =>
+      `There ${n === 1 ? 'is' : 'are'} ${n} ${n === 1 ? 'match' : 'matches'} on the table. Whoever takes the last one loses.`,
+    tookLast: (name: string) => `${name} took the last match.`,
+  },
+);
 
 export function createNimView(ctx: ViewContext<NimMove>): GameView<NimView> {
   let frame: RenderFrame | null = null;
@@ -40,13 +61,13 @@ export function createNimView(ctx: ViewContext<NimMove>): GameView<NimView> {
         onfocus: () => setPreview(take),
         onblur: () => setPreview(0),
       },
-      `Vzít ${take}`,
+      t.take(take),
       h('kbd', null, take),
     );
   });
   const controls = h(
     'div',
-    { class: 'nim-controls', role: 'group', 'aria-label': 'Kolik sirek vzít' },
+    { class: 'nim-controls', role: 'group', 'aria-label': t.controls },
     buttons,
   );
   const container = h('div', { class: 'board-game nim' }, status, count, row, last, controls);
@@ -93,12 +114,12 @@ export function createNimView(ctx: ViewContext<NimMove>): GameView<NimView> {
       const canPlay = active();
       if (!canPlay) preview = 0;
       paintMatches();
-      setText(count, `Zbývá ${view.remaining} ${matchesWord(view.remaining)}`);
+      setText(count, t.remaining(view.remaining));
       setText(
         last,
         view.lastTake
-          ? `${ctx.names[view.lastTake.player]} vzal(a) ${view.lastTake.take} ${matchesWord(view.lastTake.take)}.`
-          : `Na stole je ${view.initial} ${matchesWord(view.initial)}. Kdo vezme poslední, prohrává.`,
+          ? t.took(ctx.names[view.lastTake.player], view.lastTake.take)
+          : t.start(view.initial),
       );
       buttons.forEach((button, i) => {
         button.disabled = !canPlay || i + 1 > view.remaining;
@@ -106,7 +127,7 @@ export function createNimView(ctx: ViewContext<NimMove>): GameView<NimView> {
       setText(
         status,
         f.finished
-          ? `${outcomeMessage(ctx, f.finished)} – ${view.loser ? ctx.names[view.loser] : ''} vzal(a) poslední sirku.`
+          ? `${outcomeMessage(ctx, f.finished)} – ${t.tookLast(view.loser ? ctx.names[view.loser] : '')}`
           : turnMessage(ctx, view.turn, f),
       );
     },

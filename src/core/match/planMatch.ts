@@ -1,6 +1,30 @@
+import { translations } from '../../i18n';
 import type { GameInfo } from '../MiniGame';
 import type { GameId, GameLength } from '../types';
 import type { Rng } from '../util/rng';
+
+const t = translations(
+  {
+    empty: 'Není z čeho losovat – žádné hry.',
+    noneForFormat: 'Pro tento formát zatím nejsou k dispozici žádné hry.',
+    bestOf: (list: string) => `Počet her musí být jedno z: ${list}.`,
+    none: 'Nejsou k dispozici žádné hry.',
+    tooMany: (picked: number, bestOf: number) =>
+      `Vybráno ${picked} her, ale zápas má jen ${bestOf}.`,
+    duplicate: 'Každou hru lze vybrat jen jednou.',
+    unknown: (id: string) => `Neznámá hra: ${id}`,
+  },
+  {
+    empty: 'Nothing to draw from – no games.',
+    noneForFormat: 'No games are available for this format yet.',
+    bestOf: (list: string) => `The number of games must be one of: ${list}.`,
+    none: 'No games are available.',
+    tooMany: (picked: number, bestOf: number) =>
+      `${picked} games selected, but the match has only ${bestOf}.`,
+    duplicate: 'Each game can be picked only once.',
+    unknown: (id: string) => `Unknown game: ${id}`,
+  },
+);
 
 export const CUSTOM_BEST_OF = [1, 3, 5, 7, 9] as const;
 export type BestOf = (typeof CUSTOM_BEST_OF)[number];
@@ -54,7 +78,7 @@ export function drawSequence(
   alreadyUsed: readonly GameId[] = [],
 ): GameId[] {
   if (count <= 0) return [];
-  if (pool.length === 0) throw new MatchFormatError('Není z čeho losovat – žádné hry.');
+  if (pool.length === 0) throw new MatchFormatError(t.empty);
   const out: GameId[] = [];
   let bag = rng.shuffle(pool.filter((id) => !alreadyUsed.includes(id)));
   while (out.length < count) {
@@ -81,29 +105,29 @@ export function planMatch(format: MatchFormat, games: readonly GameInfo[], rng: 
     const preset = PRESETS[format.kind];
     const pool = games.filter((g) => g.length === preset.length).map((g) => g.id);
     if (pool.length === 0) {
-      throw new MatchFormatError('Pro tento formát zatím nejsou k dispozici žádné hry.');
+      throw new MatchFormatError(t.noneForFormat);
     }
     return makePlan(format, preset.bestOf, drawSequence(pool, preset.bestOf, rng).map(randomSlot));
   }
 
   const { bestOf, picks } = format;
   if (!CUSTOM_BEST_OF.includes(bestOf)) {
-    throw new MatchFormatError(`Počet her musí být jedno z: ${CUSTOM_BEST_OF.join(', ')}.`);
+    throw new MatchFormatError(t.bestOf(CUSTOM_BEST_OF.join(', ')));
   }
-  if (allIds.length === 0) throw new MatchFormatError('Nejsou k dispozici žádné hry.');
+  if (allIds.length === 0) throw new MatchFormatError(t.none);
 
   if (picks === 'random') {
     return makePlan(format, bestOf, drawSequence(allIds, bestOf, rng).map(randomSlot));
   }
 
   if (picks.length > bestOf) {
-    throw new MatchFormatError(`Vybráno ${picks.length} her, ale zápas má jen ${bestOf}.`);
+    throw new MatchFormatError(t.tooMany(picks.length, bestOf));
   }
   if (new Set(picks).size !== picks.length) {
-    throw new MatchFormatError('Každou hru lze vybrat jen jednou.');
+    throw new MatchFormatError(t.duplicate);
   }
   const unknown = picks.find((id) => !allIds.includes(id));
-  if (unknown !== undefined) throw new MatchFormatError(`Neznámá hra: ${unknown}`);
+  if (unknown !== undefined) throw new MatchFormatError(t.unknown(unknown));
 
   const fill = drawSequence(allIds, bestOf - picks.length, rng, picks);
   return makePlan(format, bestOf, [

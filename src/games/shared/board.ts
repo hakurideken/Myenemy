@@ -1,6 +1,28 @@
 import type { RenderFrame, ViewContext } from '../../core/MiniGame';
 import type { Outcome, PlayerSlot } from '../../core/types';
+import { translations } from '../../i18n';
 import { h, svg } from '../../ui/dom';
+
+const t = translations(
+  {
+    mark: { A: 'křížek', B: 'kolečko' },
+    turnLocal: (name: string) => `Na tahu: ${name}`,
+    yourTurn: 'Jsi na tahu',
+    thinking: (name: string) => `${name} přemýšlí…`,
+    turnRemote: (name: string) => `Na tahu je ${name}`,
+    draw: 'Remíza!',
+    winner: (name: string) => `Vítěz: ${name}`,
+  },
+  {
+    mark: { A: 'cross', B: 'circle' },
+    turnLocal: (name: string) => `${name}'s turn`,
+    yourTurn: 'Your turn',
+    thinking: (name: string) => `${name} is thinking…`,
+    turnRemote: (name: string) => `${name}'s turn`,
+    draw: 'Draw!',
+    winner: (name: string) => `Winner: ${name}`,
+  },
+);
 
 /** Značka hráče v deskových hrách: A = ✕ (červená), B = ○ (modrá) – tvar i barva kvůli barvosleposti. */
 export function playerMark(player: PlayerSlot): SVGSVGElement {
@@ -15,7 +37,7 @@ export function playerMark(player: PlayerSlot): SVGSVGElement {
     : svg('svg', attrs, svg('circle', { cx: '20', cy: '20', r: '11' }));
 }
 
-export const MARK_LABEL: Record<PlayerSlot, string> = { A: 'křížek', B: 'kolečko' };
+export const MARK_LABEL: Record<PlayerSlot, string> = t.mark;
 
 /** Kdo je na tahu – podle režimu (lokálně jménem, PvE/online z pohledu hráče). */
 export function turnMessage(
@@ -24,13 +46,13 @@ export function turnMessage(
   frame: RenderFrame,
 ): string {
   const name = ctx.names[turn];
-  if (ctx.localPlayers.length > 1) return `Na tahu: ${name}`;
-  if (frame.canAct.includes(turn)) return 'Jsi na tahu';
-  return ctx.mode === 'pve' ? `${name} přemýšlí…` : `Na tahu je ${name}`;
+  if (ctx.localPlayers.length > 1) return t.turnLocal(name);
+  if (frame.canAct.includes(turn)) return t.yourTurn;
+  return ctx.mode === 'pve' ? t.thinking(name) : t.turnRemote(name);
 }
 
 export function outcomeMessage(ctx: ViewContext<unknown>, outcome: Outcome): string {
-  return outcome.kind === 'draw' ? 'Remíza!' : `Vítěz: ${ctx.names[outcome.winner]}`;
+  return outcome.kind === 'draw' ? t.draw : t.winner(ctx.names[outcome.winner]);
 }
 
 /** Řádek se stavem hry (čte ho i odečítač obrazovky). */

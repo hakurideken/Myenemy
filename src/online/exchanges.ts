@@ -1,3 +1,4 @@
+import { translations } from '../i18n';
 import type { PlayerSlot } from '../core/types';
 import {
   combineSeeds,
@@ -6,6 +7,17 @@ import {
   verifyCommit,
   type Commitment,
 } from '../core/util/commitReveal';
+
+const t = translations(
+  {
+    noCommit: 'Soupeř odhalil seed bez předchozího závazku.',
+    seedMismatch: 'Seed soupeře neodpovídá jeho závazku.',
+  },
+  {
+    noCommit: 'Your opponent revealed a seed without committing to it first.',
+    seedMismatch: 'Your opponent’s seed does not match their commitment.',
+  },
+);
 
 export class CheatError extends Error {
   override name = 'CheatError';
@@ -53,11 +65,11 @@ export class SeedExchange {
 
   async receiveReveal(seed: string, salt: string): Promise<void> {
     if (this.theirHash === null || this.theirSeed !== null) {
-      this.fail('Soupeř odhalil seed bez předchozího závazku.');
+      this.fail(t.noCommit);
       return;
     }
     if (!(await verifyCommit(this.theirHash, seed, salt))) {
-      this.fail('Seed soupeře neodpovídá jeho závazku.');
+      this.fail(t.seedMismatch);
       return;
     }
     this.theirSeed = seed;

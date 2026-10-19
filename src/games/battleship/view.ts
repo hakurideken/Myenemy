@@ -1,6 +1,7 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
 import { otherPlayer, type PerPlayer, type PlayerSlot } from '../../core/types';
 import { createRng, randomSeed } from '../../core/util/rng';
+import { translations } from '../../i18n';
 import { h, setText, svg } from '../../ui/dom';
 import { outcomeMessage, turnMessage } from '../shared/board';
 import { seaKnowledge } from './ai';
@@ -23,24 +24,89 @@ import {
   type Shot,
 } from './logic';
 
-export const SHIP_NAME: Record<number, string> = {
-  4: 'Bitevní loď',
-  3: 'Křižník',
-  2: 'Torpédoborec',
-};
-export const shipLabel = (length: number): string => `${SHIP_NAME[length] ?? 'Loď'} (${length})`;
-
 type CellState = 'sea' | 'ship' | 'miss' | 'water' | 'hit' | 'sunk' | 'pending';
 
-const STATE_TEXT: Record<CellState, string> = {
-  sea: 'neznámé',
-  ship: 'loď',
-  miss: 'vedle',
-  water: 'jistě voda',
-  hit: 'zásah',
-  sunk: 'potopeno',
-  pending: 'čeká na odpověď',
-};
+const t = translations(
+  {
+    shipName: { 4: 'Bitevní loď', 3: 'Křižník', 2: 'Torpédoborec' },
+    ship: 'Loď',
+    state: {
+      sea: 'neznámé',
+      ship: 'loď',
+      miss: 'vedle',
+      water: 'jistě voda',
+      hit: 'zásah',
+      sunk: 'potopeno',
+      pending: 'čeká na odpověď',
+    },
+    opponentFleet: 'Soupeřova flotila',
+    shipSunk: 'potopena',
+    shipAfloat: 'pluje',
+    opponentSea: 'Soupeřovo moře',
+    yourSea: 'Tvoje moře',
+    seaOf: (name: string) => `Moře: ${name}`,
+    firingAt: (name: string) => `Střílíš na: ${name}`,
+    rotate: 'Otočit (R)',
+    random: 'Náhodně',
+    clear: 'Vymazat',
+    done: 'Hotovo',
+    shipsToPlace: 'Lodě k rozmístění',
+    sendingHash: 'Odesílám otisk rozmístění…',
+    placeShip: (name: string, horizontal: boolean) =>
+      `Rozmísti flotilu: ${name}, ${horizontal ? 'vodorovně' : 'svisle'}`,
+    fleetComplete: 'Flotila je rozmístěná – potvrď tlačítkem Hotovo.',
+    pickShip: 'Vyber loď k rozmístění.',
+    you: 'Ty',
+    miss: (who: string, where: string) => `${who}: ${where} – vedle. `,
+    hit: (who: string, where: string) => `${who}: ${where} – zásah! `,
+    sunk: (who: string, where: string, ship: string) => `${who}: ${where} – potopeno (${ship})! `,
+    yourShip: ', tvoje loď',
+    waitingForOpponent: 'Flotila je rozmístěná. Čekám na soupeře…',
+    firing: (name: string, cell: string) => `${name} střílí na ${cell}…`,
+  },
+  {
+    shipName: { 4: 'Battleship', 3: 'Cruiser', 2: 'Destroyer' },
+    ship: 'Ship',
+    state: {
+      sea: 'unknown',
+      ship: 'ship',
+      miss: 'miss',
+      water: 'certainly water',
+      hit: 'hit',
+      sunk: 'sunk',
+      pending: 'awaiting answer',
+    },
+    opponentFleet: "Opponent's fleet",
+    shipSunk: 'sunk',
+    shipAfloat: 'afloat',
+    opponentSea: "Opponent's sea",
+    yourSea: 'Your sea',
+    seaOf: (name: string) => `Sea: ${name}`,
+    firingAt: (name: string) => `Firing at: ${name}`,
+    rotate: 'Rotate (R)',
+    random: 'Random',
+    clear: 'Clear',
+    done: 'Done',
+    shipsToPlace: 'Ships to place',
+    sendingHash: 'Sending the placement hash…',
+    placeShip: (name: string, horizontal: boolean) =>
+      `Place your fleet: ${name}, ${horizontal ? 'horizontal' : 'vertical'}`,
+    fleetComplete: 'Fleet placed – confirm with Done.',
+    pickShip: 'Pick a ship to place.',
+    you: 'You',
+    miss: (who: string, where: string) => `${who}: ${where} – miss. `,
+    hit: (who: string, where: string) => `${who}: ${where} – hit! `,
+    sunk: (who: string, where: string, ship: string) => `${who}: ${where} – sunk (${ship})! `,
+    yourShip: ', your ship',
+    waitingForOpponent: 'Fleet placed. Waiting for the opponent…',
+    firing: (name: string, cell: string) => `${name} fires at ${cell}…`,
+  },
+);
+
+export const SHIP_NAME: Record<number, string> = t.shipName;
+export const shipLabel = (length: number): string => `${SHIP_NAME[length] ?? t.ship} (${length})`;
+
+const STATE_TEXT: Record<CellState, string> = t.state;
 
 function marker(state: CellState): SVGSVGElement | null {
   const attrs = { viewBox: '0 0 20 20', class: 'bs-marker', 'aria-hidden': 'true' };
@@ -170,7 +236,7 @@ function fleetStatus(): { el: HTMLElement; render(sunk: ReadonlySet<number>): vo
       h('span', { class: 'sr-only' }, shipLabel(length)),
     ),
   );
-  const el = h('ul', { class: 'bs-fleet', 'aria-label': 'Soupeřova flotila' }, items);
+  const el = h('ul', { class: 'bs-fleet', 'aria-label': t.opponentFleet }, items);
   return {
     el,
     render(sunk) {
@@ -179,7 +245,7 @@ function fleetStatus(): { el: HTMLElement; render(sunk: ReadonlySet<number>): vo
         item.classList.toggle('is-sunk', isSunk);
         item.setAttribute(
           'aria-label',
-          `${shipLabel(FLEET[i] ?? 0)}: ${isSunk ? 'potopena' : 'pluje'}`,
+          `${shipLabel(FLEET[i] ?? 0)}: ${isSunk ? t.shipSunk : t.shipAfloat}`,
         );
       });
     },
@@ -219,12 +285,12 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
 
   const status = h('p', { class: 'board-status', 'aria-live': 'polite' });
   const target = createSea(
-    'Soupeřovo moře',
+    t.opponentSea,
     (cell) => shoot(cell),
     () => undefined,
   );
   const own = createSea(
-    'Tvoje moře',
+    t.yourSea,
     (cell) => placeAt(cell),
     (cell) => {
       hover = cell;
@@ -255,29 +321,29 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
   const rotateButton = h(
     'button',
     { type: 'button', class: 'btn btn-ghost', onclick: () => rotate() },
-    'Otočit (R)',
+    t.rotate,
   );
   const randomButton = h(
     'button',
     { type: 'button', class: 'btn btn-ghost', onclick: () => randomize() },
-    'Náhodně',
+    t.random,
   );
   const clearButton = h(
     'button',
     { type: 'button', class: 'btn btn-ghost', onclick: () => clearDraft() },
-    'Vymazat',
+    t.clear,
   );
   const doneButton = h(
     'button',
     { type: 'button', class: 'btn btn-primary', onclick: () => confirm() },
-    'Hotovo',
+    t.done,
   );
   const placementPanel = h(
     'div',
     { class: 'bs-placement' },
     h(
       'ul',
-      { class: 'bs-palette', 'aria-label': 'Lodě k rozmístění' },
+      { class: 'bs-palette', 'aria-label': t.shipsToPlace },
       paletteButtons.map((b) => h('li', null, b)),
     ),
     h(
@@ -412,12 +478,12 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
     setText(
       status,
       !interactive
-        ? 'Odesílám otisk rozmístění…'
+        ? t.sendingHash
         : name
-          ? `Rozmísti flotilu: ${name}, ${d.horizontal ? 'vodorovně' : 'svisle'}`
+          ? t.placeShip(name, d.horizontal)
           : complete
-            ? 'Flotila je rozmístěná – potvrď tlačítkem Hotovo.'
-            : 'Vyber loď k rozmístění.',
+            ? t.fleetComplete
+            : t.pickShip,
     );
   }
 
@@ -438,11 +504,11 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
     const shooter = view.lastShooter;
     const shot: Shot | undefined = shooter ? view.shots[shooter].at(-1) : undefined;
     if (!shooter || !shot) return '';
-    const who = ctx.localPlayers.length > 1 || shooter !== me() ? ctx.names[shooter] : 'Ty';
+    const who = ctx.localPlayers.length > 1 || shooter !== me() ? ctx.names[shooter] : t.you;
     const where = cellName(shot.cell);
-    if (shot.result === 'miss') return `${who}: ${where} – vedle. `;
-    if (shot.result === 'hit') return `${who}: ${where} – zásah! `;
-    return `${who}: ${where} – potopeno (${shipLabel(FLEET[shot.ship ?? 0] ?? 0)})! `;
+    if (shot.result === 'miss') return t.miss(who, where);
+    if (shot.result === 'hit') return t.hit(who, where);
+    return t.sunk(who, where, shipLabel(FLEET[shot.ship ?? 0] ?? 0));
   }
 
   function renderBattle(view: BattleshipView, f: RenderFrame): void {
@@ -465,12 +531,7 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
     own.cells.forEach((button, cell) => {
       let state: CellState = incomingState.get(cell) ?? (myShipCells.has(cell) ? 'ship' : 'sea');
       if (view.pending === cell && view.turn === opp) state = 'pending';
-      paintCell(
-        button,
-        cell,
-        state,
-        myShipCells.has(cell) && state !== 'ship' ? ', tvoje loď' : '',
-      );
+      paintCell(button, cell, state, myShipCells.has(cell) && state !== 'ship' ? t.yourShip : '');
       button.classList.toggle('has-ship', myShipCells.has(cell));
       button.classList.toggle('is-last', cell === lastIncoming);
       button.classList.remove('is-preview', 'is-invalid');
@@ -501,14 +562,13 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
     targetFleet.render(sunkShips);
 
     const local = ctx.localPlayers.length > 1;
-    setText(own.title, local ? `Moře: ${ctx.names[mine]}` : 'Tvoje moře');
-    setText(target.title, `Střílíš na: ${ctx.names[opp]}`);
+    setText(own.title, local ? t.seaOf(ctx.names[mine]) : t.yourSea);
+    setText(target.title, t.firingAt(ctx.names[opp]));
 
     let text: string;
     if (f.finished) text = `${lastShotMessage(view)}${outcomeMessage(ctx, f.finished)}`;
-    else if (view.phase === 'placing') text = 'Flotila je rozmístěná. Čekám na soupeře…';
-    else if (view.pending !== null)
-      text = `${ctx.names[view.turn]} střílí na ${cellName(view.pending)}…`;
+    else if (view.phase === 'placing') text = t.waitingForOpponent;
+    else if (view.pending !== null) text = t.firing(ctx.names[view.turn], cellName(view.pending));
     else text = `${lastShotMessage(view)}${turnMessage(ctx, view.turn, f)}`;
     setText(status, text);
   }
@@ -547,7 +607,7 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
       placementPanel.hidden = !isPlacing;
       target.el.hidden = isPlacing;
       if (isPlacing) {
-        setText(own.title, ctx.localPlayers.length > 1 ? `Moře: ${ctx.names[me()]}` : 'Tvoje moře');
+        setText(own.title, ctx.localPlayers.length > 1 ? t.seaOf(ctx.names[me()]) : t.yourSea);
         renderPlacement();
       } else {
         renderBattle(view, f);

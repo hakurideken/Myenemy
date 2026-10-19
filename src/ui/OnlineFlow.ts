@@ -2,6 +2,7 @@ import type { MatchFormat } from '../core/match/planMatch';
 import type { Sfx } from '../core/MiniGame';
 import { systemClock } from '../core/util/clock';
 import { getGame } from '../games/registry';
+import { translations } from '../i18n';
 import {
   generateRoomCode,
   HostRoom,
@@ -24,21 +25,90 @@ import { roundResultScreen } from './screens/roundResult';
 
 const SILENT: Sfx = { play: () => undefined, vibrate: () => undefined };
 
-const CLOSE_TEXT: Record<Exclude<CloseReason, 'me-left'>, { title: string; text: string }> = {
-  'opponent-left': {
-    title: 'Soupeř odešel',
-    text: 'Soupeř opustil místnost dřív, než zápas začal.',
+type CloseText = Record<Exclude<CloseReason, 'me-left'>, { title: string; text: string }>;
+
+const t = translations(
+  {
+    close: {
+      'opponent-left': {
+        title: 'Soupeř odešel',
+        text: 'Soupeř opustil místnost dřív, než zápas začal.',
+      },
+      'opponent-gone': {
+        title: 'Spojení ztraceno',
+        text: 'Se soupeřem se nepodařilo udržet spojení.',
+      },
+      version: {
+        title: 'Jiná verze hry',
+        text: 'Soupeř má jinou verzi hry – obnovte stránku (oba) a zkuste to znovu.',
+      },
+      cheat: {
+        title: 'Nesoulad dat',
+        text: 'Data od soupeře nesouhlasí s tím, k čemu se zavázal. Zápas byl ukončen.',
+      },
+    },
+    player: 'Hráč',
+    creating: 'Zakládám místnost…',
+    joining: (code: string) => `Připojuji se do místnosti ${code}…`,
+    fullTitle: 'Místnost je plná',
+    notFoundTitle: 'Místnost nenalezena',
+    fullText: 'V místnosti už hrají dva hráči.',
+    notFoundText: (code: string) =>
+      `Místnost ${code} neexistuje nebo hostitel neodpovídá. Zkontroluj kód.`,
+    otherCode: 'Zkusit jiný kód',
+    menu: 'Do menu',
+    unavailableTitle: 'Online server je nedostupný',
+    unavailableText:
+      'Nepodařilo se spojit se serverem do 5 sekund – může být dočasně mimo provoz nebo uspaný. Zkus to za chvíli znovu, nebo si zahraj proti AI či ve dvou na jednom zařízení.',
+    retry: 'Zkusit znovu',
+    vsAi: 'Proti AI',
+    twoPlayers: 'Dva hráči',
+    leaveTitle: 'Odejít ze zápasu?',
+    leaveText: 'Soupeř vyhraje kontumací.',
+    leave: 'Odejít',
   },
-  'opponent-gone': { title: 'Spojení ztraceno', text: 'Se soupeřem se nepodařilo udržet spojení.' },
-  version: {
-    title: 'Jiná verze hry',
-    text: 'Soupeř má jinou verzi hry – obnovte stránku (oba) a zkuste to znovu.',
+  {
+    close: {
+      'opponent-left': {
+        title: 'Your opponent left',
+        text: 'Your opponent left the room before the match started.',
+      },
+      'opponent-gone': {
+        title: 'Connection lost',
+        text: 'The connection to your opponent could not be kept up.',
+      },
+      version: {
+        title: 'Different game version',
+        text: 'Your opponent has a different version of the game – both of you reload the page and try again.',
+      },
+      cheat: {
+        title: 'Data mismatch',
+        text: 'Your opponent’s data do not match what they committed to. The match was ended.',
+      },
+    },
+    player: 'Player',
+    creating: 'Creating a room…',
+    joining: (code: string) => `Joining room ${code}…`,
+    fullTitle: 'The room is full',
+    notFoundTitle: 'Room not found',
+    fullText: 'Two players are already playing in this room.',
+    notFoundText: (code: string) =>
+      `Room ${code} does not exist or the host is not responding. Check the code.`,
+    otherCode: 'Try another code',
+    menu: 'Menu',
+    unavailableTitle: 'The online server is unavailable',
+    unavailableText:
+      'Could not reach the server within 5 seconds – it may be temporarily down or asleep. Try again in a moment, or play against the AI or with two players on one device.',
+    retry: 'Try again',
+    vsAi: 'Against AI',
+    twoPlayers: 'Two players',
+    leaveTitle: 'Leave the match?',
+    leaveText: 'Your opponent wins by forfeit.',
+    leave: 'Leave',
   },
-  cheat: {
-    title: 'Nesoulad dat',
-    text: 'Data od soupeře nesouhlasí s tím, k čemu se zavázal. Zápas byl ukončen.',
-  },
-};
+);
+
+const CLOSE_TEXT: CloseText = t.close;
 
 /** Online zápas v UI: založení / připojení, lobby a průběh podle fází OnlineSession. */
 export class OnlineFlow {
@@ -54,13 +124,13 @@ export class OnlineFlow {
     private readonly app: App,
     private readonly factory: TransportFactory,
   ) {
-    this.me = { id: newClientId(), nickname: app.nickname ?? 'Hráč' };
+    this.me = { id: newClientId(), nickname: app.nickname ?? t.player };
     window.addEventListener('pagehide', this.onPageHide);
   }
 
   async createRoom(format: MatchFormat): Promise<void> {
     const code = generateRoomCode();
-    this.app.show(connectingScreen('Zakládám místnost…', () => this.exit()));
+    this.app.show(connectingScreen(t.creating, () => this.exit()));
     const transport = await this.openTransport(() => void this.createRoom(format));
     if (!transport) return;
     try {
@@ -89,7 +159,7 @@ export class OnlineFlow {
   }
 
   async joinRoom(code: string): Promise<void> {
-    this.app.show(connectingScreen(`Připojuji se do místnosti ${code}…`, () => this.exit()));
+    this.app.show(connectingScreen(t.joining(code), () => this.exit()));
     const transport = await this.openTransport(() => void this.joinRoom(code));
     if (!transport) return;
     let pairing: Pairing;
@@ -103,17 +173,15 @@ export class OnlineFlow {
       else {
         this.app.show(
           messageScreen(
-            reason === 'full' ? 'Místnost je plná' : 'Místnost nenalezena',
-            reason === 'full'
-              ? 'V místnosti už hrají dva hráči.'
-              : `Místnost ${code} neexistuje nebo hostitel neodpovídá. Zkontroluj kód.`,
+            reason === 'full' ? t.fullTitle : t.notFoundTitle,
+            reason === 'full' ? t.fullText : t.notFoundText(code),
             [
               {
-                label: 'Zkusit jiný kód',
+                label: t.otherCode,
                 onClick: () => this.exitTo(() => this.app.goOnline()),
                 primary: true,
               },
-              { label: 'Do menu', onClick: () => this.exit() },
+              { label: t.menu, onClick: () => this.exit() },
             ],
           ),
         );
@@ -169,16 +237,12 @@ export class OnlineFlow {
     void this.transport?.close();
     this.transport = null;
     this.app.show(
-      messageScreen(
-        'Online server je nedostupný',
-        'Nepodařilo se spojit se serverem do 5 sekund – může být dočasně mimo provoz nebo uspaný. Zkus to za chvíli znovu, nebo si zahraj proti AI či ve dvou na jednom zařízení.',
-        [
-          { label: 'Zkusit znovu', onClick: retry, primary: true },
-          { label: 'Proti AI', onClick: () => this.exitTo(() => this.app.goSetup('pve')) },
-          { label: 'Dva hráči', onClick: () => this.exitTo(() => this.app.goSetup('local')) },
-          { label: 'Do menu', onClick: () => this.exit() },
-        ],
-      ),
+      messageScreen(t.unavailableTitle, t.unavailableText, [
+        { label: t.retry, onClick: retry, primary: true },
+        { label: t.vsAi, onClick: () => this.exitTo(() => this.app.goSetup('pve')) },
+        { label: t.twoPlayers, onClick: () => this.exitTo(() => this.app.goSetup('local')) },
+        { label: t.menu, onClick: () => this.exit() },
+      ]),
     );
   }
 
@@ -187,7 +251,7 @@ export class OnlineFlow {
     this.app.setBanner(null);
     this.app.show(
       messageScreen(title, detail ? `${text} (${detail})` : text, [
-        { label: 'Do menu', onClick: () => this.exit(), primary: true },
+        { label: t.menu, onClick: () => this.exit(), primary: true },
       ]),
     );
   }
@@ -222,9 +286,9 @@ export class OnlineFlow {
   private confirmLeave(): void {
     void this.app
       .confirm({
-        title: 'Odejít ze zápasu?',
-        message: 'Soupeř vyhraje kontumací.',
-        confirm: 'Odejít',
+        title: t.leaveTitle,
+        message: t.leaveText,
+        confirm: t.leave,
       })
       .then((ok) => {
         if (ok && !this.disposed) this.exit();

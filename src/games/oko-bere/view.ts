@@ -1,5 +1,6 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
 import { otherPlayer, type PlayerSlot } from '../../core/types';
+import { translations } from '../../i18n';
 import { h, setText } from '../../ui/dom';
 import { cardNode } from '../shared/cardView';
 import { outcomeMessage } from '../shared/board';
@@ -13,10 +14,59 @@ import {
   type OkoView,
 } from './logic';
 
+const t = translations(
+  {
+    oko: 'Oko! (dvě esa)',
+    bust: (total: number) => `${total} – přes 21`,
+    total: (text: string) => `Součet: ${text}`,
+    cardCount: (n: number) => `${n} ${n === 1 ? 'karta' : n < 5 ? 'karty' : 'karet'}`,
+    draw: 'Líznout',
+    stand: 'Stát',
+    stands: 'stojí',
+    decided: 'rozhodnuto',
+    drew: 'lízl(a)',
+    you: 'Ty',
+    reveal: 'Odhalení',
+    round: (n: number) => `Kolo ${n}`,
+    shuffling: 'Míchám balíček…',
+    bothStand: 'Oba stojí – odhalujeme karty…',
+    choiceNamed: (name: string) => `${name}: líznout, nebo stát?`,
+    choice: 'Líznout, nebo stát?',
+    standThinking: (name: string) => `Stojíš. ${name} přemýšlí…`,
+    standWaiting: (name: string) => `Stojíš. Čekám na hráče ${name}…`,
+    opponentDecided: (name: string) => `${name} už se rozhodl(a)…`,
+    thinking: (name: string) => `${name} přemýšlí…`,
+    waiting: (name: string) => `Čekám na hráče ${name}…`,
+  },
+  {
+    oko: 'Oko! (two aces)',
+    bust: (total) => `${total} – over 21`,
+    total: (text) => `Total: ${text}`,
+    cardCount: (n) => `${n} ${n === 1 ? 'card' : 'cards'}`,
+    draw: 'Draw',
+    stand: 'Stand',
+    stands: 'stands',
+    decided: 'decided',
+    drew: 'drew',
+    you: 'You',
+    reveal: 'Reveal',
+    round: (n) => `Round ${n}`,
+    shuffling: 'Shuffling the deck…',
+    bothStand: 'Both stand – revealing cards…',
+    choiceNamed: (name) => `${name}: draw or stand?`,
+    choice: 'Draw or stand?',
+    standThinking: (name) => `You stand. ${name} is thinking…`,
+    standWaiting: (name) => `You stand. Waiting for ${name}…`,
+    opponentDecided: (name) => `${name} has decided…`,
+    thinking: (name) => `${name} is thinking…`,
+    waiting: (name) => `Waiting for ${name}…`,
+  },
+);
+
 function totalText(cards: readonly number[]): string {
-  if (isOko(cards)) return 'Oko! (dvě esa)';
+  if (isOko(cards)) return t.oko;
   const total = handTotal(cards);
-  return isBust(cards) ? `${total} – přes 21` : `${total}`;
+  return isBust(cards) ? t.bust(total) : `${total}`;
 }
 
 export function createOkoView(ctx: ViewContext<OkoMove>): GameView<OkoView> {
@@ -46,13 +96,13 @@ export function createOkoView(ctx: ViewContext<OkoMove>): GameView<OkoView> {
   const drawButton = h(
     'button',
     { type: 'button', class: 'btn btn-primary btn-lg', onclick: () => decide('draw') },
-    'Líznout',
+    t.draw,
     h('kbd', null, 'L'),
   );
   const standButton = h(
     'button',
     { type: 'button', class: 'btn btn-lg', onclick: () => decide('stand') },
-    'Stát',
+    t.stand,
     h('kbd', null, 'S'),
   );
   const actions = h('div', { class: 'oko-actions' }, drawButton, standButton);
@@ -110,11 +160,11 @@ export function createOkoView(ctx: ViewContext<OkoMove>): GameView<OkoView> {
   }
 
   function badge(view: OkoView, f: RenderFrame, player: PlayerSlot): string {
-    if (view.stood[player]) return 'stojí';
+    if (view.stood[player]) return t.stands;
     const d = view.decisions[player];
     // Online je rozhodnutí soupeře zapečetěné – víme jen, že ho poslal.
-    if (d !== null || f.committed.includes(player)) return 'rozhodnuto';
-    if (view.last[player] === 'draw') return 'lízl(a)';
+    if (d !== null || f.committed.includes(player)) return t.decided;
+    if (view.last[player] === 'draw') return t.drew;
     return '';
   }
 
@@ -130,7 +180,7 @@ export function createOkoView(ctx: ViewContext<OkoMove>): GameView<OkoView> {
       const mineSlot = me();
       const opp = otherPlayer(mineSlot);
       const local = ctx.localPlayers.length > 1;
-      setText(myName, local ? ctx.names[mineSlot] : 'Ty');
+      setText(myName, local ? ctx.names[mineSlot] : t.you);
       setText(theirName, ctx.names[opp]);
 
       const known = f.cards ?? new Map<number, number>();
@@ -140,16 +190,14 @@ export function createOkoView(ctx: ViewContext<OkoMove>): GameView<OkoView> {
       renderRow(theirCards, 'theirs', theirShown ?? view.hands[opp].map(() => null));
 
       const full = knownHand(view, mineSlot, known);
-      setText(myTotal, full ? `Součet: ${totalText(full)}` : '');
+      setText(myTotal, full ? t.total(totalText(full)) : '');
       setText(
         theirTotal,
-        theirShown
-          ? `Součet: ${totalText(theirShown)}`
-          : `${view.hands[opp].length} ${view.hands[opp].length === 1 ? 'karta' : view.hands[opp].length < 5 ? 'karty' : 'karet'}`,
+        theirShown ? t.total(totalText(theirShown)) : t.cardCount(view.hands[opp].length),
       );
       setText(myBadge, badge(view, f, mineSlot));
       setText(theirBadge, badge(view, f, opp));
-      setText(round, f.finished ? 'Odhalení' : `Kolo ${view.round}`);
+      setText(round, f.finished ? t.reveal : t.round(view.round));
 
       const active = canDecide();
       drawButton.disabled = !active;
@@ -158,20 +206,16 @@ export function createOkoView(ctx: ViewContext<OkoMove>): GameView<OkoView> {
       mine.classList.toggle('is-active', active);
 
       let text: string;
-      if (f.cards === null) text = 'Míchám balíček…';
+      if (f.cards === null) text = t.shuffling;
       else if (f.finished) text = outcomeMessage(ctx, f.finished);
-      else if (view.stood.A && view.stood.B) text = 'Oba stojí – odhalujeme karty…';
+      else if (view.stood.A && view.stood.B) text = t.bothStand;
       else if (active) {
-        text = local ? `${ctx.names[mineSlot]}: líznout, nebo stát?` : 'Líznout, nebo stát?';
+        text = local ? t.choiceNamed(ctx.names[mineSlot]) : t.choice;
       } else if (view.stood[mineSlot]) {
         text =
-          ctx.mode === 'pve'
-            ? `Stojíš. ${ctx.names[opp]} přemýšlí…`
-            : `Stojíš. Čekám na hráče ${ctx.names[opp]}…`;
-      } else if (f.committed.includes(opp)) text = `${ctx.names[opp]} už se rozhodl(a)…`;
-      else
-        text =
-          ctx.mode === 'pve' ? `${ctx.names[opp]} přemýšlí…` : `Čekám na hráče ${ctx.names[opp]}…`;
+          ctx.mode === 'pve' ? t.standThinking(ctx.names[opp]) : t.standWaiting(ctx.names[opp]);
+      } else if (f.committed.includes(opp)) text = t.opponentDecided(ctx.names[opp]);
+      else text = ctx.mode === 'pve' ? t.thinking(ctx.names[opp]) : t.waiting(ctx.names[opp]);
       setText(status, text);
     },
     destroy() {

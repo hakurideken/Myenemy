@@ -1,5 +1,6 @@
 import type { MatchFormat, MatchPlan } from '../../core/match/planMatch';
 import type { PerPlayer } from '../../core/types';
+import { translations } from '../../i18n';
 import { normalizeRoomCode } from '../../net/room';
 import type { App, Mount } from '../App';
 import { button, versus } from '../components/common';
@@ -8,13 +9,88 @@ import { h, setText } from '../dom';
 import { formatTitle } from '../labels';
 import { bestOfLead, RULES_NOTE } from './matchIntro';
 
+const t = translations(
+  {
+    title: 'Online souboj',
+    notConfigured: 'Online hra není na tomhle webu nastavená.',
+    notConfiguredNote:
+      'Chybí připojení k serveru (Supabase). Mezitím si můžeš zahrát proti AI nebo ve dvou na jednom zařízení.',
+    vsAi: 'Proti AI',
+    twoPlayers: 'Dva hráči',
+    backToMenu: 'Zpět do menu',
+    badCode: 'Kód má 5 znaků – písmena a číslice (bez 0, O, 1 a I).',
+    createTitle: 'Založit místnost',
+    createNote: 'Vybereš formát a dostaneš kód a odkaz, který pošleš soupeři.',
+    create: 'Vytvořit místnost',
+    join: 'Připojit se',
+    roomCode: 'Kód místnosti',
+    roomCodeSpelled: (spelled: string) => `Kód místnosti ${spelled}`,
+    codeHint: 'Kód ti pošle hostitel, třeba XY7KP.',
+    connecting: 'Připojuji…',
+    cancel: 'Zrušit',
+    roomLink: 'Odkaz do místnosti',
+    copied: '✓ Zkopírováno',
+    copyManually: 'Zkopíruj odkaz ručně (Ctrl+C).',
+    hostKicker: 'Online · hostitel',
+    roomReady: 'Místnost je připravená',
+    orLink: 'Nebo pošli odkaz',
+    copy: 'Kopírovat',
+    waiting: 'Čekám na soupeře…',
+    format: (title: string) => `Formát: ${title}`,
+    cancelRoom: 'Zrušit místnost',
+    seeding: 'Losujeme společný seed…',
+    start: 'Do boje!',
+    waitingHost: 'Čekám, až hostitel spustí souboj…',
+    lobbyKicker: (isHost: boolean) => `Online · ${isHost ? 'hostitel' : 'host'}`,
+    seedNote:
+      'Pořadí her i veškerá náhoda vychází ze seedu, ke kterému přispěli oba hráči – nemůže ho ovlivnit ani hostitel.',
+    leave: 'Odejít',
+  },
+  {
+    title: 'Online duel',
+    notConfigured: 'Online play is not set up on this site.',
+    notConfiguredNote:
+      'The server connection (Supabase) is missing. Meanwhile you can play against the AI or with two players on one device.',
+    vsAi: 'Against AI',
+    twoPlayers: 'Two players',
+    backToMenu: 'Back to menu',
+    badCode: 'The code has 5 characters – letters and digits (no 0, O, 1 or I).',
+    createTitle: 'Create a room',
+    createNote: 'Pick a format and you get a code and a link to send to your opponent.',
+    create: 'Create room',
+    join: 'Join',
+    roomCode: 'Room code',
+    roomCodeSpelled: (spelled: string) => `Room code ${spelled}`,
+    codeHint: 'The host sends you the code, e.g. XY7KP.',
+    connecting: 'Connecting…',
+    cancel: 'Cancel',
+    roomLink: 'Room link',
+    copied: '✓ Copied',
+    copyManually: 'Copy the link manually (Ctrl+C).',
+    hostKicker: 'Online · host',
+    roomReady: 'The room is ready',
+    orLink: 'Or send a link',
+    copy: 'Copy',
+    waiting: 'Waiting for the opponent…',
+    format: (title: string) => `Format: ${title}`,
+    cancelRoom: 'Close the room',
+    seeding: 'Drawing a shared seed…',
+    start: 'Fight!',
+    waitingHost: 'Waiting for the host to start the duel…',
+    lobbyKicker: (isHost: boolean) => `Online · ${isHost ? 'host' : 'guest'}`,
+    seedNote:
+      'The game order and all randomness come from a seed both players contributed to – not even the host can influence it.',
+    leave: 'Leave',
+  },
+);
+
 export function onlineMenuScreen(app: App, available: boolean): Mount {
   return (root) => {
     const main = h(
       'main',
       { class: 'screen screen--narrow' },
       h('p', { class: 'kicker' }, 'Online 1v1'),
-      h('h1', { class: 'screen-title', tabindex: '-1' }, 'Online souboj'),
+      h('h1', { class: 'screen-title', tabindex: '-1' }, t.title),
     );
     root.append(main);
 
@@ -23,22 +99,18 @@ export function onlineMenuScreen(app: App, available: boolean): Mount {
         h(
           'section',
           { class: 'card stack' },
-          h('p', { class: 'lead' }, 'Online hra není na tomhle webu nastavená.'),
-          h(
-            'p',
-            { class: 'note' },
-            'Chybí připojení k serveru (Supabase). Mezitím si můžeš zahrát proti AI nebo ve dvou na jednom zařízení.',
-          ),
+          h('p', { class: 'lead' }, t.notConfigured),
+          h('p', { class: 'note' }, t.notConfiguredNote),
           h(
             'div',
             { class: 'actions' },
-            button('Proti AI', () => app.goSetup('pve'), 'btn btn-primary', {
+            button(t.vsAi, () => app.goSetup('pve'), 'btn btn-primary', {
               'data-autofocus': true,
             }),
-            button('Dva hráči', () => app.goSetup('local'), 'btn'),
+            button(t.twoPlayers, () => app.goSetup('local'), 'btn'),
           ),
         ),
-        button('Zpět do menu', () => app.goMenu(), 'btn btn-ghost'),
+        button(t.backToMenu, () => app.goMenu(), 'btn btn-ghost'),
       );
       return;
     }
@@ -59,7 +131,7 @@ export function onlineMenuScreen(app: App, available: boolean): Mount {
       event.preventDefault();
       const code = normalizeRoomCode(input.value);
       if (!code) {
-        setText(error, 'Kód má 5 znaků – písmena a číslice (bez 0, O, 1 a I).');
+        setText(error, t.badCode);
         input.setAttribute('aria-invalid', 'true');
         input.focus();
         return;
@@ -71,27 +143,23 @@ export function onlineMenuScreen(app: App, available: boolean): Mount {
       h(
         'section',
         { class: 'card stack' },
-        h('h2', { class: 'card-title' }, 'Založit místnost'),
-        h('p', { class: 'note' }, 'Vybereš formát a dostaneš kód a odkaz, který pošleš soupeři.'),
-        button('Vytvořit místnost', () => app.goSetup('online'), 'btn btn-primary btn-lg', {
+        h('h2', { class: 'card-title' }, t.createTitle),
+        h('p', { class: 'note' }, t.createNote),
+        button(t.create, () => app.goSetup('online'), 'btn btn-primary btn-lg', {
           'data-autofocus': true,
         }),
       ),
       h(
         'form',
         { class: 'card form', novalidate: true, onsubmit: join },
-        h('h2', { class: 'card-title' }, 'Připojit se'),
-        h('label', { for: 'room-code', class: 'field-label' }, 'Kód místnosti'),
+        h('h2', { class: 'card-title' }, t.join),
+        h('label', { for: 'room-code', class: 'field-label' }, t.roomCode),
         input,
-        h(
-          'p',
-          { id: 'room-code-hint', class: 'field-hint' },
-          'Kód ti pošle hostitel, třeba XY7KP.',
-        ),
+        h('p', { id: 'room-code-hint', class: 'field-hint' }, t.codeHint),
         error,
-        h('button', { type: 'submit', class: 'btn btn-lg' }, 'Připojit se'),
+        h('button', { type: 'submit', class: 'btn btn-lg' }, t.join),
       ),
-      button('Zpět do menu', () => app.goMenu(), 'btn btn-ghost'),
+      button(t.backToMenu, () => app.goMenu(), 'btn btn-ghost'),
     );
   };
 }
@@ -103,9 +171,9 @@ export function connectingScreen(text: string, onCancel: () => void): Mount {
         'main',
         { class: 'screen screen--narrow screen--center' },
         h('div', { class: 'spinner', 'aria-hidden': 'true' }),
-        h('h1', { class: 'screen-title', tabindex: '-1' }, 'Připojuji…'),
+        h('h1', { class: 'screen-title', tabindex: '-1' }, t.connecting),
         h('p', { class: 'lead', role: 'status' }, text),
-        button('Zrušit', onCancel, 'btn btn-ghost'),
+        button(t.cancel, onCancel, 'btn btn-ghost'),
       ),
     );
   };
@@ -125,41 +193,41 @@ export function waitingScreen(o: WaitingOptions): Mount {
       readonly: true,
       value: o.link,
       class: 'link-input',
-      'aria-label': 'Odkaz do místnosti',
+      'aria-label': t.roomLink,
       onfocus: (event: FocusEvent) => (event.currentTarget as HTMLInputElement).select(),
     });
     const copyStatus = h('span', { class: 'copy-status', 'aria-live': 'polite' });
     const copy = async (): Promise<void> => {
       try {
         await navigator.clipboard.writeText(o.link);
-        setText(copyStatus, '✓ Zkopírováno');
+        setText(copyStatus, t.copied);
       } catch {
         linkInput.focus();
         linkInput.select();
-        setText(copyStatus, 'Zkopíruj odkaz ručně (Ctrl+C).');
+        setText(copyStatus, t.copyManually);
       }
     };
     root.append(
       h(
         'main',
         { class: 'screen screen--narrow' },
-        h('p', { class: 'kicker' }, 'Online · hostitel'),
-        h('h1', { class: 'screen-title', tabindex: '-1' }, 'Místnost je připravená'),
+        h('p', { class: 'kicker' }, t.hostKicker),
+        h('h1', { class: 'screen-title', tabindex: '-1' }, t.roomReady),
         h(
           'section',
           { class: 'card stack room-card' },
-          h('p', { class: 'field-label' }, 'Kód místnosti'),
+          h('p', { class: 'field-label' }, t.roomCode),
           h(
             'p',
-            { class: 'room-code', 'aria-label': `Kód místnosti ${o.code.split('').join(' ')}` },
+            { class: 'room-code', 'aria-label': t.roomCodeSpelled(o.code.split('').join(' ')) },
             o.code,
           ),
-          h('p', { class: 'field-label' }, 'Nebo pošli odkaz'),
+          h('p', { class: 'field-label' }, t.orLink),
           h(
             'div',
             { class: 'link-row' },
             linkInput,
-            button('Kopírovat', () => void copy(), 'btn', { 'data-autofocus': true }),
+            button(t.copy, () => void copy(), 'btn', { 'data-autofocus': true }),
           ),
           copyStatus,
         ),
@@ -167,10 +235,10 @@ export function waitingScreen(o: WaitingOptions): Mount {
           'p',
           { class: 'waiting', role: 'status' },
           h('span', { class: 'pulse', 'aria-hidden': 'true' }),
-          'Čekám na soupeře…',
+          t.waiting,
         ),
-        h('p', { class: 'note' }, `Formát: ${formatTitle(o.format)}`),
-        button('Zrušit místnost', o.onCancel, 'btn btn-ghost'),
+        h('p', { class: 'note' }, t.format(formatTitle(o.format))),
+        button(t.cancelRoom, o.onCancel, 'btn btn-ghost'),
       ),
     );
   };
@@ -194,34 +262,30 @@ export function lobbyScreen(o: LobbyOptions): Mount {
         'p',
         { class: 'waiting', role: 'status' },
         h('span', { class: 'pulse', 'aria-hidden': 'true' }),
-        'Losujeme společný seed…',
+        t.seeding,
       );
     } else if (o.isHost) {
-      action = button('Do boje!', o.onStart, 'btn btn-primary btn-lg', { 'data-autofocus': true });
+      action = button(t.start, o.onStart, 'btn btn-primary btn-lg', { 'data-autofocus': true });
     } else {
       action = h(
         'p',
         { class: 'waiting', role: 'status' },
         h('span', { class: 'pulse', 'aria-hidden': 'true' }),
-        'Čekám, až hostitel spustí souboj…',
+        t.waitingHost,
       );
     }
     root.append(
       h(
         'main',
         { class: 'screen' },
-        h('p', { class: 'kicker' }, `Online · ${o.isHost ? 'hostitel' : 'host'}`),
+        h('p', { class: 'kicker' }, t.lobbyKicker(o.isHost)),
         h('h1', { class: 'screen-title', tabindex: '-1' }, formatTitle(o.format)),
         versus(o.names),
         o.plan ? h('p', { class: 'lead' }, bestOfLead(o.plan)) : null,
         o.plan ? slotList(o.plan) : null,
         h('p', { class: 'note' }, RULES_NOTE),
-        h(
-          'p',
-          { class: 'note' },
-          'Pořadí her i veškerá náhoda vychází ze seedu, ke kterému přispěli oba hráči – nemůže ho ovlivnit ani hostitel.',
-        ),
-        h('div', { class: 'actions' }, button('Odejít', o.onLeave, 'btn btn-ghost'), action),
+        h('p', { class: 'note' }, t.seedNote),
+        h('div', { class: 'actions' }, button(t.leave, o.onLeave, 'btn btn-ghost'), action),
       ),
     );
   };

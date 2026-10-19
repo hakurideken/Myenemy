@@ -1,6 +1,7 @@
 import type { MatchFormat } from '../core/match/planMatch';
 import { AIMemory, type Prefs, type Sfx } from '../core/MiniGame';
 import type { GameId } from '../core/types';
+import { lang, setLang, type Lang } from '../i18n';
 import { readSupabaseConfig, supabaseTransportFactory } from '../net/config';
 import type { TransportFactory } from '../net/Transport';
 import { loadNickname, saveNickname } from '../platform/profile';
@@ -88,6 +89,16 @@ export class App {
       this.screenRoot.querySelector<HTMLElement>('[data-autofocus]') ??
       this.screenRoot.querySelector<HTMLElement>('h1');
     target?.focus({ preventScroll: true });
+  }
+
+  /**
+   * Přepnutí jazyka: volba se uloží a stránka se načte znovu – texty si moduly berou
+   * při načtení. Mimo zápas (menu, nastavení) se tím nic neztratí.
+   */
+  switchLanguage(next: Lang): void {
+    if (next === lang()) return;
+    setLang(next);
+    window.location.reload();
   }
 
   /** Potvrzovací dialog nad celou aplikací (zbytek je mezitím neaktivní). */

@@ -1,3 +1,4 @@
+import { translations } from '../i18n';
 import { GameRunner } from '../core/GameRunner';
 import {
   MatchController,
@@ -29,6 +30,67 @@ import { Listeners } from '../net/Transport';
 import { CheatError, SealedExchange, SecretExchange, SeedExchange } from './exchanges';
 import { MentalPokerDealer } from './MentalPokerDealer';
 import { RemoteRunner } from './RemoteRunner';
+
+const t = translations(
+  {
+    seedError: 'Chyba výměny seedu.',
+    badFormat: 'Formát zápasu nejde sestavit.',
+    badOrder: 'Pořadí her od hostitele nesouhlasí se společným seedem.',
+    unknownGame: (id: string) => `Neznámá hra ${id}.`,
+    oppRevealOther: 'Soupeř odhalil jiný tah, než ke kterému se zavázal.',
+    oppInvalidMove: 'Soupeř poslal nevalidní tah.',
+    oppCardNotOwned: 'Soupeř vyložil kartu, kterou nemá.',
+    oppIllegal: 'Soupeř zahrál tah, který pravidla nedovolují.',
+    notOverHere: 'Hra u tebe neskončila, ale hostitel tvrdí, že ano.',
+    hostResultVsGame: 'Výsledek kola od hostitele nesouhlasí s odehranou hrou.',
+    oppNotRevealed: 'Soupeř neodhalil svůj zapečetěný tah.',
+    hostRevealOther: 'Hostitel odhalil jiný tah, než ke kterému se zavázal.',
+    hostNotRevealed: 'Hostitel neodhalil svůj zapečetěný tah.',
+    noFinalState: 'Chybí závěrečný stav kola.',
+    movesMismatch: 'Tahy v závěrečném stavu nesouhlasí s odhalenými tahy.',
+    revealedInvalid: 'Odhalený tah není platný.',
+    hostResultVsReveals: 'Výsledek kola od hostitele nesouhlasí s odhalenými tahy.',
+    hostResultVsState: 'Výsledek kola od hostitele nesouhlasí se stavem hry.',
+    hostAlteredAnswers: 'Hostitel pozměnil tvoje odpovědi.',
+    secretMissing: 'Soupeř neodhalil svá tajná data.',
+    secretMismatch: 'Tajná data soupeře neodpovídají jeho závazku.',
+    secretInvalid: 'Soupeř měl neplatná tajná data.',
+    secretContradiction: 'Soupeř během hry odpovídal v rozporu se svými tajnými daty.',
+    wrongRound: 'Hostitel spustil jiné kolo, než vychází ze zápasu.',
+    reported: 'Soupeř nahlásil nesoulad v datech zápasu.',
+    oppRevealedInvalid: 'Soupeř odhalil neplatný tah.',
+    hostNoCommit: 'Hostitel se nezavázal ke svým tajným datům před začátkem hry.',
+  },
+  {
+    seedError: 'The seed exchange failed.',
+    badFormat: 'The match format cannot be built.',
+    badOrder: 'The host’s game order does not match the shared seed.',
+    unknownGame: (id: string) => `Unknown game ${id}.`,
+    oppRevealOther: 'Your opponent revealed a different move than the one they committed to.',
+    oppInvalidMove: 'Your opponent sent an invalid move.',
+    oppCardNotOwned: 'Your opponent played a card they do not have.',
+    oppIllegal: 'Your opponent made a move the rules do not allow.',
+    notOverHere: 'The game has not ended on your side, but the host claims it has.',
+    hostResultVsGame: 'The host’s round result does not match the game that was played.',
+    oppNotRevealed: 'Your opponent did not reveal their sealed move.',
+    hostRevealOther: 'The host revealed a different move than the one they committed to.',
+    hostNotRevealed: 'The host did not reveal their sealed move.',
+    noFinalState: 'The final state of the round is missing.',
+    movesMismatch: 'The moves in the final state do not match the revealed moves.',
+    revealedInvalid: 'The revealed move is not valid.',
+    hostResultVsReveals: 'The host’s round result does not match the revealed moves.',
+    hostResultVsState: 'The host’s round result does not match the game state.',
+    hostAlteredAnswers: 'The host altered your answers.',
+    secretMissing: 'Your opponent did not reveal their secret data.',
+    secretMismatch: 'Your opponent’s secret data do not match their commitment.',
+    secretInvalid: 'Your opponent had invalid secret data.',
+    secretContradiction: 'During the game your opponent answered against their own secret data.',
+    wrongRound: 'The host started a different round than the match dictates.',
+    reported: 'Your opponent reported a data mismatch in the match.',
+    oppRevealedInvalid: 'Your opponent revealed an invalid move.',
+    hostNoCommit: 'The host did not commit to their secret data before the game started.',
+  },
+);
 
 /** Rezerva navíc k lhůtě na tah, než hostitel zahraje za mlčícího hosta. */
 export const REMOTE_GRACE_MS = 10_000;
@@ -116,7 +178,7 @@ interface RoundState {
   /** Karty: výsledek podle vlastní logiky (host ho porovná s hostitelovým). */
   cardOutcome: Outcome | null;
   readonly cardOutcomeWaiters: ((outcome: Outcome | null) => void)[];
-  /** Hostitel: poslední pohled odeslaný hostovi. */
+  /** Hostitel: poslední pohled odeslaný hostovi. Karty: poslední vlastní pohled. */
   lastView: unknown;
   /** Host: stav, který přišel dřív, než se kolo vykreslilo. */
   pendingState: StateBody | null;
@@ -386,8 +448,7 @@ export class OnlineSession {
       (seed) => {
         if (this.matchNo === match && !this.closed) this.onSeed(seed);
       },
-      (err: unknown) =>
-        this.detectCheat(err instanceof CheatError ? err.message : 'Chyba výměny seedu.'),
+      (err: unknown) => this.detectCheat(err instanceof CheatError ? err.message : t.seedError),
     );
     void seeds.start();
   }
@@ -398,7 +459,7 @@ export class OnlineSession {
     try {
       plan = planMatch(this.o.format, this.infos, deriveRng(seed, 'plan'));
     } catch {
-      this.detectCheat('Formát zápasu nejde sestavit.');
+      this.detectCheat(t.badFormat);
       return;
     }
     this.ownPlan = plan;
@@ -423,7 +484,7 @@ export class OnlineSession {
       canonicalJson(this.ownPlan.slots) !== canonicalJson(this.hostSlots) ||
       canonicalJson(this.o.format) !== canonicalJson(this.hostFormat)
     ) {
-      this.detectCheat('Pořadí her od hostitele nesouhlasí se společným seedem.');
+      this.detectCheat(t.badOrder);
       return;
     }
     this.setPhase({ name: 'lobby', plan: this.ownPlan });
@@ -463,7 +524,7 @@ export class OnlineSession {
   private beginRound(current: CurrentGame): void {
     const game = this.games.find((g) => g.id === current.gameId);
     if (!game) {
-      this.detectCheat(`Neznámá hra ${current.gameId}.`);
+      this.detectCheat(t.unknownGame(current.gameId));
       return;
     }
     const mounted = deferred();
@@ -543,6 +604,7 @@ export class OnlineSession {
 
   private cardPublish(round: RoundState, update: RemoteUpdate): void {
     if (this.round !== round || round.ended) return;
+    round.lastView = update.view;
     if (update.finished !== null && round.cardOutcome === null) {
       round.cardOutcome = update.finished;
       for (const resolve of round.cardOutcomeWaiters.splice(0)) resolve(update.finished);
@@ -622,7 +684,7 @@ export class OnlineSession {
       case 'reveal': {
         const ok = await this.cardStep(round, msg.step ?? 0).receiveReveal(msg.move, msg.salt);
         if (this.round !== round || round.ended) return;
-        if (!ok) this.detectCheat('Soupeř odhalil jiný tah, než ke kterému se zavázal.');
+        if (!ok) this.detectCheat(t.oppRevealOther);
         else this.applyCardMove(round, runner, msg.move);
         break;
       }
@@ -633,18 +695,18 @@ export class OnlineSession {
     const { game, dealer } = round;
     const parsed = game.moveSchema.safeParse(input);
     if (!parsed.success) {
-      this.detectCheat('Soupeř poslal nevalidní tah.');
+      this.detectCheat(t.oppInvalidMove);
       return;
     }
     const claims = game.cards?.claims(parsed.data) ?? [];
     if (claims.length > 0 && !dealer?.check(claims)) {
-      this.detectCheat('Soupeř vyložil kartu, kterou nemá.');
+      this.detectCheat(t.oppCardNotOwned);
       return;
     }
     this.clearFallback(round);
     // Oba hráči mají stejný stav – neplatný tah znamená upravený klient.
     if (!runner.submitRemote(this.opponent, parsed.data)) {
-      this.detectCheat('Soupeř zahrál tah, který pravidla nedovolují.');
+      this.detectCheat(t.oppIllegal);
     }
   }
 
@@ -665,9 +727,9 @@ export class OnlineSession {
     if (!dealer) return null;
     if (outcome !== null) {
       const mine = await this.waitCardOutcome(round);
-      if (!mine) return 'Hra u tebe neskončila, ale hostitel tvrdí, že ano.';
+      if (!mine) return t.notOverHere;
       if (canonicalJson(mine) !== canonicalJson(outcome)) {
-        return 'Výsledek kola od hostitele nesouhlasí s odehranou hrou.';
+        return t.hostResultVsGame;
       }
     }
     return dealer.waitAudit((cb) => {
@@ -681,7 +743,7 @@ export class OnlineSession {
     const runner = round.host;
     if (this.round !== round || round.ended || !runner || !runner.isToMove(this.opponent)) return;
     if (round.sealed?.opponentCommitted) {
-      this.detectCheat('Soupeř neodhalil svůj zapečetěný tah.');
+      this.detectCheat(t.oppNotRevealed);
       return;
     }
     // Karty: stav drží i host, takže za něj hostitel táhnout nemůže.
@@ -773,9 +835,27 @@ export class OnlineSession {
     }
     if (this.round !== round || this.closed || !this.controller) return;
     const report = this.controller.report(body.outcome);
-    const result: RoundEnd = { outcome: body.outcome, summary: body.summary };
+    const result: RoundEnd = { outcome: body.outcome, summary: this.guestSummary(round, body) };
     round.guest?.receiveEnd(result);
     this.setPhase({ name: 'round-result', current: round.current, report, result });
+  }
+
+  /**
+   * Host: shrnutí kola z vlastního závěrečného pohledu – v jazyce tohoto zařízení.
+   * Když pohled chybí, zůstane text od hostitele.
+   */
+  private guestSummary(
+    round: RoundState,
+    body: Extract<SessionBody, { type: 'round-end' }>,
+  ): string {
+    const raw = round.dealer ? round.lastView : round.latestState?.view;
+    const view = raw === undefined || raw === null ? null : round.game.viewSchema.safeParse(raw);
+    if (!view?.success) return body.summary;
+    try {
+      return round.game.summarize(view.data, this.names);
+    } catch {
+      return body.summary;
+    }
   }
 
   /**
@@ -785,12 +865,11 @@ export class OnlineSession {
   private async verifySealedRound(round: RoundState, outcome: Outcome): Promise<string | null> {
     const { game, sealed, current } = round;
     if (!sealed || !game.sealed || !this.seed) return null;
-    if (round.revealCheck && !(await round.revealCheck))
-      return 'Hostitel odhalil jiný tah, než ke kterému se zavázal.';
+    if (round.revealCheck && !(await round.revealCheck)) return t.hostRevealOther;
     const hostMove = sealed.opponentMove;
-    if (!hostMove) return 'Hostitel neodhalil svůj zapečetěný tah.';
+    if (!hostMove) return t.hostNotRevealed;
     const finalView = round.latestState ? game.viewSchema.safeParse(round.latestState.view) : null;
-    if (!finalView?.success) return 'Chybí závěrečný stav kola.';
+    if (!finalView?.success) return t.noFinalState;
 
     const moves: Partial<Record<PlayerSlot, unknown>> = {
       [this.opponent]: hostMove.move,
@@ -799,7 +878,7 @@ export class OnlineSession {
     for (const p of [this.me, this.opponent]) {
       const shown = game.sealed.moveOf(finalView.data, p);
       if (shown === null || canonicalJson(shown) !== canonicalJson(moves[p])) {
-        return 'Tahy v závěrečném stavu nesouhlasí s odhalenými tahy.';
+        return t.movesMismatch;
       }
     }
 
@@ -810,13 +889,12 @@ export class OnlineSession {
     });
     for (const p of [current.starter, otherPlayer(current.starter)]) {
       const parsed = game.moveSchema.safeParse(moves[p]);
-      if (!parsed.success || !logic.legal(state, p, parsed.data))
-        return 'Odhalený tah není platný.';
+      if (!parsed.success || !logic.legal(state, p, parsed.data)) return t.revealedInvalid;
       state = logic.apply(state, p, parsed.data);
     }
     const expected = logic.outcome(state);
     if (!expected || canonicalJson(expected) !== canonicalJson(outcome)) {
-      return 'Výsledek kola od hostitele nesouhlasí s odhalenými tahy.';
+      return t.hostResultVsReveals;
     }
     return null;
   }
@@ -830,13 +908,13 @@ export class OnlineSession {
     const hidden = game.hidden;
     if (!hidden || !secrets) return null;
     const parsed = round.latestState ? game.viewSchema.safeParse(round.latestState.view) : null;
-    if (!parsed?.success) return 'Chybí závěrečný stav kola.';
+    if (!parsed?.success) return t.noFinalState;
     const expected = hidden.outcome(parsed.data);
     if (!expected || canonicalJson(expected) !== canonicalJson(outcome)) {
-      return 'Výsledek kola od hostitele nesouhlasí se stavem hry.';
+      return t.hostResultVsState;
     }
     if (secrets.hasCommitted && !hidden.consistent(parsed.data, this.me, secrets.ownSecret)) {
-      return 'Hostitel pozměnil tvoje odpovědi.';
+      return t.hostAlteredAnswers;
     }
     return this.verifyOpponentSecret(round, parsed.data);
   }
@@ -852,14 +930,14 @@ export class OnlineSession {
     const reveal = await secrets.waitReveal((cb) => {
       this.o.clock.setTimeout(cb, REVEAL_WAIT_MS);
     });
-    if (reveal.kind === 'missing') return 'Soupeř neodhalil svá tajná data.';
-    if (reveal.kind === 'mismatch') return 'Tajná data soupeře neodpovídají jeho závazku.';
+    if (reveal.kind === 'missing') return t.secretMissing;
+    if (reveal.kind === 'mismatch') return t.secretMismatch;
     const parsed = hidden.secretSchema.safeParse(reveal.secret);
     if (!parsed.success || !hidden.isValidSecret(parsed.data)) {
-      return 'Soupeř měl neplatná tajná data.';
+      return t.secretInvalid;
     }
     if (!hidden.consistent(finalView, this.opponent, parsed.data)) {
-      return 'Soupeř během hry odpovídal v rozporu se svými tajnými daty.';
+      return t.secretContradiction;
     }
     return null;
   }
@@ -930,7 +1008,7 @@ export class OnlineSession {
         if (host || !this.controller || this.controller.isOver) break;
         const current = this.controller.current();
         if (roundKey(current) !== roundKey(body)) {
-          this.detectCheat('Hostitel spustil jiné kolo, než vychází ze zápasu.');
+          this.detectCheat(t.wrongRound);
           break;
         }
         this.beginRound(current);
@@ -954,7 +1032,7 @@ export class OnlineSession {
         break;
       case 'cheat':
         if (this.detail !== null) break;
-        this.detail = 'Soupeř nahlásil nesoulad v datech zápasu.';
+        this.detail = t.reported;
         this.endByForfeit(this.me, 'cheat');
         break;
     }
@@ -1021,9 +1099,9 @@ export class OnlineSession {
         if (!sealed || msg.player !== this.opponent) return;
         void sealed.receiveReveal(msg.move, msg.salt).then((ok) => {
           if (this.round !== round || round.ended) return;
-          if (!ok) this.detectCheat('Soupeř odhalil jiný tah, než ke kterému se zavázal.');
+          if (!ok) this.detectCheat(t.oppRevealOther);
           else if (!runner.submitRemote(this.opponent, msg.move))
-            this.detectCheat('Soupeř odhalil neplatný tah.');
+            this.detectCheat(t.oppRevealedInvalid);
         });
         break;
       }
@@ -1040,7 +1118,7 @@ export class OnlineSession {
     const parsed = round.game.viewSchema.safeParse(msg.view);
     if (!parsed.success) return true;
     if (hidden.locked(parsed.data) && !secrets.opponentCommitted) {
-      this.detectCheat('Hostitel se nezavázal ke svým tajným datům před začátkem hry.');
+      this.detectCheat(t.hostNoCommit);
       return false;
     }
     if (msg.finished !== null && hidden.outcome(parsed.data) !== null) secrets.reveal();

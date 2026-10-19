@@ -3,6 +3,7 @@ import type { Mount } from '../App';
 import { button, versus } from '../components/common';
 import { slotList } from '../components/slotList';
 import { h } from '../dom';
+import { translations } from '../../i18n';
 import { formatTitle, MODE_LABEL, plural } from '../labels';
 import type { MatchSetup } from '../MatchFlow';
 
@@ -13,12 +14,31 @@ interface MatchIntroOptions {
   readonly onBack: () => void;
 }
 
-export const RULES_NOTE =
-  'Zápas končí, jakmile má někdo potřebný počet výher – zbylé hry se nehrají. ' +
-  'Remíza se nepočítá a hraje se rozhodující kolo stejné hry (max. 3×, pak los).';
+const t = translations(
+  {
+    rulesNote:
+      'Zápas končí, jakmile má někdo potřebný počet výher – zbylé hry se nehrají. ' +
+      'Remíza se nepočítá a hraje se rozhodující kolo stejné hry (max. 3×, pak los).',
+    lead: (bestOf: number, wins: number) =>
+      `Best of ${bestOf} – vyhrává, kdo první získá ${wins} ${plural(wins, 'výhru', 'výhry', 'výher')}.`,
+    back: 'Zpět do menu',
+    start: 'Do boje!',
+  },
+  {
+    rulesNote:
+      'The match ends as soon as someone has enough wins – the remaining games are skipped. ' +
+      'A draw does not count; a deciding round of the same game follows (max. 3×, then a coin flip).',
+    lead: (bestOf: number, wins: number) =>
+      `Best of ${bestOf} – the first to ${wins} ${wins === 1 ? 'win' : 'wins'} takes it.`,
+    back: 'Back to menu',
+    start: 'Fight!',
+  },
+);
+
+export const RULES_NOTE = t.rulesNote;
 
 export function bestOfLead(plan: MatchPlan): string {
-  return `Best of ${plan.bestOf} – vyhrává, kdo první získá ${plan.winsNeeded} ${plural(plan.winsNeeded, 'výhru', 'výhry', 'výher')}.`;
+  return t.lead(plan.bestOf, plan.winsNeeded);
 }
 
 export function matchIntroScreen(o: MatchIntroOptions): Mount {
@@ -37,8 +57,8 @@ export function matchIntroScreen(o: MatchIntroOptions): Mount {
         h(
           'div',
           { class: 'actions' },
-          button('Zpět do menu', o.onBack, 'btn btn-ghost'),
-          button('Do boje!', o.onStart, 'btn btn-primary btn-lg', { 'data-autofocus': true }),
+          button(t.back, o.onBack, 'btn btn-ghost'),
+          button(t.start, o.onStart, 'btn btn-primary btn-lg', { 'data-autofocus': true }),
         ),
       ),
     );

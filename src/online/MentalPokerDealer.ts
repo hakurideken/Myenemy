@@ -1,3 +1,4 @@
+import { translations } from '../i18n';
 import {
   CardCodec,
   createPokerKeys,
@@ -13,6 +14,33 @@ import {
 import type { CardAt, CardDealer, KnownCards } from '../core/MiniGame';
 import { otherPlayer, type PerPlayer, type PlayerSlot } from '../core/types';
 import { Listeners } from '../net/Transport';
+
+const t = translations(
+  {
+    noKeys: 'Soupeř neposlal klíče k ověření balíčku.',
+    outOfOrder: 'Soupeř poslal balíček mimo pořadí míchání.',
+    badDeck: 'Soupeř poslal neplatný zašifrovaný balíček.',
+    badKey: 'Soupeř poslal neplatný klíč ke kartě.',
+    otherKey: 'Soupeř poslal ke stejné kartě jiný klíč.',
+    auditIncomplete: 'Audit balíčku od soupeře je neúplný.',
+    auditKeys: 'Klíče v auditu nesouhlasí s klíči ze hry.',
+    auditCards: 'Balíček neobsahoval každou kartu právě jednou.',
+    keyNoCard: 'Klíč od soupeře neodemyká platnou kartu.',
+    shuffleFailed: 'Míchání balíčku selhalo.',
+  },
+  {
+    noKeys: 'Your opponent did not send the keys to verify the deck.',
+    outOfOrder: 'Your opponent sent the deck out of shuffling order.',
+    badDeck: 'Your opponent sent an invalid encrypted deck.',
+    badKey: 'Your opponent sent an invalid card key.',
+    otherKey: 'Your opponent sent a different key for the same card.',
+    auditIncomplete: 'Your opponent’s deck audit is incomplete.',
+    auditKeys: 'The audit keys do not match the keys used in the game.',
+    auditCards: 'The deck did not contain every card exactly once.',
+    keyNoCard: 'Your opponent’s key does not unlock a valid card.',
+    shuffleFailed: 'Shuffling the deck failed.',
+  },
+);
 
 export type DeckStage = 1 | 2 | 3 | 4;
 
@@ -148,7 +176,7 @@ export class MentalPokerDealer implements CardDealer {
     if (this.audit !== undefined) return Promise.resolve(this.audit);
     return new Promise((resolve) => {
       this.auditWaiters.push(resolve);
-      schedule(() => this.settleAudit('Soupeř neposlal klíče k ověření balíčku.'));
+      schedule(() => this.settleAudit(t.noKeys));
     });
   }
 
@@ -171,12 +199,12 @@ export class MentalPokerDealer implements CardDealer {
 
   private receiveDeck(stage: DeckStage, cards: readonly string[]): void {
     if (stage !== this.expectedStage || this.deck) {
-      this.cheat('Soupeř poslal balíček mimo pořadí míchání.');
+      this.cheat(t.outOfOrder);
       return;
     }
     const parsed = cards.map((c) => fromHex(c));
     if (!parsed.every((x): x is bigint => x !== null) || !validDeck(parsed, this.deckSize)) {
-      this.cheat('Soupeř poslal neplatný zašifrovaný balíček.');
+      this.cheat(t.badDeck);
       return;
     }
     this.expectedStage = (stage + 2) as DeckStage;
@@ -205,12 +233,12 @@ export class MentalPokerDealer implements CardDealer {
     for (const { pos, key } of keys) {
       const value = fromHex(key, Q);
       if (!Number.isInteger(pos) || pos < 0 || pos >= this.deckSize || value === null) {
-        this.cheat('Soupeř poslal neplatný klíč ke kartě.');
+        this.cheat(t.badKey);
         return;
       }
       const known = this.theirKeys.get(pos);
       if (known !== undefined && known !== value) {
-        this.cheat('Soupeř poslal ke stejné kartě jiný klíč.');
+        this.cheat(t.otherKey);
         return;
       }
       this.theirKeys.set(pos, value);
@@ -220,7 +248,7 @@ export class MentalPokerDealer implements CardDealer {
 
   private async receiveAudit(keys: readonly string[]): Promise<void> {
     if (keys.length !== this.deckSize || !this.deck) {
-      this.settleAudit('Audit balíčku od soupeře je neúplný.');
+      this.settleAudit(t.auditIncomplete);
       return;
     }
     const seen = new Set<number>();
@@ -228,12 +256,12 @@ export class MentalPokerDealer implements CardDealer {
       const theirs = fromHex(key, Q);
       const earlier = this.theirKeys.get(pos);
       if (theirs === null || (earlier !== undefined && earlier !== theirs)) {
-        this.settleAudit('Klíče v auditu nesouhlasí s klíči ze hry.');
+        this.settleAudit(t.auditKeys);
         return;
       }
       const card = this.unlock(pos, theirs);
       if (card === null || seen.has(card)) {
-        this.settleAudit('Balíček neobsahoval každou kartu právě jednou.');
+        this.settleAudit(t.auditCards);
         return;
       }
       seen.add(card);
@@ -262,7 +290,7 @@ export class MentalPokerDealer implements CardDealer {
       if (this.cards.has(pos)) continue;
       const card = this.unlock(pos, theirs);
       if (card === null || [...this.cards.values()].includes(card)) {
-        this.cheat('Klíč od soupeře neodemyká platnou kartu.');
+        this.cheat(t.keyNoCard);
         return false;
       }
       this.cards.set(pos, card);
@@ -288,7 +316,7 @@ export class MentalPokerDealer implements CardDealer {
   private enqueue(task: () => Promise<void>): void {
     this.busy = this.busy.then(task).catch((err: unknown) => {
       console.error('[mental poker]', err);
-      this.cheat('Míchání balíčku selhalo.');
+      this.cheat(t.shuffleFailed);
     });
   }
 

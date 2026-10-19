@@ -1,7 +1,19 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
+import { translations } from '../../i18n';
 import { h, setText } from '../../ui/dom';
 import { MARK_LABEL, outcomeMessage, playerMark, statusLine, turnMessage } from '../shared/board';
 import { cellIndex, COLS, dropRow, ROWS, type C4Move, type C4View } from './logic';
+
+const t = translations(
+  {
+    board: 'Deska 7×6',
+    column: (n: number, free: number) => `Sloupec ${n}: ${free === 0 ? 'plný' : `volných ${free}`}`,
+  },
+  {
+    board: '7×6 board',
+    column: (n: number, free: number) => `Column ${n}: ${free === 0 ? 'full' : `${free} free`}`,
+  },
+);
 
 export function createC4View(ctx: ViewContext<C4Move>): GameView<C4View> {
   let frame: RenderFrame | null = null;
@@ -26,7 +38,7 @@ export function createC4View(ctx: ViewContext<C4Move>): GameView<C4View> {
       column,
     );
   });
-  const board = h('div', { class: 'c4-board', role: 'group', 'aria-label': 'Deska 7×6' }, columns);
+  const board = h('div', { class: 'c4-board', role: 'group', 'aria-label': t.board }, columns);
   const container = h('div', { class: 'board-game c4' }, status, board);
   ctx.root.append(container);
 
@@ -56,10 +68,7 @@ export function createC4View(ctx: ViewContext<C4Move>): GameView<C4View> {
       columns.forEach((button, c) => {
         const free = ROWS - (dropRow(view.board, c) < 0 ? ROWS : dropRow(view.board, c));
         button.disabled = !canPlay || free === 0;
-        button.setAttribute(
-          'aria-label',
-          `Sloupec ${c + 1}: ${free === 0 ? 'plný' : `volných ${free}`}`,
-        );
+        button.setAttribute('aria-label', t.column(c + 1, free));
         for (const slot of slots[c] ?? []) {
           const index = Number(slot.dataset.index);
           const owner = view.board[index] ?? null;

@@ -1,5 +1,8 @@
+import { translations } from '../../i18n';
 import { h, svg } from '../../ui/dom';
 import { cardName, RANK, RANK_LABEL, rankOf, SUIT_NAME, suitOf } from './marias';
+
+const t = translations({ faceDown: 'karta lícem dolů' }, { faceDown: 'face-down card' });
 
 /** Symboly barev (vlastní kresba, střed v 0,0, velikost asi 24 jednotek). */
 const SUIT_SHAPES: readonly ((cls: string) => SVGElement[])[] = [
@@ -114,7 +117,7 @@ export function cardBack(): SVGSVGElement {
       viewBox: '0 0 60 90',
       class: 'card-svg card-svg--back',
       role: 'img',
-      'aria-label': 'karta lícem dolů',
+      'aria-label': t.faceDown,
     },
     svg('rect', { class: 'card-back', x: '1', y: '1', width: '58', height: '88', rx: '6' }),
     svg('rect', { class: 'card-back-frame', x: '6', y: '6', width: '48', height: '78', rx: '4' }),

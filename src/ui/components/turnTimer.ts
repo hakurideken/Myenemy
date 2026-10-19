@@ -1,5 +1,23 @@
 import type { Clock } from '../../core/util/clock';
+import { translations } from '../../i18n';
 import { h, setText } from '../dom';
+
+const t = translations(
+  {
+    label: 'Čas na tah',
+    left: (n: number) =>
+      n === 1
+        ? 'Zbývá 1 sekunda na tah.'
+        : n >= 2 && n <= 4
+          ? `Zbývají ${n} sekundy na tah.`
+          : `Zbývá ${n} sekund na tah.`,
+  },
+  {
+    label: 'Time for your move',
+    left: (n: number) =>
+      n === 1 ? '1 second left for your move.' : `${n} seconds left for your move.`,
+  },
+);
 
 export interface TurnTimer {
   readonly el: HTMLElement;
@@ -11,9 +29,7 @@ const URGENT_MS = 5000;
 
 /** „Zbývá 5 sekund“, „Zbývají 3 sekundy“, „Zbývá 1 sekunda“. */
 export function secondsLeftText(n: number): string {
-  if (n === 1) return 'Zbývá 1 sekunda na tah.';
-  if (n >= 2 && n <= 4) return `Zbývají ${n} sekundy na tah.`;
-  return `Zbývá ${n} sekund na tah.`;
+  return t.left(n);
 }
 
 export function createTurnTimer(clock: Clock): TurnTimer {
@@ -23,7 +39,7 @@ export function createTurnTimer(clock: Clock): TurnTimer {
   const announce = h('span', { class: 'sr-only', 'aria-live': 'polite' });
   const el = h(
     'div',
-    { class: 'turn-timer is-idle', role: 'timer', 'aria-label': 'Čas na tah' },
+    { class: 'turn-timer is-idle', role: 'timer', 'aria-label': t.label },
     h('div', { class: 'turn-timer-track' }, bar),
     label,
     announce,

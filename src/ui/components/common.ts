@@ -1,7 +1,23 @@
 import type { CurrentGame } from '../../core/match/MatchController';
 import type { PerPlayer, PlayerSlot } from '../../core/types';
 import { h, type Attrs, type Child } from '../dom';
+import { translations } from '../../i18n';
 import { gameProgress } from '../labels';
+
+const t = translations(
+  {
+    vs: 'proti',
+    score: 'Skóre zápasu',
+    leave: 'Opustit zápas',
+    bigScore: (a: number, b: number) => `Skóre ${a} : ${b}`,
+  },
+  {
+    vs: 'versus',
+    score: 'Match score',
+    leave: 'Leave the match',
+    bigScore: (a: number, b: number) => `Score ${a} : ${b}`,
+  },
+);
 import { swordsIcon } from './icons';
 
 export function logo(big = false): HTMLElement {
@@ -32,7 +48,7 @@ export function versus(names: PerPlayer<string>): HTMLElement {
     'div',
     { class: 'versus' },
     h('span', { class: 'versus-name versus-name--a' }, names.A),
-    h('span', { class: 'versus-vs', 'aria-label': 'proti' }, 'VS'),
+    h('span', { class: 'versus-vs', 'aria-label': t.vs }, 'VS'),
     h('span', { class: 'versus-name versus-name--b' }, names.B),
   );
 }
@@ -53,7 +69,7 @@ export function scoreBar(o: ScoreBarOptions): HTMLElement {
     : h('p', { class: 'scorebar-game' }, o.gameName);
   return h(
     'header',
-    { class: 'scorebar', 'aria-label': 'Skóre zápasu' },
+    { class: 'scorebar', 'aria-label': t.score },
     h(
       'div',
       { class: 'scorebar-player scorebar-player--a' },
@@ -78,8 +94,8 @@ export function scoreBar(o: ScoreBarOptions): HTMLElement {
           {
             type: 'button',
             class: 'scorebar-leave btn-icon',
-            'aria-label': 'Opustit zápas',
-            title: 'Opustit zápas',
+            'aria-label': t.leave,
+            title: t.leave,
             onclick: o.onLeave,
           },
           '✕',
@@ -93,7 +109,7 @@ export function bigScore(score: Readonly<PerPlayer<number>>, bump: PlayerSlot | 
     h('span', { class: `big-score-${p.toLowerCase()}${bump === p ? ' is-bump' : ''}` }, score[p]);
   return h(
     'p',
-    { class: 'big-score', 'aria-label': `Skóre ${score.A} : ${score.B}` },
+    { class: 'big-score', 'aria-label': t.bigScore(score.A, score.B) },
     part('A'),
     h('span', { class: 'big-score-sep', 'aria-hidden': 'true' }, ':'),
     part('B'),

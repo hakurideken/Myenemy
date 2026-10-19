@@ -1,7 +1,41 @@
+import { lang, LANGS, translations, type Lang } from '../../i18n';
 import { applyMotionPreference, canVibrate, prefersReducedMotion } from '../../platform/settings';
 import type { App, Mount } from '../App';
 import { button } from '../components/common';
+import { radioGroup } from '../components/radioGroup';
 import { h } from '../dom';
+
+const t = translations(
+  {
+    title: 'Nastavení',
+    language: 'Jazyk / Language',
+    sound: 'Zvuky',
+    soundHint: 'Signály a efekty během her',
+    vibration: 'Vibrace',
+    vibrationHint: 'Krátké zavibrování při signálu',
+    vibrationNone: 'Toto zařízení vibrace nepodporuje',
+    motion: 'Omezit animace',
+    motionSystem: 'Zapnuto v systému („Omezit pohyb“)',
+    motionHint: 'Bez létajících karet, otáčení a pulzování',
+    back: 'Zpět do menu',
+  },
+  {
+    title: 'Settings',
+    language: 'Language / Jazyk',
+    sound: 'Sounds',
+    soundHint: 'Signals and effects during games',
+    vibration: 'Vibration',
+    vibrationHint: 'A short buzz on signals',
+    vibrationNone: 'This device does not support vibration',
+    motion: 'Reduce motion',
+    motionSystem: 'Turned on in your system (“Reduce motion”)',
+    motionHint: 'No flying cards, flipping or pulsing',
+    back: 'Back to menu',
+  },
+);
+
+/** Názvy jazyků vždy v daném jazyce, ať je pozná i ten, kdo druhému nerozumí. */
+const LANG_NAMES: Record<Lang, string> = { cs: 'Čeština', en: 'English' };
 
 function toggle(
   label: string,
@@ -39,19 +73,25 @@ export function settingsScreen(app: App): Mount {
       h(
         'main',
         { class: 'screen screen--narrow' },
-        h('h1', { class: 'screen-title', tabindex: '-1' }, 'Nastavení'),
+        h('h1', { class: 'screen-title', tabindex: '-1' }, t.title),
         h(
           'div',
           { class: 'stack' },
-          toggle('Zvuky', 'Signály a efekty během her', sound, (on) => {
+          radioGroup<Lang>(
+            t.language,
+            'language',
+            LANGS.map((value) => ({ value, label: LANG_NAMES[value] })),
+            lang(),
+            (value) => app.switchLanguage(value),
+            true,
+          ),
+          toggle(t.sound, t.soundHint, sound, (on) => {
             app.settings.update({ sound: on });
             if (on) app.sfx.play('click');
           }),
           toggle(
-            'Vibrace',
-            vibrationSupported
-              ? 'Krátké zavibrování při signálu'
-              : 'Toto zařízení vibrace nepodporuje',
+            t.vibration,
+            vibrationSupported ? t.vibrationHint : t.vibrationNone,
             vibration && vibrationSupported,
             (on) => {
               app.settings.update({ vibration: on });
@@ -60,10 +100,8 @@ export function settingsScreen(app: App): Mount {
             !vibrationSupported,
           ),
           toggle(
-            'Omezit animace',
-            systemMotion
-              ? 'Zapnuto v systému („Omezit pohyb“)'
-              : 'Bez létajících karet, otáčení a pulzování',
+            t.motion,
+            systemMotion ? t.motionSystem : t.motionHint,
             reducedMotion || systemMotion,
             (on) => {
               app.settings.update({ reducedMotion: on });
@@ -72,7 +110,7 @@ export function settingsScreen(app: App): Mount {
             systemMotion,
           ),
         ),
-        button('Zpět do menu', () => app.goMenu(), 'btn btn-primary btn-lg', {
+        button(t.back, () => app.goMenu(), 'btn btn-primary btn-lg', {
           'data-autofocus': true,
         }),
       ),

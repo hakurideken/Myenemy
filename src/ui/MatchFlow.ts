@@ -6,6 +6,7 @@ import type { Difficulty, PerPlayer, PlayerSlot } from '../core/types';
 import { systemClock } from '../core/util/clock';
 import { deriveRng, randomSeed } from '../core/util/rng';
 import { GAME_INFOS, getGame } from '../games/registry';
+import { translations } from '../i18n';
 import type { App } from './App';
 import { gameScreen } from './screens/game';
 import { gameIntroScreen } from './screens/gameIntro';
@@ -14,6 +15,11 @@ import { matchResultScreen } from './screens/matchResult';
 import { roundResultScreen } from './screens/roundResult';
 
 export type LocalMode = 'pve' | 'local';
+
+const t = translations(
+  { title: 'Opustit zápas?', message: 'Výsledek se nikam nezapočítá.', confirm: 'Opustit' },
+  { title: 'Leave the match?', message: 'The result will not count anywhere.', confirm: 'Leave' },
+);
 
 export interface MatchSetup {
   readonly mode: LocalMode;
@@ -144,9 +150,9 @@ export class MatchFlow {
   private leave(): void {
     void this.app
       .confirm({
-        title: 'Opustit zápas?',
-        message: 'Výsledek se nikam nezapočítá.',
-        confirm: 'Opustit',
+        title: t.title,
+        message: t.message,
+        confirm: t.confirm,
       })
       .then((ok) => {
         if (ok) this.app.goMenu();

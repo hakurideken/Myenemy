@@ -9,6 +9,55 @@ import {
   type PerPlayer,
   type PlayerSlot,
 } from '../../core/types';
+import { translations } from '../../i18n';
+
+/** Česky má barva tvar podle rodu tvaru: [mužský, ženský]. */
+const COLOR_WORD_CS: Record<TargetColor, readonly [string, string]> = {
+  red: ['červený', 'červená'],
+  blue: ['modrý', 'modrá'],
+  green: ['zelený', 'zelená'],
+  yellow: ['žlutý', 'žlutá'],
+};
+
+const SHAPE_WORD_CS: Record<TargetShape, { readonly word: string; readonly feminine: boolean }> = {
+  circle: { word: 'kruh', feminine: false },
+  triangle: { word: 'trojúhelník', feminine: false },
+  square: { word: 'čtverec', feminine: false },
+  star: { word: 'hvězda', feminine: true },
+};
+
+const COLOR_WORD_EN: Record<TargetColor, string> = {
+  red: 'red',
+  blue: 'blue',
+  green: 'green',
+  yellow: 'yellow',
+};
+
+const SHAPE_WORD_EN: Record<TargetShape, string> = {
+  circle: 'circle',
+  triangle: 'triangle',
+  square: 'square',
+  star: 'star',
+};
+
+const t = translations(
+  {
+    targetLabel: (target: Target): string => {
+      const shape = SHAPE_WORD_CS[target.shape];
+      return `${COLOR_WORD_CS[target.color][shape.feminine ? 1 : 0]} ${shape.word}`;
+    },
+    miss: 'vedle',
+    falseStart: 'předčasně',
+    timeout: 'nestihl',
+  },
+  {
+    targetLabel: (target: Target): string =>
+      `${COLOR_WORD_EN[target.color]} ${SHAPE_WORD_EN[target.shape]}`,
+    miss: 'miss',
+    falseStart: 'too early',
+    timeout: 'too late',
+  },
+);
 
 export const COLORS = ['red', 'blue', 'green', 'yellow'] as const;
 export const SHAPES = ['circle', 'triangle', 'square', 'star'] as const;
@@ -140,24 +189,9 @@ export const reflexLogic: GameLogic<ReflexState, ReflexMove, ReflexView> = {
   },
 };
 
-const COLOR_WORD: Record<TargetColor, readonly [string, string]> = {
-  red: ['červený', 'červená'],
-  blue: ['modrý', 'modrá'],
-  green: ['zelený', 'zelená'],
-  yellow: ['žlutý', 'žlutá'],
-};
-
-const SHAPE_WORD: Record<TargetShape, { readonly word: string; readonly feminine: boolean }> = {
-  circle: { word: 'kruh', feminine: false },
-  triangle: { word: 'trojúhelník', feminine: false },
-  square: { word: 'čtverec', feminine: false },
-  star: { word: 'hvězda', feminine: true },
-};
-
 /** „zelený trojúhelník“, „žlutá hvězda“ – se správným rodem. */
 export function targetLabel(target: Target): string {
-  const shape = SHAPE_WORD[target.shape];
-  return `${COLOR_WORD[target.color][shape.feminine ? 1 : 0]} ${shape.word}`;
+  return t.targetLabel(target);
 }
 
 export function formatReflex(result: ReflexResult | undefined): string {
@@ -166,10 +200,10 @@ export function formatReflex(result: ReflexResult | undefined): string {
     case 'hit':
       return `${result.ms} ms`;
     case 'miss':
-      return 'vedle';
+      return t.miss;
     case 'false-start':
-      return 'předčasně';
+      return t.falseStart;
     case 'timeout':
-      return 'nestihl';
+      return t.timeout;
   }
 }

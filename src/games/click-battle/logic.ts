@@ -9,6 +9,9 @@ import {
   type PerPlayer,
   type PlayerSlot,
 } from '../../core/types';
+import { translations } from '../../i18n';
+
+const t = translations({ invalid: 'neplatné' }, { invalid: 'invalid' });
 
 export const COUNTDOWN_MS = 3000;
 export const DURATION_MS = 5000;
@@ -83,5 +86,5 @@ export const clickLogic: GameLogic<ClickState, ClickMove, ClickView> = {
 
 export function formatClicks(result: ClickResult | undefined): string {
   if (!result) return '…';
-  return result.kind === 'invalid' ? 'neplatné' : `${result.count}×`;
+  return result.kind === 'invalid' ? t.invalid : `${result.count}×`;
 }

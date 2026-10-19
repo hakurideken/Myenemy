@@ -5,6 +5,32 @@ import type { PerPlayer, PlayerSlot } from '../../core/types';
 import type { Mount } from '../App';
 import { bigScore, button, scoreBar } from '../components/common';
 import { h } from '../dom';
+import { translations } from '../../i18n';
+
+const t = translations(
+  {
+    draw: 'Remíza!',
+    drawSub: (replay: number, max: number) =>
+      `Remíza se nepočítá – hraje se rozhodující kolo ${replay}/${max}.`,
+    deciding: 'Rozhodující kolo',
+    coin: (name: string) => `Rozhodl los: ${name}`,
+    wins: (name: string) => `${name} vyhrává hru!`,
+    coinSub: (max: number) => `Ani po ${max} rozhodujících kolech nikdo nevyhrál.`,
+    matchResult: 'Výsledek zápasu',
+    next: 'Další hra',
+  },
+  {
+    draw: 'Draw!',
+    drawSub: (replay: number, max: number) =>
+      `A draw does not count – deciding round ${replay}/${max} follows.`,
+    deciding: 'Deciding round',
+    coin: (name: string) => `Decided by a coin flip: ${name}`,
+    wins: (name: string) => `${name} wins the game!`,
+    coinSub: (max: number) => `Nobody won even after ${max} deciding rounds.`,
+    matchResult: 'Match result',
+    next: 'Next game',
+  },
+);
 
 interface RoundResultOptions {
   readonly report: ReportResult;
@@ -29,21 +55,17 @@ export function roundResultScreen(o: RoundResultOptions): Mount {
     let next: string;
 
     if (report.kind === 'replay') {
-      title = 'Remíza!';
-      subtitle = `Remíza se nepočítá – hraje se rozhodující kolo ${report.replay}/${MAX_DRAW_REPLAYS}.`;
+      title = t.draw;
+      subtitle = t.drawSub(report.replay, MAX_DRAW_REPLAYS);
       tone = 'result--draw';
       sound = 'draw';
-      next = 'Rozhodující kolo';
+      next = t.deciding;
     } else {
-      title = report.byCoin
-        ? `Rozhodl los: ${names[report.winner]}`
-        : `${names[report.winner]} vyhrává hru!`;
-      subtitle = report.byCoin
-        ? `Ani po ${MAX_DRAW_REPLAYS} rozhodujících kolech nikdo nevyhrál.`
-        : o.game.name;
+      title = report.byCoin ? t.coin(names[report.winner]) : t.wins(names[report.winner]);
+      subtitle = report.byCoin ? t.coinSub(MAX_DRAW_REPLAYS) : o.game.name;
       tone = `result--${report.winner.toLowerCase()}`;
       sound = o.me !== null && report.winner !== o.me ? 'lose' : 'win';
-      next = report.matchWinner ? 'Výsledek zápasu' : 'Další hra';
+      next = report.matchWinner ? t.matchResult : t.next;
     }
 
     root.append(

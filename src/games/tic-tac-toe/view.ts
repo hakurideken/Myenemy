@@ -1,8 +1,26 @@
 import type { GameView, RenderFrame, ViewContext } from '../../core/MiniGame';
 import { otherPlayer } from '../../core/types';
+import { translations } from '../../i18n';
 import { h, setText } from '../../ui/dom';
 import { MARK_LABEL, outcomeMessage, playerMark, statusLine, turnMessage } from '../shared/board';
 import { MAX_MARKS, nextToVanish, type TttMove, type TttView } from './logic';
+
+const t = translations(
+  {
+    board: 'Hrací deska 3×3',
+    hint: `Každý má na desce nejvýš ${MAX_MARKS} značky. Vybledlá značka zmizí, až její hráč položí další.`,
+    vanishesNext: ', zmizí jako další',
+    empty: 'prázdné',
+    cell: (row: number, col: number, what: string) => `Řádek ${row}, sloupec ${col}: ${what}`,
+  },
+  {
+    board: '3×3 game board',
+    hint: `Each player may have at most ${MAX_MARKS} marks on the board. A faded mark disappears when its player places another.`,
+    vanishesNext: ', disappears next',
+    empty: 'empty',
+    cell: (row: number, col: number, what: string) => `Row ${row}, column ${col}: ${what}`,
+  },
+);
 
 /** Klávesy 1–9 = pole zleva doprava, shora dolů. */
 function cellForKey(code: string): number | null {
@@ -19,16 +37,8 @@ export function createTttView(ctx: ViewContext<TttMove>): GameView<TttView> {
     // „?“ = ještě nevykresleno, aby první render doplnil nápovědu i do prázdných polí.
     h('button', { type: 'button', class: 'ttt-cell', 'data-owner': '?', onclick: () => play(i) }),
   );
-  const board = h(
-    'div',
-    { class: 'ttt-board', role: 'group', 'aria-label': 'Hrací deska 3×3' },
-    cells,
-  );
-  const hint = h(
-    'p',
-    { class: 'ttt-hint' },
-    `Každý má na desce nejvýš ${MAX_MARKS} značky. Vybledlá značka zmizí, až její hráč položí další.`,
-  );
+  const board = h('div', { class: 'ttt-board', role: 'group', 'aria-label': t.board }, cells);
+  const hint = h('p', { class: 'ttt-hint' }, t.hint);
   const container = h('div', { class: 'board-game ttt' }, status, board, hint);
   ctx.root.append(container);
 
@@ -81,9 +91,9 @@ export function createTttView(ctx: ViewContext<TttMove>): GameView<TttView> {
         const row = Math.floor(i / 3) + 1;
         const col = (i % 3) + 1;
         const what = owner
-          ? `${MARK_LABEL[owner]} (${ctx.names[owner]})${fading.has(i) ? ', zmizí jako další' : ''}`
-          : 'prázdné';
-        button.setAttribute('aria-label', `Řádek ${row}, sloupec ${col}: ${what}`);
+          ? `${MARK_LABEL[owner]} (${ctx.names[owner]})${fading.has(i) ? t.vanishesNext : ''}`
+          : t.empty;
+        button.setAttribute('aria-label', t.cell(row, col, what));
         button.disabled = owner !== null || !canPlay;
         button.classList.toggle('is-fading', fading.has(i) && !f.finished);
         button.classList.toggle('is-win', view.winLine?.includes(i) ?? false);

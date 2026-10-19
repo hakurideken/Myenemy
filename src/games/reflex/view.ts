@@ -1,6 +1,7 @@
 import type { GameView, ViewContext } from '../../core/MiniGame';
 import { otherPlayer, type Outcome, type PlayerSlot } from '../../core/types';
 import type { TimerHandle } from '../../core/util/clock';
+import { translations } from '../../i18n';
 import { h, setText, svg } from '../../ui/dom';
 import {
   formatReflex,
@@ -13,6 +14,41 @@ import {
   type ReflexView,
   type Target,
 } from './logic';
+
+const t = translations(
+  {
+    getReady: 'Připrav se…',
+    targets: 'Cíle',
+    tapOn: 'Klepni na: ',
+    opponentWaiting: 'čeká na výzvu',
+    opponentSearching: 'hledá cíl…',
+    opponentTapped: 'klepl(a)!',
+    winner: (result: string) => `★ Vítěz! ${result}`,
+    draw: (result: string) => `Remíza · ${result}`,
+    hit: (ms: number) => `Zásah! ${ms} ms`,
+    miss: '✗ Vedle!',
+    falseStart: '✗ Předčasně!',
+    timeout: 'Nestihl jsi!',
+    drawLive: 'Remíza.',
+    winnerLive: (name: string) => `Vítěz: ${name}.`,
+  },
+  {
+    getReady: 'Get ready…',
+    targets: 'Targets',
+    tapOn: 'Tap: ',
+    opponentWaiting: 'waiting for the prompt',
+    opponentSearching: 'looking for the target…',
+    opponentTapped: 'tapped!',
+    winner: (result: string) => `★ Winner! ${result}`,
+    draw: (result: string) => `Draw · ${result}`,
+    hit: (ms: number) => `Hit! ${ms} ms`,
+    miss: '✗ Miss!',
+    falseStart: '✗ Too early!',
+    timeout: 'Too late!',
+    drawLive: 'Draw.',
+    winnerLive: (name: string) => `Winner: ${name}.`,
+  },
+);
 
 /** Klávesy cílů: sólo 1–4, lokálně A = Q W E R, B = U I O P. */
 const SPLIT_KEYS: Record<PlayerSlot, readonly string[]> = {
@@ -72,7 +108,7 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
   const arena = h('div', { class: `rf ${split ? 'rf--split' : 'rf--solo'}`, tabindex: '-1' });
 
   const lanes: Lane[] = ctx.localPlayers.map((player) => {
-    const prompt = h('p', { class: 'rf-prompt' }, 'Připrav se…');
+    const prompt = h('p', { class: 'rf-prompt' }, t.getReady);
     const result = h('p', { class: 'rf-result', 'aria-live': 'polite' });
     const buttons = Array.from({ length: TARGET_COUNT }, (_, i) =>
       h('button', {
@@ -89,14 +125,14 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
       { class: `rf-lane rf-lane--${player.toLowerCase()}` },
       h('span', { class: 'qd-name' }, ctx.names[player]),
       prompt,
-      h('div', { class: 'rf-targets', role: 'group', 'aria-label': 'Cíle' }, buttons),
+      h('div', { class: 'rf-targets', role: 'group', 'aria-label': t.targets }, buttons),
       result,
     );
     return { player, el, prompt, result, buttons, local: null };
   });
 
   const opponent = split ? null : otherPlayer(ctx.localPlayers[0] ?? 'A');
-  const opponentStatus = h('span', { class: 'qd-opponent-status' }, 'čeká na výzvu');
+  const opponentStatus = h('span', { class: 'qd-opponent-status' }, t.opponentWaiting);
   const opponentEl = opponent
     ? h(
         'div',
@@ -147,12 +183,12 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
     for (const lane of lanes) {
       if (!target) continue;
       lane.prompt.replaceChildren(
-        'Klepni na: ',
+        t.tapOn,
         shapeIcon(target),
         h('strong', null, targetLabel(target)),
       );
     }
-    live.textContent = target ? `Klepni na: ${targetLabel(target)}` : '';
+    live.textContent = target ? `${t.tapOn}${targetLabel(target)}` : '';
     ctx.sfx.play('signal');
     ctx.sfx.vibrate(40);
     for (const lane of lanes) {
@@ -172,18 +208,18 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
     const final = outcome && latest?.results ? latest.results[lane.player] : null;
     const result = final ?? lane.local;
     if (outcome?.kind === 'win' && outcome.winner === lane.player)
-      return `★ Vítěz! ${formatReflex(result ?? undefined)}`;
-    if (outcome?.kind === 'draw') return `Remíza · ${formatReflex(result ?? undefined)}`;
+      return t.winner(formatReflex(result ?? undefined));
+    if (outcome?.kind === 'draw') return t.draw(formatReflex(result ?? undefined));
     if (!result) return '';
     switch (result.kind) {
       case 'hit':
-        return `Zásah! ${result.ms} ms`;
+        return t.hit(result.ms);
       case 'miss':
-        return '✗ Vedle!';
+        return t.miss;
       case 'false-start':
-        return '✗ Předčasně!';
+        return t.falseStart;
       case 'timeout':
-        return 'Nestihl jsi!';
+        return t.timeout;
     }
   }
 
@@ -211,9 +247,9 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
       );
     }
     if (opponent && opponentEl) {
-      let text = shown ? 'hledá cíl…' : 'čeká na výzvu';
+      let text = shown ? t.opponentSearching : t.opponentWaiting;
       if (outcome && latest.results) text = formatReflex(latest.results[opponent]);
-      else if (latest.opponentDone) text = 'klepl(a)!';
+      else if (latest.opponentDone) text = t.opponentTapped;
       setText(opponentStatus, text);
       opponentEl.classList.toggle(
         'is-winner',
@@ -236,7 +272,7 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
       update();
       if (outcome)
         live.textContent =
-          outcome.kind === 'draw' ? 'Remíza.' : `Vítěz: ${ctx.names[outcome.winner]}.`;
+          outcome.kind === 'draw' ? t.drawLive : t.winnerLive(ctx.names[outcome.winner]);
     },
     destroy() {
       for (const t of timers) ctx.clock.clearTimeout(t);

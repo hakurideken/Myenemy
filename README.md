@@ -290,6 +290,19 @@ mrak). Při lichém počtu dvojic remíza nenastane – jen po pojistce 300 oto�
 a sleduj, že nejstarší (vybledlá) zmizí. Pak zkus těžkou AI, když začíná ona, a když
 začínáš ty. U Pexesa zkontroluj, že je 30 kartiček a celá deska je vidět i na mobilu.
 
+**Angličtina.** Celá hra jde přepnout do angličtiny: tlačítkem „English“ / „Čeština“
+v menu nebo v Nastavení (Jazyk / Language). Volba se uloží v prohlížeči a stránka se
+znovu načte. Bez uložené volby se jazyk vezme z prohlížeče (čeština a slovenština →
+česky, jinak anglicky). Přeložené je všechno, co hráč vidí: menu, nastavení zápasu,
+pravidla a ovládání všech 13 her, texty během hry, popisky pro čtečky obrazovky,
+výsledky i online hlášky. Online může mít každý hráč jiný jazyk: do sítě jdou jen data,
+shrnutí kola si host spočítá sám ve svém jazyce.
+
+**Jak otestovat:** Menu → „English“. Projdi menu, Nastavení, Proti AI → Vlastní výběr
+a pár her (např. Prší – názvy karet „Seven of Hearts“, Logik, Lodě). Dohraj zápas až
+na výsledek. Online zkus jednoho hráče česky a druhého anglicky (dva prohlížeče).
+Zpět přes „Čeština“.
+
 ## Architektura
 
 ```
@@ -307,7 +320,8 @@ src/
 │  ├─ registry.ts           JEDINÝ seznam miniher
 │  └─ <hra>/                logic.ts · ai.ts · view.ts · index.ts · *.test.ts
 ├─ ui/                      router (App), MatchFlow, OnlineFlow, obrazovky, komponenty
-└─ platform/                localStorage, nastavení, zvuky (WebAudio syntéza)
+├─ platform/                localStorage, nastavení, zvuky (WebAudio syntéza)
+└─ i18n.ts                  jazyk (cs / en) a translations(cs, en)
 ```
 
 - **Herní logika je čistá funkce stavu** (`setup → toMove → legal → apply → outcome → view`).
@@ -319,6 +333,9 @@ src/
 - **RemoteRunner** u online hosta logiku nespouští – jen vykresluje stav od hostitele
   (validovaný schématem pohledu) a posílá vstupy.
 - **MatchController** nezná konkrétní hry: řeší best of N, remízová kola, los a kontumace.
+- **Texty** má každý modul u sebe: `const t = translations({ …česky }, { …anglicky })`.
+  TypeScript hlídá, že anglická verze má stejné klíče a typy jako česká. Jazyk se vybere
+  při startu stránky, testy běží česky.
 
 ## Jak přidat novou minihru
 
@@ -328,6 +345,7 @@ src/
 3. `ai.ts` – `getAIMove` pro obtížnosti `easy` / `medium` / `hard`. Lehká AI musí vždy vrátit
    platný tah (používá se i jako automatický tah při neaktivitě).
 4. `view.ts` – vykreslení přes `h()` / `svg()` z `src/ui/dom.ts` (text nikdy přes `innerHTML`).
+   Všechny texty pro hráče patří do `translations(cs, en)` (viz `src/i18n.ts`).
 5. `index.ts` – `defineGame({...})` s názvem, typem, délkou, pravidly a ovládáním. Hra se
    současným tajným tahem (jako KNP) nastaví `sealed` – online pak jde přes commit-reveal.
    Hra s tajnými daty, na která se soupeř ptá (jako Lodě nebo Logik), nastaví `hidden`:
