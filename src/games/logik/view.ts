@@ -125,16 +125,22 @@ const codeText = (code: Code): string => code.map((c) => COLOR_NAMES[c] ?? '?').
 
 export const feedbackText = (f: Feedback): string => t.feedback(f.black, f.white);
 
+// Počty místo teček na pozicích: odpověď neříká, která pozice sedí.
+function feedbackCount(kind: 'black' | 'white', count: number | null): HTMLElement {
+  return h(
+    'span',
+    { class: `lk-count${count === 0 ? ' is-zero' : ''}` },
+    h('span', { class: `lk-fb lk-fb--${count === null ? 'wait' : kind}` }),
+    count === null ? '–' : String(count),
+  );
+}
+
 function feedbackPegs(f: Feedback | null): HTMLElement {
-  const pegs: HTMLElement[] = [];
-  for (let i = 0; i < PEGS; i++) {
-    const kind = !f ? 'wait' : i < f.black ? 'black' : i < f.black + f.white ? 'white' : 'none';
-    pegs.push(h('span', { class: `lk-fb lk-fb--${kind}` }));
-  }
   return h(
     'span',
     { class: 'lk-feedback', role: 'img', 'aria-label': f ? feedbackText(f) : t.awaitingAnswer },
-    pegs,
+    feedbackCount('black', f ? f.black : null),
+    feedbackCount('white', f ? f.white : null),
   );
 }
 

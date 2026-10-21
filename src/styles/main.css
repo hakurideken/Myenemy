@@ -2878,12 +2878,30 @@ legend {
 }
 
 .lk-feedback {
-  display: grid;
-  grid-template-columns: repeat(2, 11px);
-  gap: 3px;
+  display: flex;
+  gap: 6px;
+}
+
+.lk-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 2.6em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 6%);
+  font-size: 0.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.lk-count.is-zero {
+  opacity: 0.4;
 }
 
 .lk-fb {
+  box-sizing: border-box;
+  flex: none;
   width: 11px;
   height: 11px;
   border-radius: 50%;
