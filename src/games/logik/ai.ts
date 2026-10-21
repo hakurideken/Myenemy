@@ -1,8 +1,9 @@
 import type { AIContext } from '../../core/MiniGame';
 import {
+  ALL_CODES,
   COLORS,
-  PEGS,
   randomCode,
+  sameFeedback,
   scoreGuess,
   type Code,
   type Guess,
@@ -10,26 +11,20 @@ import {
   type LogikView,
 } from './logic';
 
-/** Všech 6⁴ = 1296 kódů. */
-export const ALL_CODES: readonly Code[] = Array.from({ length: COLORS ** PEGS }, (_, n) =>
-  Array.from({ length: PEGS }, (_, i) => Math.floor(n / COLORS ** (PEGS - 1 - i)) % COLORS),
-);
-
 /** Kódy, které odpovídají všem dosavadním odpovědím soupeře. */
 export function consistentCodes(guesses: readonly Guess[]): Code[] {
   const answered = guesses.filter((g) => g.feedback !== null);
   return ALL_CODES.filter((code) =>
-    answered.every((g) => {
-      const f = scoreGuess(g.code, code);
-      return f.black === g.feedback?.black && f.white === g.feedback.white;
-    }),
+    answered.every(
+      (g) => g.feedback !== null && sameFeedback(scoreGuess(g.code, code), g.feedback),
+    ),
   );
 }
 
-const feedbackKey = (guess: Code, secret: Code): number => {
-  const f = scoreGuess(guess, secret);
-  return f.black * (PEGS + 1) + f.white;
-};
+const MARK_DIGIT = { exact: 0, color: 1, none: 2 } as const;
+
+const feedbackKey = (guess: Code, secret: Code): number =>
+  scoreGuess(guess, secret).reduce((key, m) => key * 3 + MARK_DIGIT[m], 0);
 
 /**
  * Minimax (Knuth): pokus, po kterém v nejhorším případě zbude nejméně kandidátů.

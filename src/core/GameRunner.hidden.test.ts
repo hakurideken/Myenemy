@@ -209,8 +209,8 @@ describe('GameRunner – skrytá informace (lokálně a online)', () => {
     stub.ctx?.submit('A', { kind: 'guess', code: [1, 1, 1, 1] });
     // Odpovědi doplněné automaticky, A v dalším kole tipuje hned.
     const view = last(stub).view as LogikView;
-    expect(view.guesses.A[0]?.feedback).toEqual({ black: 0, white: 0 });
-    expect(view.guesses.B[0]?.feedback).toEqual({ black: 1, white: 0 });
+    expect(view.guesses.A[0]?.feedback).toEqual(['none', 'none', 'none', 'none']);
+    expect(view.guesses.B[0]?.feedback).toEqual(['none', 'none', 'exact', 'none']);
     expect(last(stub).frame).toMatchObject({ perspective: 'A', canAct: ['A'] });
     expect(handoffs).toEqual(['A', 'B', 'A']);
   });

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { AIMemory } from '../../core/MiniGame';
 import { DIFFICULTIES, DRAW, win, type Difficulty, type PlayerSlot } from '../../core/types';
 import { createRng } from '../../core/util/rng';
-import { ALL_CODES, consistentCodes, logikAIMove } from './ai';
+import { consistentCodes, logikAIMove } from './ai';
 import {
+  ALL_CODES,
+  cracked,
   logikHidden,
   logikLogic as logic,
   MAX_ROUNDS,
@@ -11,6 +13,7 @@ import {
   type Code,
   type LogikMove,
   type LogikState,
+  type Mark,
 } from './logic';
 
 const CODES: Record<PlayerSlot, Code> = { A: [0, 1, 2, 3], B: [5, 5, 4, 0] };
@@ -41,13 +44,44 @@ const round = (s: LogikState, a: Code, b: Code): LogikState =>
 
 describe('Logik – vyhodnocení', () => {
   it.each([
-    [[0, 1, 2, 3], [0, 1, 2, 3], 4, 0],
-    [[0, 0, 1, 1], [1, 1, 0, 0], 0, 4],
-    [[0, 0, 0, 0], [0, 1, 1, 1], 1, 0],
-    [[1, 1, 0, 0], [0, 1, 2, 2], 1, 1],
-    [[5, 4, 3, 2], [0, 1, 0, 1], 0, 0],
-  ])('%j proti %j = %i přesně, %i barvou', (guess, secret, black, white) => {
-    expect(scoreGuess(guess, secret)).toEqual({ black, white });
+    [
+      [0, 1, 2, 3],
+      [0, 1, 2, 3],
+      ['exact', 'exact', 'exact', 'exact'],
+    ],
+    [
+      [0, 0, 1, 1],
+      [1, 1, 0, 0],
+      ['color', 'color', 'color', 'color'],
+    ],
+    [
+      [0, 0, 0, 0],
+      [0, 1, 1, 1],
+      ['exact', 'none', 'none', 'none'],
+    ],
+    [
+      [1, 1, 0, 0],
+      [0, 1, 2, 2],
+      ['none', 'exact', 'color', 'none'],
+    ],
+    [
+      [5, 4, 3, 2],
+      [0, 1, 0, 1],
+      ['none', 'none', 'none', 'none'],
+    ],
+    // Opakovaná barva: „jen barva“ zleva nejvýš tolikrát, kolikrát v kódu zbývá.
+    [
+      [0, 0, 1, 2],
+      [2, 0, 0, 0],
+      ['color', 'exact', 'none', 'color'],
+    ],
+    [
+      [3, 3, 3, 0],
+      [0, 3, 1, 1],
+      ['none', 'exact', 'none', 'color'],
+    ],
+  ])('%j proti %j = %j', (guess, secret, marks) => {
+    expect(scoreGuess(guess, secret)).toEqual(marks);
   });
 
   it('1296 kódů, konzistentní množina se zužuje', () => {
@@ -70,13 +104,15 @@ describe('Logik – průběh', () => {
     s = play(s, 'A', { kind: 'guess', code: [1, 1, 1, 1] });
     // B dluží odpověď, ale nejdřív musí sám tipnout.
     expect(logic.toMove(s)).toEqual(['B']);
-    expect(logic.legal(s, 'B', { kind: 'feedback', black: 0, white: 0 })).toBe(false);
+    expect(logic.legal(s, 'B', { kind: 'feedback', marks: ['none', 'none', 'none', 'none'] })).toBe(
+      false,
+    );
     expect(logikHidden.respond(s, 'B', CODES.B)).toBeNull();
     s = play(s, 'B', { kind: 'guess', code: [2, 2, 2, 2] });
     expect(logic.toMove(s)).toEqual(['B', 'A']);
     s = respondAll(s);
-    expect(s.guesses.A[0]?.feedback).toEqual({ black: 0, white: 0 });
-    expect(s.guesses.B[0]?.feedback).toEqual({ black: 1, white: 0 });
+    expect(s.guesses.A[0]?.feedback).toEqual(['none', 'none', 'none', 'none']);
+    expect(s.guesses.B[0]?.feedback).toEqual(['none', 'none', 'exact', 'none']);
   });
 
   it('kdo prolomí kód dřív, vyhrává; ve stejném kole je remíza', () => {
@@ -96,15 +132,18 @@ describe('Logik – průběh', () => {
     expect(logic.toMove(s)).toEqual([]);
   });
 
-  it('nemožná odpověď (3 přesně + 1 barvou) je neplatná', () => {
+  it('nemožná odpověď je neplatná', () => {
     let s = started();
     s = play(play(s, 'A', { kind: 'guess', code: [5, 5, 4, 1] }), 'B', {
       kind: 'guess',
       code: [0, 0, 0, 0],
     });
-    expect(logic.legal(s, 'B', { kind: 'feedback', black: 3, white: 1 })).toBe(false);
-    expect(logic.legal(s, 'B', { kind: 'feedback', black: 4, white: 1 })).toBe(false);
-    expect(logic.legal(s, 'B', { kind: 'feedback', black: 3, white: 0 })).toBe(true);
+    const legal = (...marks: Mark[]) => logic.legal(s, 'B', { kind: 'feedback', marks });
+    expect(legal('exact', 'exact', 'exact', 'color')).toBe(false);
+    // Jediná pětka v kódu sedí na 1. místě, 2. pětka tedy nemůže být „jen barva“.
+    expect(legal('exact', 'color', 'exact', 'exact')).toBe(false);
+    expect(legal('exact', 'exact', 'exact', 'none')).toBe(true);
+    expect(legal('color', 'none', 'none', 'none')).toBe(true);
   });
 
   it('lež v odpovědi se po odhalení kódu pozná', () => {
@@ -113,7 +152,7 @@ describe('Logik – průběh', () => {
       kind: 'guess',
       code: [0, 0, 0, 0],
     });
-    s = play(s, 'B', { kind: 'feedback', black: 0, white: 0 }); // lež – A uhodl
+    s = play(s, 'B', { kind: 'feedback', marks: ['none', 'none', 'none', 'none'] }); // lež – A uhodl
     s = respondAll(s);
     expect(logikHidden.consistent(s, 'B', CODES.B)).toBe(false);
     expect(logikHidden.consistent(s, 'A', CODES.A)).toBe(true);
@@ -136,7 +175,7 @@ describe('Logik – AI', () => {
       s = respondAll(play(s, 'B', { kind: 'guess', code: [5, 5, 5, 5] }), codes);
     }
     const last = s.guesses.A.at(-1);
-    return last?.feedback?.black === 4 ? s.guesses.A.length : MAX_ROUNDS + 1;
+    return cracked(last) ? s.guesses.A.length : MAX_ROUNDS + 1;
   }
 
   it.each(DIFFICULTIES)('%s vrací platný tip', (difficulty) => {

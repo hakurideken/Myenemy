@@ -462,7 +462,7 @@ describe('online zápas – skrytá informace (Logik)', () => {
         respond: (view, player, secret) => {
           const move = hidden.respond(view, player, secret);
           return (move as LogikMove | null)?.kind === 'feedback'
-            ? { kind: 'feedback', black: 0, white: 0 }
+            ? { kind: 'feedback', marks: ['none', 'none', 'none', 'none'] }
             : move;
         },
       },
@@ -546,7 +546,7 @@ describe('online zápas – skrytá informace (Logik)', () => {
             state,
             player,
             player === 'B' && (move as LogikMove).kind === 'feedback'
-              ? { kind: 'feedback', black: 4, white: 0 }
+              ? { kind: 'feedback', marks: ['exact', 'exact', 'exact', 'exact'] }
               : move,
           ),
       },

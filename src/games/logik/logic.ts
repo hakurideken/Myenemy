@@ -17,12 +17,12 @@ export const MAX_ROUNDS = 10;
 
 export type Code = readonly number[];
 
-export interface Feedback {
-  /** Správná barva na správném místě. */
-  readonly black: number;
-  /** Správná barva na špatném místě. */
-  readonly white: number;
-}
+/** Odpověď pro jednu pozici tipu: barva i místo, jen barva (je jinde v kódu), nic. */
+export type Mark = 'exact' | 'color' | 'none';
+export const MARKS = ['exact', 'color', 'none'] as const;
+
+/** Odpověď po pozicích, ve stejném pořadí jako tip. */
+export type Feedback = readonly Mark[];
 
 export interface Guess {
   readonly code: Code;
@@ -43,7 +43,7 @@ export type LogikView = LogikState;
 export type LogikMove =
   | { readonly kind: 'ready' }
   | { readonly kind: 'guess'; readonly code: Code }
-  | { readonly kind: 'feedback'; readonly black: number; readonly white: number };
+  | { readonly kind: 'feedback'; readonly marks: Feedback };
 
 const slot = z.enum(['A', 'B']);
 const color = z
@@ -52,13 +52,12 @@ const color = z
   .min(0)
   .max(COLORS - 1);
 export const codeSchema = z.array(color).length(PEGS);
-const pegCount = z.number().int().min(0).max(PEGS);
-const feedbackSchema = z.object({ black: pegCount, white: pegCount });
+const feedbackSchema = z.array(z.enum(MARKS)).length(PEGS);
 
 export const logikMoveSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('ready') }),
   z.object({ kind: z.literal('guess'), code: codeSchema }),
-  z.object({ kind: z.literal('feedback'), black: pegCount, white: pegCount }),
+  z.object({ kind: z.literal('feedback'), marks: feedbackSchema }),
 ]);
 
 const guessesSchema = z
@@ -71,30 +70,43 @@ export const logikViewSchema = z.object({
   guesses: z.object({ A: guessesSchema, B: guessesSchema }),
 });
 
-/** Klasické vyhodnocení Mastermindu. */
+/** Všech 6⁴ = 1296 kódů. */
+export const ALL_CODES: readonly Code[] = Array.from({ length: COLORS ** PEGS }, (_, n) =>
+  Array.from({ length: PEGS }, (_, i) => Math.floor(n / COLORS ** (PEGS - 1 - i)) % COLORS),
+);
+
+/**
+ * Vyhodnocení po pozicích (jako Wordle). Opakované barvy: „jen barva“ dostane zleva
+ * nejvýš tolik kolíků, kolik té barvy v kódu zbývá po přesných zásazích.
+ */
 export function scoreGuess(guess: Code, secret: Code): Feedback {
-  let black = 0;
-  const restGuess = new Array<number>(COLORS).fill(0);
-  const restSecret = new Array<number>(COLORS).fill(0);
+  const marks = new Array<Mark>(PEGS).fill('none');
+  const rest = new Array<number>(COLORS).fill(0);
+  for (let i = 0; i < PEGS; i++) {
+    const s = secret[i] ?? -1;
+    if (guess[i] === s) marks[i] = 'exact';
+    else rest[s] = (rest[s] ?? 0) + 1;
+  }
   for (let i = 0; i < PEGS; i++) {
     const g = guess[i] ?? -1;
-    const s = secret[i] ?? -1;
-    if (g === s) black++;
-    else {
-      restGuess[g] = (restGuess[g] ?? 0) + 1;
-      restSecret[s] = (restSecret[s] ?? 0) + 1;
-    }
+    if (marks[i] === 'exact' || !rest[g]) continue;
+    marks[i] = 'color';
+    rest[g]--;
   }
-  let white = 0;
-  for (let c = 0; c < COLORS; c++) white += Math.min(restGuess[c] ?? 0, restSecret[c] ?? 0);
-  return { black, white };
+  return marks;
 }
 
-/** Odpověď, která u kódu 4 kolíků nemůže nastat (3 přesně + 1 barva) nebo přesáhne 4. */
-export const possibleFeedback = (f: Feedback): boolean =>
-  f.black + f.white <= PEGS && !(f.black === PEGS - 1 && f.white === 1);
+export const sameFeedback = (a: Feedback, b: Feedback): boolean =>
+  a.length === b.length && a.every((m, i) => m === b[i]);
 
-export const cracked = (g: Guess | undefined): boolean => g?.feedback?.black === PEGS;
+export const countMarks = (f: Feedback, mark: Mark): number => f.filter((m) => m === mark).length;
+
+/** Odpověď, kterou na tento tip dává aspoň jeden kód (jinak by soupeř zjevně lhal). */
+export const possibleFeedback = (guess: Code, f: Feedback): boolean =>
+  ALL_CODES.some((code) => sameFeedback(scoreGuess(guess, code), f));
+
+export const cracked = (g: Guess | undefined): boolean =>
+  g?.feedback?.every((m) => m === 'exact') === true;
 
 /** Hráč, který dluží odpověď na soupeřův poslední pokus. */
 function owesFeedback(s: LogikState, player: PlayerSlot): boolean {
@@ -147,8 +159,10 @@ export const logikLogic: GameLogic<LogikState, LogikMove, LogikView> = {
         return !s.ready[player];
       case 'guess':
         return started && !feedbackPhase(s) && s.guesses[player].length < MAX_ROUNDS;
-      case 'feedback':
-        return started && owesNow(s, player) && possibleFeedback(move);
+      case 'feedback': {
+        const last = s.guesses[otherPlayer(player)].at(-1);
+        return started && owesNow(s, player) && !!last && possibleFeedback(last.code, move.marks);
+      }
     }
   },
 
@@ -165,7 +179,7 @@ export const logikLogic: GameLogic<LogikState, LogikMove, LogikView> = {
         const list = s.guesses[opp];
         const last = list.at(-1);
         if (!last) return s;
-        const answered = { ...last, feedback: { black: move.black, white: move.white } };
+        const answered = { ...last, feedback: [...move.marks] };
         return { ...s, guesses: { ...s.guesses, [opp]: [...list.slice(0, -1), answered] } };
       }
     }
@@ -188,7 +202,7 @@ export const logikHidden: HiddenInfo<Code, LogikMove, LogikView> = {
     if (!view.ready[player]) return { kind: 'ready' };
     if (!owesNow(view, player)) return null;
     const last = view.guesses[otherPlayer(player)].at(-1);
-    return last ? { kind: 'feedback', ...scoreGuess(last.code, code) } : null;
+    return last ? { kind: 'feedback', marks: scoreGuess(last.code, code) } : null;
   },
 
   awaitsSecret: (view, player) =>
@@ -197,11 +211,9 @@ export const logikHidden: HiddenInfo<Code, LogikMove, LogikView> = {
   locked: (view) => view.ready.A && view.ready.B,
 
   consistent: (view, player, code) =>
-    view.guesses[otherPlayer(player)].every((g) => {
-      if (!g.feedback) return true;
-      const expected = scoreGuess(g.code, code);
-      return expected.black === g.feedback.black && expected.white === g.feedback.white;
-    }),
+    view.guesses[otherPlayer(player)].every(
+      (g) => !g.feedback || sameFeedback(scoreGuess(g.code, code), g.feedback),
+    ),
 
   outcome: logikOutcome,
 };

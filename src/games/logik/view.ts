@@ -6,6 +6,7 @@ import { h, setText, svg } from '../../ui/dom';
 import { outcomeMessage } from '../shared/board';
 import {
   COLORS,
+  countMarks,
   cracked,
   MAX_ROUNDS,
   PEGS,
@@ -21,6 +22,8 @@ const t = translations(
   {
     colorNames: ['červená', 'modrá', 'zelená', 'žlutá', 'fialová', 'oranžová'],
     feedback: (black: number, white: number) => `${black} přesně, ${white} jen barvou`,
+    markNames: { exact: 'barva i místo', color: 'jen barva', none: 'nic' },
+    feedbackPositions: (parts: string[]) => parts.map((p, i) => `${i + 1}. ${p}`).join(', '),
     awaitingAnswer: 'čeká na odpověď',
     attemptRow: (n: number, code: string, result: string) => `Pokus ${n}: ${code} – ${result}`,
     addColor: (name: string, key: number) => `Přidat barvu ${name} (klávesa ${key})`,
@@ -57,6 +60,8 @@ const t = translations(
   {
     colorNames: ['red', 'blue', 'green', 'yellow', 'purple', 'orange'],
     feedback: (black: number, white: number) => `${black} exact, ${white} color only`,
+    markNames: { exact: 'color and place', color: 'color only', none: 'nothing' },
+    feedbackPositions: (parts: string[]) => parts.map((p, i) => `${i + 1}: ${p}`).join(', '),
     awaitingAnswer: 'awaiting answer',
     attemptRow: (n: number, code: string, result: string) => `Attempt ${n}: ${code} – ${result}`,
     addColor: (name: string, key: number) => `Add ${name} (key ${key})`,
@@ -123,24 +128,23 @@ export function pegIcon(color: number | null): SVGSVGElement {
 
 const codeText = (code: Code): string => code.map((c) => COLOR_NAMES[c] ?? '?').join(', ');
 
-export const feedbackText = (f: Feedback): string => t.feedback(f.black, f.white);
+export const feedbackText = (f: Feedback): string =>
+  t.feedback(countMarks(f, 'exact'), countMarks(f, 'color'));
 
-// Počty místo teček na pozicích: odpověď neříká, která pozice sedí.
-function feedbackCount(kind: 'black' | 'white', count: number | null): HTMLElement {
-  return h(
-    'span',
-    { class: `lk-count${count === 0 ? ' is-zero' : ''}` },
-    h('span', { class: `lk-fb lk-fb--${count === null ? 'wait' : kind}` }),
-    count === null ? '–' : String(count),
-  );
-}
+const positionsText = (f: Feedback): string => t.feedbackPositions(f.map((m) => t.markNames[m]));
 
+const FB_CLASS = { exact: 'black', color: 'white', none: 'none' } as const;
+
+// Tečka i patří k pozici i tipu.
 function feedbackPegs(f: Feedback | null): HTMLElement {
+  const pegs = Array.from({ length: PEGS }, (_, i) => {
+    const mark = f?.[i];
+    return h('span', { class: `lk-fb lk-fb--${mark ? FB_CLASS[mark] : 'wait'}` });
+  });
   return h(
     'span',
-    { class: 'lk-feedback', role: 'img', 'aria-label': f ? feedbackText(f) : t.awaitingAnswer },
-    feedbackCount('black', f ? f.black : null),
-    feedbackCount('white', f ? f.white : null),
+    { class: 'lk-feedback', role: 'img', 'aria-label': f ? positionsText(f) : t.awaitingAnswer },
+    pegs,
   );
 }
 
@@ -152,7 +156,7 @@ function guessRow(index: number, guess: Guess): HTMLElement {
       'aria-label': t.attemptRow(
         index + 1,
         codeText(guess.code),
-        guess.feedback ? feedbackText(guess.feedback) : t.awaitingAnswer,
+        guess.feedback ? positionsText(guess.feedback) : t.awaitingAnswer,
       ),
     },
     h('span', { class: 'lk-row-no', 'aria-hidden': 'true' }, index + 1),

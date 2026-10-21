@@ -19,7 +19,7 @@ const t = translations(
     name: 'Logik souboj',
     rules: [
       'Každý tajně zvolí kód ze 4 barev (6 barev, smějí se opakovat). Soupeř ho hádá.',
-      'Hádá se současně: oba tipnou a dostanou odpověď – kolik barev je přesně na místě a kolik jen v kódu. Neprozradí ale, které to jsou.',
+      'Hádá se současně: oba tipnou a u každé pozice uvidí, jestli sedí barva i místo (zlatá), jen barva – je jinde v kódu (kroužek), nebo nic.',
       'Vyhrává, kdo prolomí kód na méně pokusů. Prolomí-li ho oba ve stejném kole nebo nikdo do 10 pokusů, je remíza.',
       'Na volbu kódu i na každý tip máš 60 s, pak se zvolí automaticky.',
       'Online se kód na začátku zapečetí otiskem a po hře se ověří, že soupeř odpovídal poctivě.',
@@ -33,7 +33,7 @@ const t = translations(
     name: 'Codebreaker Duel',
     rules: [
       'Each player secretly sets a code of 4 colors (6 colors, repeats allowed). The opponent tries to guess it.',
-      'Both guess at the same time and get an answer: how many colors are exactly in place and how many are only in the code – but not which ones.',
+      'Both guess at the same time and see for each position whether color and place match (gold), only the color is in the code elsewhere (ring), or nothing.',
       'Whoever cracks the code in fewer attempts wins. If both crack it in the same round, or nobody does within 10 attempts, it is a draw.',
       'You have 60 s to set your code and for each guess; after that, one is chosen automatically.',
       'Online, each code is sealed with a hash at the start, and after the game it is checked that the opponent answered honestly.',

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { validateNickname } from '../core/nickname';
 
 /** Zvýšit při jakékoli nekompatibilní změně zpráv. */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 export const BUILD_ID: string = __BUILD_ID__;
 /** Horní mez velikosti jedné zprávy (znaky kanonického JSON). */
 export const MAX_MESSAGE_CHARS = 32_000;
