@@ -94,6 +94,11 @@ export interface RenderFrame {
   readonly committed: readonly PlayerSlot[];
   /** Tajná data hráče z `perspective`, pokud je toto zařízení zná (jinak null). */
   readonly secret: unknown;
+  /**
+   * Tajná data soupeře – jen po konci hry, když je toto zařízení zná (lokálně hned,
+   * online až po odhalení a ověření). Jinak null.
+   */
+  readonly opponentSecret: unknown;
   /** Karetní hry: karty, které zná hráč z `perspective`; null = balíček se ještě míchá. */
   readonly cards: KnownCards | null;
 }
@@ -197,6 +202,11 @@ export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
   readonly handoffDelayMs?: number;
   /** Jak dlouho nechat vidět konec hry, než přijde výsledek kola. */
   readonly revealMs: number;
+  /**
+   * Výsledek kola ukáže i závěrečnou desku s odhalenými tajnými daty obou hráčů
+   * (Lodě: kam kdo střílel a kde lodě opravdu byly). Vykreslí ji `createView`.
+   */
+  readonly showFinalBoard?: boolean;
   readonly logic: GameLogic<S, M, V>;
   /** Validace vstupu (hlavně ze sítě). */
   readonly moveSchema: ZodType<M>;
@@ -278,9 +288,20 @@ export interface RunnerBridge {
   commitSecret?(player: PlayerSlot, secret: unknown): Promise<void>;
 }
 
+/** Závěrečný stav hry pro výsledek kola – deska s odhalenými tajnými daty obou hráčů. */
+export interface FinalBoard {
+  /** Z čího pohledu je `view`. */
+  readonly perspective: PlayerSlot;
+  readonly view: unknown;
+  /** Tajná data hráčů, která toto zařízení zná (online data soupeře až po ověření). */
+  readonly secrets: PerPlayer<unknown>;
+}
+
 export interface RoundEnd {
   readonly outcome: Outcome;
   readonly summary: string;
+  /** Jen u her s `showFinalBoard`. */
+  readonly final?: FinalBoard;
 }
 
 /** Instance minihry pro jedno kolo – rozhraní ze zadání, implementuje ho GameRunner. */

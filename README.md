@@ -303,6 +303,17 @@ a pár her (např. Prší – názvy karet „Seven of Hearts“, Logik, Lodě).
 na výsledek. Online zkus jednoho hráče česky a druhého anglicky (dva prohlížeče).
 Zpět přes „Čeština“.
 
+**Lodě: odkrytá deska po konci hry.** Jakmile hra skončí, objeví se na soupeřově moři
+jeho lodě – zasažené části s ✕ a nezasažené šedě. Výsledek kola pak ukáže obě moře
+vedle sebe (Odkrytá deska), takže si oba hráči v klidu prohlédnou, kam stříleli a kde
+lodě opravdu byly. Lokálně a proti AI zná zařízení obě flotily hned. Online se flotila
+soupeře ukáže až po jejím odhalení a ověření proti závazku a odpovědím během hry.
+Data, která ověřením neprojdou, se neukážou a zápas skončí jako nesoulad dat.
+
+**Jak otestovat:** Proti AI → Vlastní výběr → best of 1 → Lodě. Dohraj hru a na
+výsledku kola zkontroluj obě moře: u soupeře šedé zbytky lodí, které jsi nezasáhl.
+Online totéž na obou stranách.
+
 ## Architektura
 
 ```

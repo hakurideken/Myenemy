@@ -38,6 +38,8 @@ export class RemoteRunner<S, M, V, Sec = unknown> implements MiniGame {
   private locked = false;
   private sealedSent = false;
   private secret: { readonly value: Sec } | null = null;
+  /** Ověřená tajná data soupeře, odhalená po konci hry. */
+  private revealed: { readonly value: Sec } | null = null;
   private committing = false;
   private moveTimer: TimerHandle | null = null;
   private destroyed = false;
@@ -93,6 +95,13 @@ export class RemoteRunner<S, M, V, Sec = unknown> implements MiniGame {
     this.updateTimer();
   }
 
+  /** Ověřená tajná data soupeře po konci hry – ukážou se na desce. */
+  showRevealed(secret: Sec): void {
+    if (this.destroyed || !this.latest?.finished) return;
+    this.revealed = { value: secret };
+    this.render();
+  }
+
   receiveEnd(result: RoundEnd): void {
     if (this.destroyed) return;
     this.clearTimer();
@@ -126,6 +135,7 @@ export class RemoteRunner<S, M, V, Sec = unknown> implements MiniGame {
       finished: this.latest.finished,
       committed: this.latest.committed,
       secret: this.secret?.value ?? null,
+      opponentSecret: this.latest.finished ? (this.revealed?.value ?? null) : null,
       cards: null,
     });
   }

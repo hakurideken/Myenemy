@@ -8,6 +8,7 @@ import {
   AIMemory,
   type AnyMiniGameModule,
   type RenderFrame,
+  type RoundEnd,
   type RoundContext,
   type ViewContext,
 } from './MiniGame';
@@ -95,6 +96,62 @@ describe('GameRunner – skrytá informace (PvE)', () => {
     // Odpověď AI přijde bez čekání (plyne z jejích tajných dat).
     expect(bsView(stub).shots.A).toHaveLength(1);
     expect(bsView(stub).pending).toBeNull();
+  });
+
+  it('po konci hry jsou vidět lodě soupeře a výsledek kola nese odkrytou desku', async () => {
+    const { module, stub } = stubbed(battleship);
+    const ends: RoundEnd[] = [];
+    const runner = new GameRunner(module);
+    runner.init(context(clock));
+    runner.onEnd((result) => ends.push(result));
+    runner.start();
+    stub.ctx?.submitSecret('A', FLEET);
+    let next = 0;
+    for (let i = 0; i < 500 && !last(stub).frame.finished; i++) {
+      const { frame } = last(stub);
+      // Během hry lodě AI nikdy nejsou vidět.
+      expect(frame.opponentSecret).toBeNull();
+      const view = bsView(stub);
+      if (view.turn === 'A' && view.pending === null && frame.canAct.includes('A')) {
+        stub.ctx?.submit('A', { kind: 'shot', cell: next++ });
+      } else {
+        clock.advance(2000);
+        await flush();
+      }
+    }
+    const { frame } = last(stub);
+    expect(frame.finished).not.toBeNull();
+    const aiFleet = frame.opponentSecret as Fleet;
+    expect(isValidFleet(aiFleet)).toBe(true);
+
+    clock.advance(battleship.revealMs);
+    expect(ends).toHaveLength(1);
+    expect(ends[0]?.final).toMatchObject({
+      perspective: 'A',
+      view: bsView(stub),
+      secrets: { A: FLEET, B: aiFleet },
+    });
+  });
+
+  it('hra bez závěrečné desky ji ve výsledku kola nemá', async () => {
+    const { module, stub } = stubbed({ ...battleship, showFinalBoard: false });
+    const ends: RoundEnd[] = [];
+    const runner = new GameRunner(module);
+    runner.init(context(clock));
+    runner.onEnd((result) => ends.push(result));
+    runner.start();
+    stub.ctx?.submitSecret('A', FLEET);
+    let next = 0;
+    for (let i = 0; i < 500 && ends.length === 0; i++) {
+      const view = bsView(stub);
+      if (view.turn === 'A' && view.pending === null && last(stub).frame.canAct.includes('A')) {
+        stub.ctx?.submit('A', { kind: 'shot', cell: next++ });
+      } else {
+        clock.advance(2000);
+        await flush();
+      }
+    }
+    expect(ends[0]?.final).toBeUndefined();
   });
 
   it('neplatné rozmístění se zahodí', () => {

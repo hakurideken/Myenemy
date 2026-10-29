@@ -121,6 +121,7 @@ export class MatchFlow {
         current,
         result,
         game: getGame(current.gameId),
+        mode: this.setup.mode,
         names: this.setup.names,
         score: this.controller.score,
         me: this.me,

@@ -1,7 +1,8 @@
 import type { CurrentGame, ReportResult } from '../../core/match/MatchController';
 import { MAX_DRAW_REPLAYS } from '../../core/match/MatchController';
-import type { GameInfo, RoundEnd, Sfx, SfxName } from '../../core/MiniGame';
-import type { PerPlayer, PlayerSlot } from '../../core/types';
+import type { AnyMiniGameModule, RoundEnd, Sfx, SfxName } from '../../core/MiniGame';
+import { otherPlayer, type GameMode, type PerPlayer, type PlayerSlot } from '../../core/types';
+import { systemClock } from '../../core/util/clock';
 import type { Mount } from '../App';
 import { bigScore, button, scoreBar } from '../components/common';
 import { h } from '../dom';
@@ -18,6 +19,7 @@ const t = translations(
     coinSub: (max: number) => `Ani po ${max} rozhodujících kolech nikdo nevyhrál.`,
     matchResult: 'Výsledek zápasu',
     next: 'Další hra',
+    finalBoard: 'Odkrytá deska',
   },
   {
     draw: 'Draw!',
@@ -29,6 +31,7 @@ const t = translations(
     coinSub: (max: number) => `Nobody won even after ${max} deciding rounds.`,
     matchResult: 'Match result',
     next: 'Next game',
+    finalBoard: 'Boards revealed',
   },
 );
 
@@ -36,13 +39,53 @@ interface RoundResultOptions {
   readonly report: ReportResult;
   readonly current: CurrentGame;
   readonly result: RoundEnd;
-  readonly game: GameInfo;
+  readonly game: AnyMiniGameModule;
+  readonly mode: GameMode;
   readonly names: PerPlayer<string>;
   readonly score: Readonly<PerPlayer<number>>;
   /** Hráč na tomto zařízení (PvE, online); null = lokálně dva hráči. */
   readonly me: PlayerSlot | null;
   readonly sfx: Sfx;
   readonly onContinue: () => void;
+}
+
+const SILENT: Sfx = { play: () => undefined, vibrate: () => undefined };
+
+/**
+ * Závěrečná deska s odhalenými tajnými daty obou hráčů (Lodě: kam kdo střílel a kde
+ * lodě opravdu byly). Vykreslí ji pohled hry, jen ke koukání – bez tahů a bez zvuků.
+ */
+function finalBoard(o: RoundResultOptions): { el: HTMLElement; destroy: () => void } | null {
+  const final = o.result.final;
+  if (!o.game.showFinalBoard || !final) return null;
+  const root = h('div', { class: 'final-board-game' });
+  const view = o.game.createView({
+    root,
+    mode: o.mode,
+    names: o.names,
+    localPlayers: o.me === null ? ['A', 'B'] : [o.me],
+    submit: () => undefined,
+    submitSecret: () => undefined,
+    clock: systemClock,
+    prefs: { reducedMotion: true },
+    sfx: SILENT,
+  });
+  view.render(final.view, {
+    perspective: final.perspective,
+    canAct: [],
+    finished: o.result.outcome,
+    committed: [],
+    secret: final.secrets[final.perspective],
+    opponentSecret: final.secrets[otherPlayer(final.perspective)],
+    cards: null,
+  });
+  const el = h(
+    'section',
+    { class: 'final-board', 'aria-label': t.finalBoard },
+    h('h2', { class: 'final-board-title' }, t.finalBoard),
+    root,
+  );
+  return { el, destroy: () => view.destroy() };
 }
 
 export function roundResultScreen(o: RoundResultOptions): Mount {
@@ -67,6 +110,7 @@ export function roundResultScreen(o: RoundResultOptions): Mount {
       sound = o.me !== null && report.winner !== o.me ? 'lose' : 'win';
       next = report.matchWinner ? t.matchResult : t.next;
     }
+    const board = finalBoard(o);
 
     root.append(
       h(
@@ -88,8 +132,10 @@ export function roundResultScreen(o: RoundResultOptions): Mount {
           bigScore(o.score, report.kind === 'decided' ? report.winner : null),
           button(next, o.onContinue, 'btn btn-primary btn-lg', { 'data-autofocus': true }),
         ),
+        board?.el,
       ),
     );
     o.sfx.play(sound);
+    return board?.destroy;
   };
 }

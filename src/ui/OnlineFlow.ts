@@ -372,6 +372,7 @@ export class OnlineFlow {
             current: phase.current,
             result: phase.result,
             game: getGame(phase.current.gameId),
+            mode: 'online',
             names,
             score: s.score,
             me: s.me,

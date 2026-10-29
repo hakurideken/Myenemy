@@ -12,6 +12,7 @@ import { planMatch, type MatchFormat, type MatchPlan } from '../core/match/planM
 import type {
   AIMemory,
   AnyMiniGameModule,
+  FinalBoard,
   GameInfo,
   Prefs,
   RemoteUpdate,
@@ -159,6 +160,8 @@ interface RoundState {
   readonly sealed: SealedExchange | null;
   /** Hry se skrytou informací: závazky a odhalení tajných dat. */
   readonly secrets: SecretExchange | null;
+  /** Tajná data soupeře po konci hry – jen když prošla ověřením (smí se ukázat). */
+  opponentSecret: unknown;
   host: AnyRunner | null;
   guest: RemoteRunner<unknown, unknown, unknown, unknown> | null;
   /**
@@ -533,6 +536,7 @@ export class OnlineSession {
       game,
       sealed: game.sealed ? new SealedExchange(this.me, (m) => this.sendGame(current, m)) : null,
       secrets: game.hidden ? new SecretExchange(this.me, (m) => this.sendGame(current, m)) : null,
+      opponentSecret: null,
       host: null,
       guest: null,
       dealer: game.cards
@@ -803,8 +807,10 @@ export class OnlineSession {
     this.finishHostRound(round, result);
   }
 
-  private finishHostRound(round: RoundState, result: RoundEnd): void {
+  private finishHostRound(round: RoundState, ended: RoundEnd): void {
     if (!this.controller) return;
+    const final = this.finalBoard(round, ended.final?.view);
+    const result: RoundEnd = final ? { ...ended, final } : ended;
     const report = this.controller.report(result.outcome);
     const { gameNo, replay } = round.current;
     this.send({
@@ -835,7 +841,11 @@ export class OnlineSession {
     }
     if (this.round !== round || this.closed || !this.controller) return;
     const report = this.controller.report(body.outcome);
-    const result: RoundEnd = { outcome: body.outcome, summary: this.guestSummary(round, body) };
+    const summary = this.guestSummary(round, body);
+    const final = this.finalBoard(round, this.guestFinalView(round));
+    const result: RoundEnd = final
+      ? { outcome: body.outcome, summary, final }
+      : { outcome: body.outcome, summary };
     round.guest?.receiveEnd(result);
     this.setPhase({ name: 'round-result', current: round.current, report, result });
   }
@@ -939,7 +949,39 @@ export class OnlineSession {
     if (!hidden.consistent(finalView, this.opponent, parsed.data)) {
       return t.secretContradiction;
     }
+    round.opponentSecret = parsed.data;
     return null;
+  }
+
+  /**
+   * Soupeř odhalil tajná data: když sedí, ukážou se hned na desce (jeho lodě).
+   * Nesoulad tu jen nic neukáže – podvod odhalí ověření na konci kola.
+   */
+  private async showOpponentSecret(round: RoundState): Promise<void> {
+    if (!round.game.showFinalBoard) return;
+    const finalView = this.o.role === 'host' ? round.lastView : this.guestFinalView(round);
+    if (finalView === null || this.round !== round) return;
+    if ((await this.verifyOpponentSecret(round, finalView)) !== null) return;
+    if (this.round !== round) return;
+    round.host?.showRevealed(this.opponent, round.opponentSecret);
+    round.guest?.showRevealed(round.opponentSecret);
+  }
+
+  /** Host: závěrečný pohled od hostitele, pokud už hra skončila. */
+  private guestFinalView(round: RoundState): unknown {
+    const state = round.latestState;
+    if (!state || state.finished === null) return null;
+    const parsed = round.game.viewSchema.safeParse(state.view);
+    return parsed.success ? parsed.data : null;
+  }
+
+  /** Závěrečná deska pro výsledek kola: vlastní tajná data a ověřená data soupeře. */
+  private finalBoard(round: RoundState, view: unknown): FinalBoard | null {
+    if (!round.game.showFinalBoard || view === null || view === undefined) return null;
+    const secrets = { A: null, B: null } as Record<PlayerSlot, unknown>;
+    secrets[this.me] = round.secrets?.ownSecret ?? null;
+    secrets[this.opponent] = round.opponentSecret;
+    return { perspective: this.me, view, secrets };
   }
 
   private showMatchResult(): void {
@@ -1044,7 +1086,11 @@ export class OnlineSession {
     const msg = body.body;
     // Odhalení tajných dat chodí i po konci hry (čeká se na ně při ověřování).
     if (msg.kind === 'secret-reveal') {
-      if (msg.player === this.opponent) void round.secrets?.receiveReveal(msg.secret, msg.salt);
+      if (msg.player === this.opponent && round.secrets) {
+        void round.secrets
+          .receiveReveal(msg.secret, msg.salt)
+          .then(() => this.showOpponentSecret(round));
+      }
       return;
     }
     // Mental poker: míchání, klíče a audit (audit chodí i po konci hry).

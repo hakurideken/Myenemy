@@ -500,6 +500,58 @@ describe('online zápas – skrytá informace (Logik)', () => {
     }
   });
 
+  /** Snímky vykreslení s hráčem, kterému patří. */
+  const framesOf = (views: StubView[]): { me: PlayerSlot | undefined; frame: RenderFrame }[] =>
+    views.flatMap((v) => v.renders.map((r) => ({ me: v.ctx.localPlayers[0], frame: r.frame })));
+
+  it('závěrečná deska: po ověření vidí každý tajná data soupeře, dřív ne', async () => {
+    const lk = stubbed({ ...logik, showFinalBoard: true });
+    const s = await sessions([lk.module], LOGIK);
+    await toPlaying(s.host, s.guest);
+    await chooseCodes(lk.views, [0, 0, 0, 0], [1, 1, 1, 1]);
+    lastView(lk.views, 'A').ctx.submit('A', { kind: 'guess', code: [1, 1, 1, 1] });
+    lastView(lk.views, 'B').ctx.submit('B', { kind: 'guess', code: [2, 2, 2, 2] });
+    await run(clock, 4000);
+
+    const expected = [
+      { session: s.host, me: 'A', secrets: { A: [0, 0, 0, 0], B: [1, 1, 1, 1] } },
+      { session: s.guest, me: 'B', secrets: { A: [0, 0, 0, 0], B: [1, 1, 1, 1] } },
+    ] as const;
+    for (const { session, me, secrets } of expected) {
+      const phase = session.phase;
+      if (phase.name !== 'round-result') throw new Error(`fáze ${phase.name}`);
+      expect(phase.result.final).toMatchObject({ perspective: me, secrets });
+      expect(phase.result.final?.view).toBeTruthy();
+    }
+    const frames = framesOf(lk.views);
+    // Na desce se data soupeře objeví už na konci hry…
+    expect(frames.some((f) => f.me === 'A' && String(f.frame.opponentSecret) === '1,1,1,1')).toBe(
+      true,
+    );
+    expect(frames.some((f) => f.me === 'B' && String(f.frame.opponentSecret) === '0,0,0,0')).toBe(
+      true,
+    );
+    // …ale nikdy během hry.
+    for (const { frame } of frames) {
+      if (frame.finished === null) expect(frame.opponentSecret).toBeNull();
+    }
+  });
+
+  it('závěrečná deska: data, která nesedí s odpověďmi, se neukážou', async () => {
+    const host = stubbed({ ...logik, showFinalBoard: true });
+    const guest = stubbed(lying({ ...logik, showFinalBoard: true }));
+    const s = await sessions([host.module], LOGIK, { guestGames: [guest.module] });
+    await toPlaying(s.host, s.guest);
+    lastView(host.views, 'A').ctx.submitSecret('A', [0, 0, 0, 0]);
+    lastView(guest.views, 'B').ctx.submitSecret('B', [1, 1, 1, 1]);
+    await run(clock, 500);
+    lastView(host.views, 'A').ctx.submit('A', { kind: 'guess', code: [1, 1, 1, 1] });
+    lastView(guest.views, 'B').ctx.submit('B', { kind: 'guess', code: [0, 0, 0, 0] });
+    await run(clock, 4000);
+    expect(s.host.phase).toMatchObject({ name: 'match-result', reason: 'cheat' });
+    for (const { frame } of framesOf(host.views)) expect(frame.opponentSecret).toBeNull();
+  });
+
   it('host lže v odpovědích → hostitel to po odhalení kódu pozná', async () => {
     const host = stubbed(logik);
     const guest = stubbed(lying(logik));

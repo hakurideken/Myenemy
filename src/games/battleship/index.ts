@@ -68,6 +68,7 @@ export const battleship = defineGame<BattleshipState, BattleshipMove, Battleship
   moveTimeout: (view) => (view.phase === 'placing' ? PLACEMENT_TIMEOUT_MS : SHOT_TIMEOUT_MS),
   handoffDelayMs: 1500,
   revealMs: 2500,
+  showFinalBoard: true,
   hidden: battleshipHidden,
   logic: battleshipLogic,
   moveSchema: battleshipMoveSchema,

@@ -2,6 +2,7 @@ import { LocalDealer } from './cards/LocalDealer';
 import type {
   AIContext,
   CardDealer,
+  FinalBoard,
   GameInfo,
   GameView,
   MiniGame,
@@ -9,7 +10,7 @@ import type {
   RoundContext,
   RoundEnd,
 } from './MiniGame';
-import { PLAYER_SLOTS, type Difficulty, type Outcome, type PlayerSlot } from './types';
+import { otherPlayer, PLAYER_SLOTS, type Difficulty, type Outcome, type PlayerSlot } from './types';
 import type { TimerHandle } from './util/clock';
 
 export const AI_THINK_MIN_MS = 500;
@@ -43,6 +44,8 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   private readonly committed = new Set<PlayerSlot>();
   /** Tajná data hráčů, která zná toto zařízení (lokální lidé a AI). */
   private readonly secrets = new Map<PlayerSlot, Sec>();
+  /** Online: ověřená tajná data vzdáleného soupeře, odhalená po konci hry. */
+  private readonly revealed = new Map<PlayerSlot, Sec>();
   /** Tajná data čekající na odeslání závazku. */
   private readonly pendingSecrets = new Set<PlayerSlot>();
   /** Čerstvě zadaná tajná data: true = zvolená automaticky (neaktivita). */
@@ -176,6 +179,13 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   /** Znovu pošle soupeři aktuální stav (např. po odmítnutém tahu). */
   republish(): void {
     this.publish();
+  }
+
+  /** Online: ověřená tajná data soupeře po konci hry – ukážou se na desce. */
+  showRevealed(player: PlayerSlot, secret: Sec): void {
+    if (this.destroyed || !this.finished) return;
+    this.revealed.set(player, secret);
+    this.renderView();
   }
 
   destroy(): void {
@@ -426,20 +436,40 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
     this.endTimer = ctx.clock.setTimeout(() => {
       this.endTimer = null;
       if (this.destroyed) return;
-      for (const cb of this.endListeners) cb({ outcome, summary });
+      const final = this.finalBoard();
+      for (const cb of this.endListeners)
+        cb(final ? { outcome, summary, final } : { outcome, summary });
     }, this.game.revealMs);
   }
 
   private render(): void {
+    this.renderView();
+    this.publish();
+  }
+
+  private renderView(): void {
     this.view?.render(this.game.logic.view(this.state, this.perspective), {
       perspective: this.perspective,
       canAct: this.canAct.filter((p) => !this.pendingSecrets.has(p)),
       finished: this.finished,
       committed: [...this.committed],
       secret: this.secrets.get(this.perspective) ?? null,
+      opponentSecret: this.finished ? this.knownSecret(otherPlayer(this.perspective)) : null,
       cards: this.dealer && this.dealerReady ? this.dealer.known(this.perspective) : null,
     });
-    this.publish();
+  }
+
+  private knownSecret(player: PlayerSlot): Sec | null {
+    return this.secrets.get(player) ?? this.revealed.get(player) ?? null;
+  }
+
+  private finalBoard(): FinalBoard | null {
+    if (!this.game.showFinalBoard) return null;
+    return {
+      perspective: this.perspective,
+      view: this.game.logic.view(this.state, this.perspective),
+      secrets: { A: this.knownSecret('A'), B: this.knownSecret('B') },
+    };
   }
 
   private publish(): void {

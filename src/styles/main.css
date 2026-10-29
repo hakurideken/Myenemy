@@ -2646,6 +2646,48 @@ legend {
   gap: 8px;
 }
 
+.bs-legend {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ---------- Odkrytá deska ve výsledku kola ---------- */
+
+.final-board {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.final-board-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.final-board-game {
+  width: 100%;
+}
+
+/* Výsledek už je nahoře v kartě; obě moře jsou stejně velká. */
+.final-board .board-status {
+  display: none;
+}
+
+.final-board .bs:not(.is-placing) .bs-sea {
+  width: min(100%, 360px);
+}
+
 /* Na úzkém displeji jen tvary lodí, ať je mřížka vidět celá. */
 @media (max-width: 560px) {
   .bs-palette {

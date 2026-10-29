@@ -61,6 +61,8 @@ const t = translations(
     hit: (who: string, where: string) => `${who}: ${where} – zásah! `,
     sunk: (who: string, where: string, ship: string) => `${who}: ${where} – potopeno (${ship})! `,
     yourShip: ', tvoje loď',
+    notHit: ', nezasaženo',
+    legend: 'Šedá loď = nezasažená · ✕ = zásah · tečka = vedle',
     waitingForOpponent: 'Flotila je rozmístěná. Čekám na soupeře…',
     firing: (name: string, cell: string) => `${name} střílí na ${cell}…`,
   },
@@ -98,6 +100,8 @@ const t = translations(
     hit: (who: string, where: string) => `${who}: ${where} – hit! `,
     sunk: (who: string, where: string, ship: string) => `${who}: ${where} – sunk (${ship})! `,
     yourShip: ', your ship',
+    notHit: ', not hit',
+    legend: 'Grey ship = not hit · ✕ = hit · dot = miss',
     waitingForOpponent: 'Fleet placed. Waiting for the opponent…',
     firing: (name: string, cell: string) => `${name} fires at ${cell}…`,
   },
@@ -357,7 +361,8 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
   );
 
   const seas = h('div', { class: 'bs-seas' }, target.el, own.el);
-  const container = h('div', { class: 'board-game bs' }, status, placementPanel, seas);
+  const legend = h('p', { class: 'bs-legend', hidden: true }, t.legend);
+  const container = h('div', { class: 'board-game bs' }, status, placementPanel, seas, legend);
   ctx.root.append(container);
 
   const me = (): PlayerSlot => frame?.perspective ?? 'A';
@@ -539,7 +544,10 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
     paintShipShape(own, shipsOfMine);
     own.grid.classList.remove('is-active');
 
-    // Soupeřovo moře: moje výstřely a co z nich plyne.
+    // Soupeřovo moře: moje výstřely a co z nich plyne. Po konci hry i jeho lodě.
+    const theirFleet = f.finished ? (f.opponentSecret as Fleet | null) : null;
+    const theirShips = theirFleet ? (fleetCells(theirFleet) ?? []) : [];
+    const theirShipCells = new Set(theirShips.flat());
     const knowledge = seaKnowledge(view.shots[mine]);
     const lastOutgoing = view.lastShooter === mine ? view.shots[mine].at(-1)?.cell : undefined;
     const aiming =
@@ -551,10 +559,15 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
       else if (knowledge.shot.has(cell)) state = 'miss';
       else if (knowledge.water.has(cell)) state = 'water';
       if (view.pending === cell && view.turn === mine) state = 'pending';
-      paintCell(button, cell, state);
+      const revealed = state === 'sea' && theirShipCells.has(cell);
+      if (revealed) state = 'ship';
+      paintCell(button, cell, state, revealed ? t.notHit : '');
+      button.classList.toggle('has-ship', theirShipCells.has(cell));
       button.classList.toggle('is-last', cell === lastOutgoing);
       button.setAttribute('aria-disabled', String(!aiming || knowledge.shot.has(cell)));
     });
+    paintShipShape(target, theirShips);
+    legend.hidden = theirShips.length === 0;
     target.grid.classList.toggle('is-active', aiming);
     const sunkShips = new Set(
       view.shots[mine].flatMap((s) => (s.result === 'sunk' && s.ship !== null ? [s.ship] : [])),
@@ -563,7 +576,7 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
 
     const local = ctx.localPlayers.length > 1;
     setText(own.title, local ? t.seaOf(ctx.names[mine]) : t.yourSea);
-    setText(target.title, t.firingAt(ctx.names[opp]));
+    setText(target.title, f.finished ? t.seaOf(ctx.names[opp]) : t.firingAt(ctx.names[opp]));
 
     let text: string;
     if (f.finished) text = `${lastShotMessage(view)}${outcomeMessage(ctx, f.finished)}`;
