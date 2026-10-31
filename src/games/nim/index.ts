@@ -45,6 +45,7 @@ export const nim = defineGame<NimState, NimMove, NimView>({
   name: t.name,
   type: 'turn',
   length: 'quick',
+  cognitive: { primary: 'logic', secondary: 'strategy' },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.localControls, t.keys] : [t.keys]),
   localLayout: 'shared',

@@ -41,6 +41,7 @@ export const dotsAndBoxes = defineGame<DotsState, DotsMove, DotsView>({
   name: t.name,
   type: 'turn',
   length: 'long',
+  cognitive: { primary: 'strategy', secondary: 'logic' },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.localControls, t.keys] : [t.keys]),
   localLayout: 'shared',

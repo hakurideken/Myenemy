@@ -78,6 +78,7 @@ const pick = defineGame<
   localLayout: 'shared',
   moveTimeoutMs: 1000,
   revealMs: 100,
+  cognitive: { primary: 'strategy', secondary: null },
   logic: {
     setup: () => ({ picks: {} }),
     toMove: (s) => (['A', 'B'] as const).filter((p) => s.picks[p] === undefined),

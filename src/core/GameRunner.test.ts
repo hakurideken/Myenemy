@@ -76,6 +76,7 @@ function raceGame(
     localLayout: 'shared',
     moveTimeoutMs: 10_000,
     revealMs: 500,
+    cognitive: { primary: 'strategy', secondary: null },
     logic: {
       setup: ({ starter }) => ({ total: 0, turn: starter, last: null }),
       toMove: (s) => [s.turn],
@@ -107,6 +108,7 @@ function pickGame(
     localLayout: 'hotseat',
     moveTimeoutMs: 10_000,
     revealMs: 500,
+    cognitive: { primary: 'strategy', secondary: null },
     logic: {
       setup: ({ starter }) => ({ order: [starter, otherPlayer(starter)], picks: {} }),
       toMove: (s) => s.order.filter((p) => s.picks[p] === undefined),

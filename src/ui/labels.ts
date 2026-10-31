@@ -1,13 +1,14 @@
 import type { CurrentGame, EndReason } from '../core/match/MatchController';
 import { MAX_DRAW_REPLAYS } from '../core/match/MatchController';
 import type { FormatKind, MatchFormat } from '../core/match/planMatch';
-import type { Difficulty, GameLength, GameMode, GameType } from '../core/types';
+import type { CognitiveGroup, Difficulty, GameLength, GameMode, GameType } from '../core/types';
 import { translations } from '../i18n';
 
 interface Labels {
   difficulty: Record<Difficulty, string>;
   difficultyHint: Record<Difficulty, string>;
   type: Record<GameType, string>;
+  cognitive: Record<CognitiveGroup, string>;
   length: Record<GameLength, string>;
   mode: Record<GameMode, string>;
   format: Record<FormatKind, { name: string; description: string }>;
@@ -29,6 +30,13 @@ const t = translations<Labels>(
       turn: 'Tahová',
       hidden: 'Skrytá informace',
       card: 'Karetní',
+    },
+    cognitive: {
+      speed: 'Rychlost a postřeh',
+      memory: 'Paměť',
+      logic: 'Logika a dedukce',
+      strategy: 'Strategie a plánování',
+      chance: 'Odhad a čtení soupeře',
     },
     length: { quick: 'Rychlá (do 1 min)', long: 'Delší (2–5 min)' },
     mode: {
@@ -74,6 +82,13 @@ const t = translations<Labels>(
       hard: 'Fast and cunning',
     },
     type: { reaction: 'Reaction', turn: 'Turn-based', hidden: 'Hidden info', card: 'Cards' },
+    cognitive: {
+      speed: 'Speed and alertness',
+      memory: 'Memory',
+      logic: 'Logic and deduction',
+      strategy: 'Strategy and planning',
+      chance: 'Risk and reading the opponent',
+    },
     length: { quick: 'Quick (under 1 min)', long: 'Longer (2–5 min)' },
     mode: { pve: 'Vs. AI', local: 'Two players, one device', online: 'Online duel' },
     format: {
@@ -114,6 +129,7 @@ const t = translations<Labels>(
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = t.difficulty;
 export const DIFFICULTY_HINT: Record<Difficulty, string> = t.difficultyHint;
 export const TYPE_LABEL: Record<GameType, string> = t.type;
+export const COGNITIVE_LABEL: Record<CognitiveGroup, string> = t.cognitive;
 export const LENGTH_LABEL: Record<GameLength, string> = t.length;
 export const MODE_LABEL: Record<GameMode, string> = t.mode;
 export const FORMAT_INFO: Record<FormatKind, { name: string; description: string }> = t.format;

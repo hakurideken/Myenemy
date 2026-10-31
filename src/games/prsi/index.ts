@@ -51,6 +51,7 @@ export const prsi = defineGame<PrsiState, PrsiMove, PrsiView>({
   name: t.name,
   type: 'card',
   length: 'long',
+  cognitive: { primary: 'chance', secondary: 'strategy' },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.handoff, t.keys] : [t.keys]),
   localLayout: 'hotseat',

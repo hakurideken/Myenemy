@@ -48,6 +48,7 @@ export const reflex = defineGame<ReflexState, ReflexMove, ReflexView>({
   name: t.name,
   type: 'reaction',
   length: 'quick',
+  cognitive: { primary: 'speed', secondary: null },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? t.controlsLocal : t.controlsSolo),
   localLayout: 'split',

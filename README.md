@@ -32,6 +32,38 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | Oko bere          | karetní           | rychlá | hotovo |
 | Pexeso duel       | karetní           | delší  | hotovo |
 
+## Kognitivní skupiny
+
+Příprava na statistiky hráče (do budoucna s účty a kamarády). Každá hra má jednu
+**hlavní** skupinu, do které se budou počítat výsledky (nic se nepočítá dvakrát), a nanejvýš
+jednu **vedlejší** jen pro informaci. Údaj je u hry v `index.ts` (`cognitive`), názvy
+skupin v `src/ui/labels.ts` (`COGNITIVE_LABEL`).
+
+| Skupina                          | Co měří                                     |
+| -------------------------------- | ------------------------------------------- |
+| Rychlost a postřeh (speed)       | reakční doba, pohotovost, rozlišení podnětu |
+| Paměť (memory)                   | krátkodobá a pracovní paměť                 |
+| Logika a dedukce (logic)         | vyvozování z informací, počítání            |
+| Strategie a plánování (strategy) | dopředné myšlení, práce s prostorem         |
+| Odhad a čtení soupeře (chance)   | riziko, pravděpodobnost, předvídání soupeře |
+
+| Hra               | Hlavní                | Vedlejší              |
+| ----------------- | --------------------- | --------------------- |
+| Rychlý tasec      | Rychlost a postřeh    | –                     |
+| Klikací souboj    | Rychlost a postřeh    | –                     |
+| Postřeh           | Rychlost a postřeh    | –                     |
+| Pexeso duel       | Paměť                 | Rychlost a postřeh    |
+| Logik souboj      | Logika a dedukce      | Paměť                 |
+| Lodě              | Logika a dedukce      | Odhad a čtení soupeře |
+| Sirky             | Logika a dedukce      | Strategie a plánování |
+| Piškvorky 3×3     | Strategie a plánování | Paměť                 |
+| Čtyři v řadě      | Strategie a plánování | –                     |
+| Tečky a čtverečky | Strategie a plánování | Logika a dedukce      |
+| Hon v mlze        | Strategie a plánování | Odhad a čtení soupeře |
+| Kámen-nůžky-papír | Odhad a čtení soupeře | –                     |
+| Oko bere          | Odhad a čtení soupeře | –                     |
+| Prší              | Odhad a čtení soupeře | Strategie a plánování |
+
 ## Formáty zápasu
 
 - **Rychlovka** – best of 5 z rychlých her (vyhrává, kdo první vyhraje 3).
@@ -382,7 +414,8 @@ src/
    platný tah (používá se i jako automatický tah při neaktivitě).
 4. `view.ts` – vykreslení přes `h()` / `svg()` z `src/ui/dom.ts` (text nikdy přes `innerHTML`).
    Všechny texty pro hráče patří do `translations(cs, en)` (viz `src/i18n.ts`).
-5. `index.ts` – `defineGame({...})` s názvem, typem, délkou, pravidly a ovládáním. Hra se
+5. `index.ts` – `defineGame({...})` s názvem, typem, délkou, kognitivní skupinou
+   (`cognitive: { primary, secondary }`, viz výše), pravidly a ovládáním. Hra se
    současným tajným tahem (jako KNP) nastaví `sealed` – online pak jde přes commit-reveal.
    Hra s tajnými daty, na která se soupeř ptá (jako Lodě nebo Logik), nastaví `hidden`:
    schéma a kontrolu dat, náhodná data, `respond` (odpověď z dat), `consistent` (ověření

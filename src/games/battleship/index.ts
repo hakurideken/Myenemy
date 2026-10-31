@@ -61,6 +61,7 @@ export const battleship = defineGame<BattleshipState, BattleshipMove, Battleship
   name: t.name,
   type: 'hidden',
   length: 'long',
+  cognitive: { primary: 'logic', secondary: 'chance' },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.handoff, ...t.keys] : t.keys),
   localLayout: 'hotseat',

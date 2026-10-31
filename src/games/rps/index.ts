@@ -43,6 +43,7 @@ export const rps = defineGame<RpsState, RpsMove, RpsView>({
   name: t.name,
   type: 'turn',
   length: 'quick',
+  cognitive: { primary: 'chance', secondary: null },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.localTurns, t.keyHelp] : [t.keyHelp]),
   localLayout: 'hotseat',

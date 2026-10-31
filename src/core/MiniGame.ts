@@ -1,5 +1,6 @@
 import type { ZodType } from 'zod';
 import type {
+  CognitiveProfile,
   Difficulty,
   GameId,
   GameLength,
@@ -264,6 +265,8 @@ export interface FogKeeper {
 }
 
 export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
+  /** Kognitivní skupiny hry – podle hlavní se budou počítat statistiky hráče. */
+  readonly cognitive: CognitiveProfile;
   readonly rules: readonly string[];
   controls(mode: GameMode): readonly string[];
   readonly localLayout: LocalLayout;

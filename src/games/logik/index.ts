@@ -50,6 +50,7 @@ export const logik = defineGame<LogikState, LogikMove, LogikView, Code>({
   name: t.name,
   type: 'hidden',
   length: 'long',
+  cognitive: { primary: 'logic', secondary: 'memory' },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.handoff, t.keys] : [t.keys]),
   localLayout: 'hotseat',

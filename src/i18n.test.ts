@@ -52,6 +52,7 @@ describe('jazyk', () => {
       ...Object.values(labels.DIFFICULTY_LABEL),
       ...Object.values(labels.DIFFICULTY_HINT),
       ...Object.values(labels.TYPE_LABEL),
+      ...Object.values(labels.COGNITIVE_LABEL),
       ...Object.values(labels.LENGTH_LABEL),
       ...Object.values(labels.MODE_LABEL),
       ...Object.values(labels.FORMAT_INFO).flatMap((f) => [f.name, f.description]),

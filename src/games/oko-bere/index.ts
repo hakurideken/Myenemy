@@ -52,6 +52,7 @@ export const okoBere = defineGame<OkoState, OkoMove, OkoView>({
   name: t.name,
   type: 'card',
   length: 'quick',
+  cognitive: { primary: 'chance', secondary: null },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.handoff, t.keys] : [t.keys]),
   localLayout: 'hotseat',

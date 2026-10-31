@@ -45,6 +45,7 @@ export const connectFour = defineGame<C4State, C4Move, C4View>({
   name: t.name,
   type: 'turn',
   length: 'long',
+  cognitive: { primary: 'strategy', secondary: null },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.localControls, t.keys] : [t.keys]),
   localLayout: 'shared',

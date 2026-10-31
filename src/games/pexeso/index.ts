@@ -44,6 +44,7 @@ export const pexeso = defineGame<PexesoState, PexesoMove, PexesoView>({
   name: t.name,
   type: 'card',
   length: 'long',
+  cognitive: { primary: 'memory', secondary: 'speed' },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.sharedDevice, t.keys] : [t.keys]),
   localLayout: 'shared',

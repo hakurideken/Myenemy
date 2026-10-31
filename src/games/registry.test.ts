@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LocalDealer } from '../core/cards/LocalDealer';
 import { LocalFog } from '../core/fog/LocalFog';
 import { AIMemory, type AnyMiniGameModule } from '../core/MiniGame';
-import { DIFFICULTIES, type Difficulty, type PlayerSlot } from '../core/types';
+import { COGNITIVE_GROUPS, DIFFICULTIES, type Difficulty, type PlayerSlot } from '../core/types';
 import { createRng, type Rng } from '../core/util/rng';
 import { GAME_INFOS, GAMES, getGame } from './registry';
 
@@ -103,8 +103,26 @@ describe('registr miniher', () => {
     expect(GAME_INFOS.map((g) => g.id)).toEqual(ids);
   });
 
+  it('každá kognitivní skupina má aspoň jednu hru (podle hlavní skupiny)', () => {
+    for (const group of COGNITIVE_GROUPS) {
+      expect(
+        GAMES.some((g) => g.cognitive.primary === group),
+        group,
+      ).toBe(true);
+    }
+  });
+
   // Kontrakt, který musí splnit každá nová minihra.
   describe.each(GAMES.map((g) => [g.name, g] as const))('%s', (_name, game) => {
+    it('má kognitivní skupinu (hlavní, případně jinou vedlejší)', () => {
+      const { primary, secondary } = game.cognitive;
+      expect(COGNITIVE_GROUPS).toContain(primary);
+      if (secondary !== null) {
+        expect(COGNITIVE_GROUPS).toContain(secondary);
+        expect(secondary).not.toBe(primary);
+      }
+    });
+
     it('má pravidla a ovládání pro všechny režimy', () => {
       expect(game.rules.length).toBeGreaterThan(0);
       for (const mode of MODES) expect(game.controls(mode).length).toBeGreaterThan(0);

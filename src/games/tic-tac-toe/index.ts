@@ -47,6 +47,7 @@ export const ticTacToe = defineGame<TttState, TttMove, TttView>({
   name: t.name,
   type: 'turn',
   length: 'quick',
+  cognitive: { primary: 'strategy', secondary: 'memory' },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.localControls, t.keys] : [t.keys]),
   localLayout: 'shared',

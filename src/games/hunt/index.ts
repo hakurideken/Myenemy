@@ -55,6 +55,7 @@ export const hunt = defineGame<HuntState, HuntMove, HuntView>({
   name: t.name,
   type: 'hidden',
   length: 'long',
+  cognitive: { primary: 'strategy', secondary: 'chance' },
   rules: t.rules,
   controls: (mode) => (mode === 'local' ? [t.handoff, t.keys] : [t.keys]),
   localLayout: 'hotseat',
