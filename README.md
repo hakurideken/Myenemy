@@ -27,6 +27,7 @@ nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka 
 | Tečky a čtverečky | tahová            | delší  | hotovo |
 | Lodě              | skrytá informace  | delší  | hotovo |
 | Logik souboj      | skrytá informace  | delší  | hotovo |
+| Hon v mlze        | skrytá informace  | delší  | hotovo |
 | Prší              | karetní           | delší  | hotovo |
 | Oko bere          | karetní           | rychlá | hotovo |
 | Pexeso duel       | karetní           | delší  | hotovo |
@@ -294,7 +295,7 @@ začínáš ty. U Pexesa zkontroluj, že je 30 kartiček a celá deska je vidět
 v menu nebo v Nastavení (Jazyk / Language). Volba se uloží v prohlížeči a stránka se
 znovu načte. Bez uložené volby se jazyk vezme z prohlížeče (čeština a slovenština →
 česky, jinak anglicky). Přeložené je všechno, co hráč vidí: menu, nastavení zápasu,
-pravidla a ovládání všech 13 her, texty během hry, popisky pro čtečky obrazovky,
+pravidla a ovládání všech her, texty během hry, popisky pro čtečky obrazovky,
 výsledky i online hlášky. Online může mít každý hráč jiný jazyk: do sítě jdou jen data,
 shrnutí kola si host spočítá sám ve svém jazyce.
 
@@ -314,6 +315,29 @@ Data, která ověřením neprojdou, se neukážou a zápas skončí jako nesoula
 výsledku kola zkontroluj obě moře: u soupeře šedé zbytky lodí, které jsi nezasáhl.
 Online totéž na obou stranách.
 
+**Hon v mlze (nová hra).** Jeden je lovec, druhý liška, hraje se na dva poločasy na stejné
+mapě a role se prohodí. Les 9 × 9 se stromy (nejdou projít ani přes ně vidět) a keři (kdo
+v nich stojí, je vidět jen zblízka). Lovec ujde až 2 pole rovně a vidí do vzdálenosti 2,
+liška ujde 1 pole i šikmo a vidí do vzdálenosti 3; za sebou nechává stopy z posledních
+2 tahů. Lovec ji chytí vstupem na její pole (i průchodem), má na to 15 kol. Vyhrává, kdo
+lišku chytil v nižším kole. Po každém poločase se ukážou obě trasy.
+
+- Vyváženost je ověřená simulací her AI proti AI: dobrý lovec chytí dobrou lišku asi
+  v 80 % poločasů, nejčastěji v 8.–10. kole, lehký lovec jen asi ve 40 %.
+- AI si vede pravděpodobnost, kde soupeř je (rozptyl po jeho tazích, zúžení tím, co
+  viděla i neviděla, stopy). Lovec se nevrací tam, kde právě byl.
+- Online polohu soupeře nezná ani jeho zařízení. Po každém tahu proběhne oběma směry
+  šifrovaný průnik množin (Diffie–Hellman PSI, 1024bitová grupa): pozorovatel pošle
+  zašifrované štítky polí, kam dohlédne, cíl je zašifruje i svým klíčem a přidá, čím se
+  prozrazuje (poloha, stopy). Pozorovatel pozná jen shodu – tedy přesně to, co vidí.
+  Po poločase oba pošlou celé tahy i klíče a soupeř přepočítá, že trasa byla platná, nikdo
+  se nedíval dál, než smí, nic nezatajil a hlášení o chycení sedí. Jinak prohra kontumací.
+
+**Jak otestovat:** Proti AI → Vlastní výběr → best of 1 → Hon v mlze. Za lovce i za lišku
+zkus, že vidíš jen své okolí (zbytek je tmavý), soupeře jen v dosahu (jinak slabě, kde byl
+naposledy), stopy lišky a přestávku s oběma trasami. Online stejně, ideálně ve dvou
+prohlížečích (oba musí mít novou verzi – změnil se protokol).
+
 ## Architektura
 
 ```
@@ -324,9 +348,10 @@ src/
 │  ├─ match/                planMatch (formáty, losování), MatchController (skóre, remízy)
 │  ├─ ai/reaction.ts        lidsky působící reakční doby AI
 │  ├─ cards/                mental poker (SRA), lokální rozdávající
+│  ├─ fog/                  mlha: LocalFog, šifrovaný průnik množin (psi.ts)
 │  └─ util/                 RNG se seedem, hodiny, commit-reveal, kanonický JSON
 ├─ net/                     Transport, InMemory/Supabase, protokol (Zod), Peer, místnosti
-├─ online/                  OnlineSession, RemoteRunner (host), commit-reveal, MentalPokerDealer
+├─ online/                  OnlineSession, RemoteRunner, commit-reveal, MentalPokerDealer, OnlineFog
 ├─ games/
 │  ├─ registry.ts           JEDINÝ seznam miniher
 │  └─ <hra>/                logic.ts · ai.ts · view.ts · index.ts · *.test.ts
@@ -366,6 +391,9 @@ src/
    řekne, kdo má na kterou kartu nárok (`privateFor`, `publicCards`), na co čeká
    (`pendingPublic` → `reveal`) a které karty tah tvrdí (`claims`). Karty rozdává
    lokálně `LocalDealer`, online `MentalPokerDealer`.
+   Hra v mlze (jako Hon v mlze) nastaví `fog`: soukromý stav hráče (poloha) a jeho krok,
+   veřejnou podobu tahu a štítky „kam hráč dohlédne“ a „čím se prozrazuje“. Kdo co vidí,
+   je jejich průnik – lokálně `LocalFog`, online `OnlineFog` šifrovaně s ověřením po úseku.
 6. Přidej hru do pole `GAMES` v `src/games/registry.ts` – automaticky se objeví ve vlastním
    výběru, v losování i online.
 7. Napiš `logic.test.ts`. Obecný kontrakt (pravidla, ovládání, platné tahy AI pro všechny

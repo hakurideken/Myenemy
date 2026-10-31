@@ -57,6 +57,8 @@ export interface AIContext {
   readonly memory: AIMemory;
   /** Karetní hry: karty, které AI smí znát (vlastní ruka a veřejné karty). */
   readonly cards?: KnownCards;
+  /** Hry v mlze: co AI ví (vlastní poloha a co viděla). */
+  readonly fog?: FogKnowledge;
 }
 
 export interface Prefs {
@@ -101,6 +103,8 @@ export interface RenderFrame {
   readonly opponentSecret: unknown;
   /** Karetní hry: karty, které zná hráč z `perspective`; null = balíček se ještě míchá. */
   readonly cards: KnownCards | null;
+  /** Hry v mlze: co ví hráč z `perspective` (jinak null). */
+  readonly fog: FogKnowledge | null;
 }
 
 export interface CardAt {
@@ -186,6 +190,79 @@ export interface GameView<V> {
  */
 export type LocalLayout = 'split' | 'shared' | 'hotseat';
 
+/** Co hráč viděl po veřejném tahu `index` (hry v mlze). */
+export interface Sighting {
+  readonly index: number;
+  /** Úsek hry (např. poločas) – soukromé stavy se na začátku úseku vrací na start. */
+  readonly segment: number;
+  /** Kdo tahem pohnul; null = začátek úseku. */
+  readonly mover: PlayerSlot | null;
+  /** Vlastní soukromý stav v tu chvíli. */
+  readonly own: unknown;
+  /** Štítky soupeře, které hráč viděl (např. „F:23“ = liška na poli 23). */
+  readonly seen: readonly string[];
+}
+
+/** Co ví hráč v mlze. */
+export interface FogKnowledge {
+  /** Vlastní soukromý stav (poloha, trasa). */
+  readonly own: unknown;
+  readonly sightings: readonly Sighting[];
+  /** Soukromé stavy soupeře z uzavřených úseků – lokálně hned, online po ověření. */
+  readonly revealed: ReadonlyMap<number, unknown>;
+}
+
+/**
+ * Hry v mlze (Hon v mlze): kde kdo stojí, zná jen jeho zařízení. Logika vede jen veřejný
+ * průběh (kdo je na tahu, kdy byl kdo chycen). Tah může mít soukromou část (cestu), která
+ * se online nikam neposílá. Co kdo vidí, je průnik štítků „kam pozorovatel dohlédne“
+ * (queries) a „čím se soupeř prozrazuje“ (exposed) – lokálně se spočítá přímo, online
+ * šifrovaně, takže se nikdo nedozví nic navíc. Po každém úseku se trasy odhalí a ověří.
+ */
+export interface FogRules<M, V, Pv> {
+  /** Nejvíc štítků, kam hráč dohlédne (online se doplní na tento počet). */
+  readonly maxQueries: number;
+  /** Nejvíc štítků, kterými se hráč prozrazuje. */
+  readonly maxExposed: number;
+  /** Úsek hry; při změně se soukromé stavy vrátí na start a předchozí úsek se odhalí. */
+  segment(view: V): number;
+  start(view: V, player: PlayerSlot): Pv;
+  /** Soukromý stav po vlastním tahu; null = neplatný krok (nebo chybí soukromá část). */
+  advance(view: V, player: PlayerSlot, own: Pv, move: M): Pv | null;
+  /** Tah bez soukromých údajů – jde do sítě a do záznamu. */
+  publicMove(move: M): M;
+  /** Zjišťuje se po tomto tahu znovu, kdo co vidí? */
+  observes(move: M): boolean;
+  exposed(view: V, player: PlayerSlot, own: Pv): readonly string[];
+  queries(view: V, player: PlayerSlot, own: Pv): readonly string[];
+  /** Tah vynucený tím, co hráč ví (např. ohlášení chycení). */
+  respond(view: V, player: PlayerSlot, knowledge: FogKnowledge): M | null;
+  /** Ověření veřejného tahu se znalostí obou soukromých stavů (po odhalení). */
+  check(view: V, player: PlayerSlot, move: M, privates: PerPlayer<Pv>): boolean;
+}
+
+/** Kdo co ví v mlze: lokálně obě strany, online jen vlastní (zbytek šifrovaně). */
+export interface FogKeeper {
+  /** Začátek hry: výchozí soukromé stavy a první pozorování. */
+  begin(viewOf: (player: PlayerSlot) => unknown): void;
+  /** Lokální hráč chce táhnout – platí soukromá část? (zapíše se až s veřejným tahem) */
+  stage(player: PlayerSlot, view: unknown, move: unknown): boolean;
+  /** Veřejný tah číslo `index` je zapsaný (u obou klientů ve stejném pořadí). */
+  record(
+    index: number,
+    player: PlayerSlot,
+    move: unknown,
+    viewOf: (player: PlayerSlot) => unknown,
+  ): void;
+  /** Pozorování po posledním tahu jsou hotová – do té doby nikdo netáhne. */
+  ready(): boolean;
+  knowledge(player: PlayerSlot): FogKnowledge | null;
+  /** Konec hry – online se odhalí poslední úsek. */
+  finish(): void;
+  /** Přibyla znalost (dorazilo pozorování nebo odhalení). Vrací odhlášení. */
+  onChange(cb: () => void): () => void;
+}
+
 export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
   readonly rules: readonly string[];
   controls(mode: GameMode): readonly string[];
@@ -198,6 +275,8 @@ export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
   readonly hidden?: HiddenInfo<Sec, M, V>;
   /** Karetní hra – viz CardRules. */
   readonly cards?: CardRules<S, M, V>;
+  /** Hra v mlze – viz FogRules. */
+  readonly fog?: FogRules<M, V, unknown>;
   /** Hotseat: jak dlouho nechat hráče vidět výsledek jeho tahu, než se zařízení předá. */
   readonly handoffDelayMs?: number;
   /** Jak dlouho nechat vidět konec hry, než přijde výsledek kola. */
@@ -267,6 +346,8 @@ export interface RoundContext {
   readonly bridge?: RunnerBridge;
   /** Online karetní hry: mental poker místo lokálního rozdávajícího. */
   readonly dealer?: CardDealer;
+  /** Online hry v mlze: šifrovaná pozorování místo lokálních. */
+  readonly fog?: FogKeeper;
 }
 
 export interface RemoteUpdate {
@@ -282,8 +363,15 @@ export interface RunnerBridge {
   /**
    * Tah lokálního hráče (kvůli zapečetění a počítání neaktivity).
    * @param simultaneous na tahu byl i soupeř (současný tah – online se pečetí)
+   * @param forced tah vynucený znalostí (ohlášení chycení) – nepočítá se do neaktivity
    */
-  localMove(player: PlayerSlot, move: unknown, auto: boolean, simultaneous: boolean): void;
+  localMove(
+    player: PlayerSlot,
+    move: unknown,
+    auto: boolean,
+    simultaneous: boolean,
+    forced?: boolean,
+  ): void;
   /** Tajná data lokálního hráče – odešle se závazek (hash) dřív, než hra pokračuje. */
   commitSecret?(player: PlayerSlot, secret: unknown): Promise<void>;
 }

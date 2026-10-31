@@ -30,6 +30,7 @@ import type { GameBody, SessionBody, StateBody } from '../net/protocol';
 import { Listeners } from '../net/Transport';
 import { CheatError, SealedExchange, SecretExchange, SeedExchange } from './exchanges';
 import { MentalPokerDealer } from './MentalPokerDealer';
+import { OnlineFog, type FogMessage } from './OnlineFog';
 import { RemoteRunner } from './RemoteRunner';
 
 const t = translations(
@@ -169,6 +170,8 @@ interface RoundState {
    * Hostitel má svůj runner v `host`, host v `peer`.
    */
   readonly dealer: MentalPokerDealer | null;
+  /** Hry v mlze: šifrovaná pozorování (logiku spouštějí oba jako u karet). */
+  readonly fog: OnlineFog | null;
   peer: AnyRunner | null;
   /** Karty: tahy soupeře se zpracovávají přísně po sobě (odhalení je asynchronní). */
   cardChain: Promise<void>;
@@ -354,8 +357,8 @@ export class OnlineSession {
       showTurnTimer: (deadline, total) => mount.showTurnTimer(deadline, total),
     };
 
-    if (round.dealer) {
-      this.mountCardRound(round, round.dealer, base);
+    if (round.dealer || round.fog) {
+      this.mountSymmetricRound(round, base);
     } else if (this.o.role === 'host') {
       const runner = new GameRunner(game);
       round.host = runner;
@@ -395,10 +398,9 @@ export class OnlineSession {
     };
   }
 
-  /** Karetní hra: vlastní runner u obou hráčů, tahy se posílají oběma směry. */
-  private mountCardRound(
+  /** Karty a mlha: vlastní runner u obou hráčů, tahy se posílají oběma směry. */
+  private mountSymmetricRound(
     round: RoundState,
-    dealer: MentalPokerDealer,
     base: Omit<RoundContext, 'seats' | 'bridge'>,
   ): void {
     const runner = new GameRunner(round.game);
@@ -410,11 +412,12 @@ export class OnlineSession {
         this.me === 'A'
           ? { A: { kind: 'human' }, B: { kind: 'remote' } }
           : { A: { kind: 'remote' }, B: { kind: 'human' } },
-      dealer,
+      ...(round.dealer && { dealer: round.dealer }),
+      ...(round.fog && { fog: round.fog }),
       bridge: {
         publish: (update) => this.cardPublish(round, update),
-        localMove: (_player, move, auto, simultaneous) =>
-          this.cardLocalMove(round, move, auto, simultaneous),
+        localMove: (_player, move, auto, simultaneous, forced) =>
+          this.cardLocalMove(round, move, auto, simultaneous, forced ?? false),
       },
     });
     if (this.o.role === 'host') runner.onEnd((result) => this.hostRoundEnd(round, result));
@@ -547,6 +550,14 @@ export class OnlineSession {
             (detail) => this.detectCheat(detail),
           )
         : null,
+      fog: game.fog
+        ? new OnlineFog(
+            game.fog,
+            this.me,
+            (m) => this.sendGame(current, m),
+            (detail) => this.detectCheat(detail),
+          )
+        : null,
       peer: null,
       cardChain: Promise.resolve(),
       cardMounted: mounted.promise,
@@ -631,9 +642,11 @@ export class OnlineSession {
     move: unknown,
     auto: boolean,
     simultaneous: boolean,
+    forced: boolean,
   ): void {
     if (this.round !== round || round.ended) return;
-    this.countAfk(this.me, auto);
+    // Vynucený tah (ohlášení chycení) není rozhodnutí hráče – do neaktivity se nepočítá.
+    if (!forced) this.countAfk(this.me, auto);
     // Klíče k vyloženým kartám jdou napřed, ať soupeř tah hned ověří.
     const claims = round.game.cards?.claims(move) ?? [];
     round.dealer?.reveal(claims.map((c) => c.pos));
@@ -641,7 +654,7 @@ export class OnlineSession {
       // Současný tah (oba se rozhodují naráz): nejdřív závazek, odhalení až po soupeřově.
       void this.cardStep(round, round.ownSteps++).seal(move, auto);
     } else {
-      this.sendGame(round.current, { kind: 'move', move, auto });
+      this.sendGame(round.current, { kind: 'move', move, auto, ...(forced && { forced }) });
     }
   }
 
@@ -654,12 +667,23 @@ export class OnlineSession {
     return exchange;
   }
 
+  private fogMessage(round: RoundState, msg: FogMessage): void {
+    const fog = round.fog;
+    if (!fog) return;
+    round.cardChain = round.cardChain
+      .then(() => round.cardMounted)
+      .then(() => {
+        if (this.round === round) fog.receive(msg);
+      })
+      .catch((err: unknown) => console.error('[online] mlha', err));
+  }
+
   /** Tahy soupeře v karetní hře – po sobě, až když je balíček připravený. */
   private cardMessage(round: RoundState, msg: CardPlay): void {
     const dealer = round.dealer;
-    if (!dealer) return;
+    if (!dealer && !round.fog) return;
     round.cardChain = round.cardChain
-      .then(() => Promise.all([dealer.ready(), round.cardMounted]))
+      .then(() => Promise.all([dealer?.ready(), round.cardMounted]))
       .then(() => this.applyCardMessage(round, msg))
       .catch((err: unknown) => console.error('[online] karetní tah', err));
   }
@@ -676,7 +700,7 @@ export class OnlineSession {
     }
     switch (msg.kind) {
       case 'move':
-        this.countAfk(this.opponent, msg.auto);
+        if (!msg.forced) this.countAfk(this.opponent, msg.auto);
         this.applyCardMove(round, runner, msg.move);
         break;
       case 'commit':
@@ -728,7 +752,8 @@ export class OnlineSession {
     outcome: Outcome | null,
   ): Promise<string | null> {
     const dealer = round.dealer;
-    if (!dealer) return null;
+    const fog = round.fog;
+    if (!dealer && !fog) return null;
     if (outcome !== null) {
       const mine = await this.waitCardOutcome(round);
       if (!mine) return t.notOverHere;
@@ -736,9 +761,12 @@ export class OnlineSession {
         return t.hostResultVsGame;
       }
     }
-    return dealer.waitAudit((cb) => {
+    const schedule = (cb: () => void): void => {
       this.o.clock.setTimeout(cb, REVEAL_WAIT_MS);
-    });
+    };
+    // Mlha: po konci hry se odhalí trasy a přepočítají šifrované zprávy soupeře.
+    if (fog) return fog.waitAudit(schedule);
+    return dealer ? dealer.waitAudit(schedule) : null;
   }
 
   /** Hostitel: host v limitu nereagoval – zahraje se za něj (nebo prohra, pokud neodhalil). */
@@ -750,8 +778,8 @@ export class OnlineSession {
       this.detectCheat(t.oppNotRevealed);
       return;
     }
-    // Karty: stav drží i host, takže za něj hostitel táhnout nemůže.
-    if (round.dealer) {
+    // Karty a mlha: stav drží i host, takže za něj hostitel táhnout nemůže.
+    if (round.dealer || round.fog) {
       this.forfeitAfk(this.opponent);
       return;
     }
@@ -786,8 +814,8 @@ export class OnlineSession {
     if (this.round !== round || round.ended || !this.controller) return;
     round.ended = true;
     this.clearFallback(round);
-    if (round.dealer) {
-      // Karty: výsledek až po ověření celého balíčku (audit klíčů).
+    if (round.dealer || round.fog) {
+      // Karty a mlha: výsledek až po ověření (audit klíčů, tras).
       void this.verifyCardRound(round, null).then((problem) => {
         if (this.round !== round || this.closed) return;
         if (problem) this.detectCheat(problem);
@@ -828,13 +856,14 @@ export class OnlineSession {
     const round = this.round;
     if (!round || round.ended || roundKey(round.current) !== roundKey(body)) return;
     round.ended = true;
-    const problem = round.dealer
-      ? await this.verifyCardRound(round, body.outcome)
-      : round.sealed
-        ? await this.verifySealedRound(round, body.outcome)
-        : round.secrets
-          ? await this.verifyHiddenRound(round, body.outcome)
-          : null;
+    const problem =
+      round.dealer || round.fog
+        ? await this.verifyCardRound(round, body.outcome)
+        : round.sealed
+          ? await this.verifySealedRound(round, body.outcome)
+          : round.secrets
+            ? await this.verifyHiddenRound(round, body.outcome)
+            : null;
     if (problem) {
       this.detectCheat(problem);
       return;
@@ -858,7 +887,7 @@ export class OnlineSession {
     round: RoundState,
     body: Extract<SessionBody, { type: 'round-end' }>,
   ): string {
-    const raw = round.dealer ? round.lastView : round.latestState?.view;
+    const raw = round.dealer || round.fog ? round.lastView : round.latestState?.view;
     const view = raw === undefined || raw === null ? null : round.game.viewSchema.safeParse(raw);
     if (!view?.success) return body.summary;
     try {
@@ -1098,8 +1127,13 @@ export class OnlineSession {
       round.dealer?.receive(msg);
       return;
     }
+    // Mlha: po pořadí s tahy (dotaz k tahu přijde až po něm), audit i po konci hry.
+    if (msg.kind === 'fog-query' || msg.kind === 'fog-answer' || msg.kind === 'fog-audit') {
+      this.fogMessage(round, msg);
+      return;
+    }
     if (round.ended) return;
-    if (round.dealer) {
+    if (round.dealer || round.fog) {
       if (msg.kind === 'move' || msg.kind === 'commit' || msg.kind === 'reveal') {
         this.cardMessage(round, msg);
       }

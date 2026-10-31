@@ -12,6 +12,9 @@ import { DRAW, win, type PlayerSlot } from '../core/types';
 import { ManualClock } from '../core/util/clock';
 import { commit } from '../core/util/commitReveal';
 import { createRng } from '../core/util/rng';
+import { hunt } from '../games/hunt';
+import { huntAIMove } from '../games/hunt/ai';
+import type { HuntView } from '../games/hunt/logic';
 import { logik } from '../games/logik';
 import { okoBere } from '../games/oko-bere';
 import type { OkoView } from '../games/oko-bere/logic';
@@ -773,4 +776,44 @@ describe('online zápas – karty (mental poker)', () => {
     await run(clock, 41_000, 1000);
     expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'afk' });
   });
+});
+
+describe('online zápas – mlha (Hon v mlze)', () => {
+  const HUNT: MatchFormat = { kind: 'vlastni', bestOf: 1, picks: ['hunt'] };
+
+  it('celá hra: pozorování šifrovaně, trasy ověřené, výsledek sedí u obou', async () => {
+    const game = stubbed(hunt);
+    const s = await sessions([game.module], HUNT);
+    await toPlaying(s.host, s.guest);
+    const rng = createRng('online-hon');
+    const done = (): boolean => phaseOf(s.host) !== 'playing' && phaseOf(s.guest) !== 'playing';
+    for (let i = 0; i < 600 && !done(); i++) {
+      for (const player of ['A', 'B'] as const) {
+        const view = lastView(game.views, player);
+        const entry = view.renders.at(-1);
+        if (!entry?.frame.fog || entry.frame.finished) continue;
+        if (!entry.frame.canAct.includes(player)) continue;
+        const move = huntAIMove(entry.view as HuntView, {
+          difficulty: 'medium',
+          rng,
+          me: player,
+          memory: new AIMemory(),
+          fog: entry.frame.fog,
+        });
+        view.ctx.submit(player, move);
+      }
+      await run(clock, 100);
+    }
+    await runUntil(clock, () => phaseOf(s.host) === 'round-result', 15_000);
+    await runUntil(clock, () => phaseOf(s.guest) === 'round-result', 15_000);
+    const host = s.host.phase;
+    const guest = s.guest.phase;
+    if (host.name !== 'round-result' || guest.name !== 'round-result') {
+      throw new Error(`fáze ${host.name} / ${guest.name}`);
+    }
+    expect(guest.result.outcome).toEqual(host.result.outcome);
+    // Každý po hře zná trasu soupeře z obou poločasů.
+    const final = lastView(game.views, 'B').renders.at(-1)?.frame.fog;
+    expect(final?.revealed.size).toBe(2);
+  }, 120_000);
 });

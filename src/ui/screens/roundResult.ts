@@ -78,6 +78,7 @@ function finalBoard(o: RoundResultOptions): { el: HTMLElement; destroy: () => vo
     secret: final.secrets[final.perspective],
     opponentSecret: final.secrets[otherPlayer(final.perspective)],
     cards: null,
+    fog: null,
   });
   const el = h(
     'section',

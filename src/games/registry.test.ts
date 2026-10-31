@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LocalDealer } from '../core/cards/LocalDealer';
+import { LocalFog } from '../core/fog/LocalFog';
 import { AIMemory, type AnyMiniGameModule } from '../core/MiniGame';
 import { DIFFICULTIES, type Difficulty, type PlayerSlot } from '../core/types';
 import { createRng, type Rng } from '../core/util/rng';
@@ -7,11 +8,13 @@ import { GAME_INFOS, GAMES, getGame } from './registry';
 
 const MODES = ['pve', 'local', 'online'] as const;
 
-/** Simulace hry bez runneru: tajná data (skrytá informace) a rozdávající (karty). */
+/** Simulace hry bez runneru: tajná data (skrytá informace), rozdávající (karty), mlha. */
 interface Sim {
   state: unknown;
   readonly secrets: Record<PlayerSlot, unknown> | null;
   readonly dealer: LocalDealer | null;
+  readonly fog: LocalFog | null;
+  index: number;
 }
 
 function simulate(game: AnyMiniGameModule, rng: Rng, starter: PlayerSlot): Sim {
@@ -20,7 +23,10 @@ function simulate(game: AnyMiniGameModule, rng: Rng, starter: PlayerSlot): Sim {
     state: game.logic.setup({ rng, starter }),
     secrets: hidden ? { A: hidden.randomSecret(rng), B: hidden.randomSecret(rng) } : null,
     dealer: game.cards ? new LocalDealer(game.cards.deckSize, rng) : null,
+    fog: game.fog ? new LocalFog(game.fog) : null,
+    index: 0,
   };
+  sim.fog?.begin((p) => game.logic.view(sim.state, p));
   settleCards(game, sim);
   return sim;
 }
@@ -50,6 +56,8 @@ function forcedMove(game: AnyMiniGameModule, sim: Sim, player: PlayerSlot): unkn
   const answer = sim.secrets ? game.hidden?.respond(view, player, sim.secrets[player]) : null;
   if (answer !== null && answer !== undefined) return answer;
   if (sim.dealer) return game.cards?.autoMove?.(view, player, sim.dealer.known(player)) ?? null;
+  const knowledge = sim.fog?.knowledge(player);
+  if (knowledge) return game.fog?.respond(view, player, knowledge) ?? null;
   return null;
 }
 
@@ -61,12 +69,14 @@ function aiMove(
   difficulty: Difficulty,
 ): unknown {
   const cards = sim.dealer?.known(player);
+  const fog = sim.fog?.knowledge(player) ?? undefined;
   return game.getAIMove(game.logic.view(sim.state, player), {
     difficulty,
     rng,
     me: player,
     memory: new AIMemory(),
     ...(cards && { cards }),
+    ...(fog && { fog }),
   });
 }
 
@@ -74,7 +84,13 @@ function apply(game: AnyMiniGameModule, sim: Sim, player: PlayerSlot, move: unkn
   expect(game.logic.legal(sim.state, player, move)).toBe(true);
   const claims = game.cards?.claims(move) ?? [];
   if (sim.dealer) expect(sim.dealer.check(claims)).toBe(true);
+  if (sim.fog) {
+    // Soukromá část tahu (cesta) musí sedět s polohou hráče.
+    expect(sim.fog.stage(player, game.logic.view(sim.state, player), move)).toBe(true);
+  }
   sim.state = game.logic.apply(sim.state, player, move);
+  sim.index += 1;
+  sim.fog?.record(sim.index, player, move, (p) => game.logic.view(sim.state, p));
   settleCards(game, sim);
 }
 
@@ -110,6 +126,8 @@ describe('registr miniher', () => {
           expect(game.moveSchema.safeParse(move).success).toBe(true);
           expect(game.logic.legal(sim.state, player, move)).toBe(true);
           expect(sim.dealer?.check(game.cards?.claims(move) ?? []) ?? true).toBe(true);
+          const view = game.logic.view(sim.state, player);
+          expect(sim.fog?.stage(player, view, move) ?? true).toBe(true);
         }
       }
     });

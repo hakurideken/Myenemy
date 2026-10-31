@@ -1,8 +1,10 @@
 import { LocalDealer } from './cards/LocalDealer';
+import { LocalFog } from './fog/LocalFog';
 import type {
   AIContext,
   CardDealer,
   FinalBoard,
+  FogKeeper,
   GameInfo,
   GameView,
   MiniGame,
@@ -54,6 +56,11 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   private dealer: CardDealer | null = null;
   private dealerReady = false;
   private offDealer: (() => void) | null = null;
+  /** Hry v mlze: kdo co ví (lokálně obě strany, online šifrovaná pozorování). */
+  private fog: FogKeeper | null = null;
+  private offFog: (() => void) | null = null;
+  /** Počet zapsaných veřejných tahů – oba online klienti je číslují stejně. */
+  private moveIndex = 0;
 
   constructor(private readonly game: MiniGameModule<S, M, V, Sec>) {
     this.info = { id: game.id, name: game.name, type: game.type, length: game.length };
@@ -67,6 +74,14 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
       this.dealer = ctx.dealer ?? new LocalDealer(cards.deckSize, ctx.rng);
       // Dorazil klíč / karta – možná jde odhalit, co hra čeká, nebo překreslit ruku.
       this.offDealer = this.dealer.onChange(() => this.step());
+    }
+    const fogRules = this.game.fog;
+    if (fogRules) {
+      const fog = ctx.fog ?? new LocalFog(fogRules);
+      this.fog = fog;
+      // Dorazilo pozorování nebo odhalení – možná jde táhnout, nebo jen překreslit.
+      this.offFog = fog.onChange(() => (this.finished ? this.renderView() : this.step()));
+      fog.begin((p) => this.game.logic.view(this.state, p));
     }
     const localPlayers = PLAYER_SLOTS.filter((p) => ctx.seats[p].kind === 'human');
     this.perspective = localPlayers[0] ?? 'A';
@@ -196,6 +211,7 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
     if (this.handoffTimer !== null) this.ctx?.clock.clearTimeout(this.handoffTimer);
     this.ctx?.showTurnTimer(null, 0);
     this.offDealer?.();
+    this.offFog?.();
     this.view?.destroy();
   }
 
@@ -249,7 +265,13 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
    * @param notify false = tah plynoucí z tajných dat (odpověď); síť ho nepočítá jako
    *   rozhodnutí hráče, takže nenuluje ani nezvyšuje počítadlo neaktivity.
    */
-  private applyMove(player: PlayerSlot, move: M, auto = false, notify = true): boolean {
+  private applyMove(
+    player: PlayerSlot,
+    move: M,
+    auto = false,
+    notify = true,
+    forced = false,
+  ): boolean {
     if (this.destroyed || this.finished || !this.current) return false;
     const { logic } = this.game;
     const toMove = logic.toMove(this.state);
@@ -263,11 +285,21 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
       console.warn(`[${this.game.id}] tah tvrdí kartu, kterou hráč nemá`, move);
       return false;
     }
+    // Mlha: soukromá část tahu (cesta) musí sedět s polohou, kterou zná jen hráč.
+    const fog = this.fog;
+    const local = this.context.seats[player].kind !== 'remote';
+    if (fog && local && !fog.stage(player, logic.view(this.state, player), move)) {
+      console.warn(`[${this.game.id}] neplatný soukromý krok hráče ${player}`, move);
+      return false;
+    }
     this.current = { state: logic.apply(this.state, player, move) };
+    this.moveIndex += 1;
+    fog?.record(this.moveIndex, player, move, (p) => logic.view(this.state, p));
     this.committed.delete(player);
     this.clearMoveTimer(player);
     if (notify && this.context.seats[player].kind === 'human') {
-      this.context.bridge?.localMove(player, move, auto, toMove.length > 1);
+      const shared = this.game.fog ? this.game.fog.publicMove(move) : move;
+      this.context.bridge?.localMove(player, shared, auto, toMove.length > 1, forced);
     }
     this.step();
     return true;
@@ -313,6 +345,15 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
         return;
       }
       if (this.resolveCards()) return;
+    }
+    if (this.fog) {
+      // Mlha: táhne se až s hotovými pozorováními (online se počítají šifrovaně).
+      if (!this.fog.ready()) {
+        this.canAct = [];
+        this.render();
+        return;
+      }
+      if (this.respondFog()) return;
     }
     const toMove = this.game.logic.toMove(this.state);
     if (this.autoRespond(toMove)) return;
@@ -373,6 +414,21 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
     return false;
   }
 
+  /** Mlha: tahy, které plynou z toho, co hráč ví (ohlášení chycení), se zahrají hned. */
+  private respondFog(): boolean {
+    const rules = this.game.fog;
+    const fog = this.fog;
+    if (!rules || !fog) return false;
+    for (const p of this.game.logic.toMove(this.state)) {
+      if (this.context.seats[p].kind === 'remote') continue;
+      const knowledge = fog.knowledge(p);
+      if (!knowledge) continue;
+      const move = rules.respond(this.game.logic.view(this.state, p), p, knowledge);
+      if (move !== null && this.applyMove(p, move, false, true, true)) return true;
+    }
+    return false;
+  }
+
   private stepHotseat(humans: readonly PlayerSlot[]): void {
     // Současný tah: kdo zařízení právě drží, hraje první (o jedno předání míň).
     const next = this.holder !== null && humans.includes(this.holder) ? this.holder : humans[0];
@@ -415,6 +471,7 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   private finish(outcome: Outcome): void {
     const ctx = this.context;
     this.finished = outcome;
+    this.fog?.finish();
     this.canAct = [];
     this.clearAllTimers();
     ctx.showTurnTimer(null, 0);
@@ -456,6 +513,7 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
       secret: this.secrets.get(this.perspective) ?? null,
       opponentSecret: this.finished ? this.knownSecret(otherPlayer(this.perspective)) : null,
       cards: this.dealer && this.dealerReady ? this.dealer.known(this.perspective) : null,
+      fog: this.fog?.knowledge(this.perspective) ?? null,
     });
   }
 
@@ -490,12 +548,14 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   private aiContext(player: PlayerSlot, difficulty: Difficulty): AIContext {
     const ctx = this.context;
     const cards = this.dealer && this.dealerReady ? this.dealer.known(player) : undefined;
+    const fog = this.fog?.knowledge(player) ?? undefined;
     return {
       difficulty,
       rng: ctx.aiRng,
       me: player,
       memory: ctx.aiMemory,
       ...(cards && { cards }),
+      ...(fog && { fog }),
     };
   }
 
@@ -514,12 +574,13 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
         this.aiTimers.delete(player);
         if (this.destroyed || this.finished) return;
         if (!this.game.logic.toMove(this.state).includes(player)) return;
-        if (this.game.logic.legal(this.state, player, move)) {
-          this.applyMove(player, move);
-          return;
-        }
+        if (this.game.logic.legal(this.state, player, move) && this.applyMove(player, move)) return;
         // Stav se během „přemýšlení“ změnil – spočítat tah znovu.
-        this.applyMove(player, this.game.getAIMove(this.game.logic.view(this.state, player), ai));
+        const fresh = this.aiContext(player, seat.difficulty);
+        this.applyMove(
+          player,
+          this.game.getAIMove(this.game.logic.view(this.state, player), fresh),
+        );
       },
       Math.max(0, delay),
     );

@@ -4,6 +4,7 @@ import { battleship } from './battleship';
 import { clickBattle } from './click-battle';
 import { connectFour } from './connect-four';
 import { dotsAndBoxes } from './dots-and-boxes';
+import { hunt } from './hunt';
 import { logik } from './logik';
 import { nim } from './nim';
 import { okoBere } from './oko-bere';
@@ -29,6 +30,7 @@ export const GAMES: readonly AnyMiniGameModule[] = [
   dotsAndBoxes,
   battleship,
   logik,
+  hunt,
   okoBere,
   prsi,
   pexeso,

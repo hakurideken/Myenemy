@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { validateNickname } from '../core/nickname';
 
 /** Zvýšit při jakékoli nekompatibilní změně zpráv. */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 export const BUILD_ID: string = __BUILD_ID__;
 /** Horní mez velikosti jedné zprávy (znaky kanonického JSON). */
 export const MAX_MESSAGE_CHARS = 32_000;
@@ -15,6 +15,9 @@ const bigHex = z.string().regex(/^[0-9a-f]{1,512}$/);
 const cardPos = z.number().int().min(0).max(63);
 /** Pořadí současného zapečetěného tahu v karetních hrách (KNP: vždy 0). */
 const sealedStep = z.number().int().min(0).max(999).optional();
+/** Číslo veřejného tahu v mlze. */
+const fogIndex = z.number().int().min(0).max(10_000);
+const fogKey = z.string().regex(/^[0-9a-f]{1,64}$/);
 /** Veřejný klíč P-256 (raw 65 B) v base64url. */
 const publicKeySchema = z.string().regex(/^[A-Za-z0-9_-]{87}$/);
 /** HMAC-SHA256 (32 B) v base64url. */
@@ -137,7 +140,13 @@ export const gameBodySchema = z.discriminatedUnion('kind', [
     finished: outcomeSchema.nullable(),
   }),
   /** Host → hostitel: tah (validuje moveSchema dané hry). */
-  z.object({ kind: z.literal('move'), move: z.unknown(), auto: z.boolean() }),
+  z.object({
+    kind: z.literal('move'),
+    move: z.unknown(),
+    auto: z.boolean(),
+    /** Tah vynucený znalostí (ohlášení chycení v mlze) – nepočítá se do neaktivity. */
+    forced: z.boolean().optional(),
+  }),
   /** Zapečetěný tah: SHA-256(sůl ‖ tah). */
   z.object({
     kind: z.literal('commit'),
@@ -178,6 +187,26 @@ export const gameBodySchema = z.discriminatedUnion('kind', [
   }),
   /** Mental poker: všechny klíče po konci hry (ověření celého balíčku). */
   z.object({ kind: z.literal('deck-audit'), keys: z.array(bigHex).min(1).max(64) }),
+  /** Mlha: kam pozorovatel po tahu dohlédne, zašifrované jeho klíčem. */
+  z.object({
+    kind: z.literal('fog-query'),
+    index: fogIndex,
+    values: z.array(bigHex).min(1).max(64),
+  }),
+  /** Mlha: dotaz zašifrovaný i klíčem cíle a čím se cíl prozrazuje. */
+  z.object({
+    kind: z.literal('fog-answer'),
+    index: fogIndex,
+    doubles: z.array(bigHex).min(1).max(64),
+    exposed: z.array(bigHex).min(1).max(8),
+  }),
+  /** Mlha: po úseku vlastní tahy i se soukromou částí a klíče k ověření. */
+  z.object({
+    kind: z.literal('fog-audit'),
+    segment: z.number().int().min(0).max(9),
+    moves: z.array(z.object({ index: fogIndex, move: z.unknown() })).max(400),
+    keys: z.array(z.object({ index: fogIndex, observe: fogKey, target: fogKey })).max(400),
+  }),
 ]);
 
 export const sessionBodySchema = z.discriminatedUnion('type', [
