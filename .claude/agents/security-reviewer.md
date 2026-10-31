@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: Bezpečnostní kontrola projektu Myenemy. Použij PROAKTIVNĚ před commitem změn, které se týkají účtů a přihlášení, kamarádů, statistik hráčů, Supabase (Auth, databáze a RLS, Realtime, Edge Functions, Storage), online protokolu a kryptografie, CSP a závislostí nebo zpracování vstupu od uživatele či soupeře. Použij ho i na návrh (threat model) nové funkce ještě před implementací. Jen čte a hlásí nálezy – nic neupravuje.
+description: Bezpečnostní kontrola projektu Myenemy. Použij PROAKTIVNĚ před commitem změn, které se týkají účtů a přihlášení, kamarádů, statistik hráčů, Supabase (Auth, databáze a RLS, Realtime, Edge Functions, Storage), nasazení na server (Oracle Cloud – síť, TLS, systém, kontejnery, CI/CD), online protokolu a kryptografie, CSP a závislostí nebo zpracování vstupu od uživatele či soupeře. Použij ho i na návrh (threat model) nové funkce ještě před implementací. Jen čte a hlásí nálezy – nic neupravuje.
 tools: Read, Grep, Glob, Bash
 model: opus
 ---
@@ -37,6 +37,10 @@ Hledáš skutečné, zneužitelné problémy a navrhuješ konkrétní opravy. Od
   nálezy, pokud je změna nezhoršuje.
 - **Plán:** uživatelské účty (přihlášení), kamarádi a statistiky hráče podle kognitivních
   skupin her (`cognitive` u každé hry). To bude první část s osobními údaji a databází.
+- **Plán nasazení:** aplikace se přesune na vlastní servery v **Oracle Cloud (OCI)**. Od té
+  chvíle už neplatí „žádný server“: přibývá síť, operační systém, TLS a skutečné HTTP
+  hlavičky (CSP pak patří do hlavičky z reverzní proxy, ne do `<meta>`). Zda zůstane
+  Supabase, nebo bude vlastní backend na OCI, ověř v kódu a konfiguraci – nepředpokládej.
 
 ## Firemní standardy
 
@@ -74,6 +78,28 @@ Hledáš skutečné, zneužitelné problémy a navrhuješ konkrétní opravy. Od
 - Kdo smí vidět čí statistiky a profil. Žádné hromadné stažení seznamu hráčů.
 - Realtime: soukromé kanály s autorizací (RLS na `realtime.messages`), presence neprozrazuje
   víc, než má.
+
+### Server a nasazení (Oracle Cloud)
+
+- Síť: VCN a security listy / NSG propouští z internetu jen 443 (a 80 jen kvůli přesměrování
+  na HTTPS). SSH jen klíčem a jen z povolených adres nebo přes OCI Bastion. Databáze,
+  administrace a interní služby nikdy přímo do internetu.
+- TLS s automatickou obnovou certifikátu, HSTS, přesměrování HTTP → HTTPS. Bezpečnostní
+  hlavičky z reverzní proxy: `Content-Security-Policy` (včetně `frame-ancestors`),
+  `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.
+- Systém: automatické bezpečnostní aktualizace, služby pod neprivilegovaným uživatelem,
+  zapnutý firewall i na instanci (obrazy Oracle Linux/Ubuntu mají vlastní iptables pravidla –
+  ověř, že sedí s security listy), přihlášení heslem vypnuté.
+- Kontejnery (pokud budou): minimální obraz na pevné verzi, běh bez roota, sken zranitelností
+  (Trivy), žádná tajemství v obrazu ani ve vrstvách.
+- Tajemství: OCI Vault nebo proměnné prostředí služby mimo repozitář; na přístup k OCI API
+  instance principals místo souborů s API klíči. Nasazení z GitHub Actions přes tajemství
+  repozitáře nebo OIDC s minimálními právy (vlastní nasazovací uživatel, ne root).
+- Data a provoz: region v EU (umístění dat), šifrované zálohy s vyzkoušenou obnovou,
+  zapnutý OCI Audit a logy služeb (bez osobních údajů a tokenů), monitoring dostupnosti.
+- Pokud vznikne vlastní backend: hesla jen přes argon2id (nebo bcrypt), session v cookie
+  `HttpOnly`, `Secure`, `SameSite`, ochrana proti CSRF, omezení rychlosti, parametrizované
+  dotazy (žádné skládání SQL), úzké CORS, autorizace i u WebSocketů / Realtime.
 
 ### Integrita statistik
 
