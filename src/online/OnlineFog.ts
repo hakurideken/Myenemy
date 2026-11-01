@@ -83,6 +83,8 @@ interface Observation {
 }
 
 const KEY = /^[0-9a-f]{1,64}$/;
+/** Kolik dotazů k ještě nezapsaným tahům se smí odložit. */
+const MAX_QUEUED = 4;
 
 function parseList(raw: readonly string[], size: number): bigint[] | null {
   if (raw.length !== size) return null;
@@ -213,8 +215,14 @@ export class OnlineFog implements FogKeeper {
       case 'fog-query': {
         const obs = this.observations.get(message.index);
         if (obs) void this.answer(obs, message.values);
-        else if (message.index > this.lastIndex) this.queued.set(message.index, message.values);
-        else this.fail(t.badQuery);
+        // Dotaz k tahu, který ještě nedorazil – nejvýš pár tahů dopředu, jinak zahlcení.
+        else if (
+          message.index > this.lastIndex &&
+          message.index <= this.lastIndex + MAX_QUEUED &&
+          this.queued.size < MAX_QUEUED
+        ) {
+          this.queued.set(message.index, message.values);
+        } else this.fail(t.badQuery);
         break;
       }
       case 'fog-answer':

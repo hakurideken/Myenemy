@@ -3759,6 +3759,13 @@ legend {
   align-items: stretch;
 }
 
+.check-code .check-digits {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
 .room-code {
   margin: 0;
   color: var(--gold);

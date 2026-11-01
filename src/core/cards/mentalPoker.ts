@@ -5,6 +5,10 @@
  *
  * Grupa: 2048bitové bezpečné prvočíslo p = 2q + 1 z RFC 3526 (MODP group 14). Karty jsou
  * kvadratická rezidua (podgrupa řádu q), jinak by šifrování prozrazovalo Legendreův symbol.
+ *
+ * Karty jsou kódované hashem (pseudonáhodná rezidua), ne malými čísly: šifrování zachovává
+ * násobení, takže mezi malými čtverci (4 · 9 = 36) by šlo v zašifrovaném balíčku najít
+ * vztahy a podle nich karty poznat. Mezi hashi žádné vztahy najít nejde.
  */
 
 export const P = BigInt(
@@ -98,15 +102,43 @@ export function secureShuffle<T>(items: readonly T[]): T[] {
   return out;
 }
 
-/** Karta → kvadratické reziduum (malé čtverce jsou různé a leží v podgrupě). */
-export const encodeCard = (id: number): bigint => BigInt((id + 2) * (id + 2));
+/**
+ * Štítek → pseudonáhodné kvadratické reziduum modulo `modulus`: SHA-512 rozšířený
+ * o 64 bitů nad délku modulu (rovnoměrné rozdělení), pak na druhou.
+ */
+export async function hashToResidue(label: string, modulus: bigint): Promise<bigint> {
+  const encoder = new TextEncoder();
+  const bits = modulus.toString(2).length + 64;
+  let value = 0n;
+  for (let part = 0; part * 512 < bits; part++) {
+    const digest = await crypto.subtle.digest('SHA-512', encoder.encode(`${part}|${label}`));
+    for (const byte of new Uint8Array(digest)) value = (value << 8n) | BigInt(byte);
+  }
+  const base = value % modulus;
+  return (base * base) % modulus;
+}
 
-/** Zpětný převod z rezidua na kartu. */
+/** Karta → reziduum (pevné, stejné u obou hráčů). */
+export const encodeCard = (id: number): Promise<bigint> => hashToResidue(`myenemy-card:${id}`, P);
+
+/** Převod mezi kartami a rezidui. */
 export class CardCodec {
   private readonly byValue = new Map<bigint, number>();
 
-  constructor(readonly deckSize: number) {
-    for (let id = 0; id < deckSize; id++) this.byValue.set(encodeCard(id), id);
+  private constructor(private readonly deck: readonly bigint[]) {
+    deck.forEach((value, id) => this.byValue.set(value, id));
+  }
+
+  static async create(deckSize: number): Promise<CardCodec> {
+    const deck = await Promise.all(Array.from({ length: deckSize }, (_, id) => encodeCard(id)));
+    if (new Set(deck).size !== deck.length || !deck.every(isDeckElement)) {
+      throw new Error('Kódování karet není jednoznačné');
+    }
+    return new CardCodec(deck);
+  }
+
+  get deckSize(): number {
+    return this.deck.length;
   }
 
   decode(value: bigint): number | null {
@@ -114,7 +146,7 @@ export class CardCodec {
   }
 
   encodedDeck(): bigint[] {
-    return Array.from({ length: this.deckSize }, (_, id) => encodeCard(id));
+    return [...this.deck];
   }
 }
 

@@ -1,0 +1,19 @@
+# Aktualizace závislostí: akce v CI (připnuté na SHA) a npm balíčky – jednou týdně.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Nové verze až po týdnu – čerstvě kompromitované vydání stihne někdo odhalit.
+    cooldown:
+      default-days: 7
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      dev:
+        dependency-type: development

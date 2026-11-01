@@ -156,7 +156,7 @@ async function pair(format: MatchFormat): Promise<{
 async function sessions(
   games: AnyMiniGameModule[],
   format: MatchFormat,
-  options: { mountGuest?: boolean; guestGames?: AnyMiniGameModule[] } = {},
+  options: { mountGuest?: boolean; mountHost?: boolean; guestGames?: AnyMiniGameModule[] } = {},
 ) {
   const p = await pair(format);
   const names = { A: 'Hostitel', B: 'Host' };
@@ -176,7 +176,7 @@ async function sessions(
     clock,
     games: options.guestGames ?? games,
   });
-  autoMount(host);
+  if (options.mountHost !== false) autoMount(host);
   if (options.mountGuest !== false) autoMount(guest);
   // Výměna seedu (kryptografie) – posouvat čas, dokud nejsou oba v lobby.
   await runUntil(clock, () => host.phase.name !== 'seeding' && guest.phase.name !== 'seeding');
@@ -320,17 +320,13 @@ describe('online zápas – odpojení a neaktivita', () => {
     expect(host.phase).toMatchObject({ name: 'closed', reason: 'opponent-left' });
   });
 
-  it('host, který 3× po sobě nereaguje, prohraje kontumací', async () => {
+  it('host, který 3× po sobě nereaguje, prohraje kontumací (uvidí to i on)', async () => {
     const game = stubbed(pick);
-    const s = await sessions(
-      [game.module],
-      { kind: 'vlastni', bestOf: 9, picks: 'random' },
-      { mountGuest: false },
-    );
+    const s = await sessions([game.module], { kind: 'vlastni', bestOf: 9, picks: 'random' });
     for (let round = 0; round < 3 && s.host.phase.name !== 'match-result'; round++) {
       await toPlaying(s.host, s.guest);
       lastView(game.views, 'A').ctx.submit('A', { n: 5 });
-      // Host nic nevykreslil ani nezahrál – hostitel za něj zahraje po lhůtě + rezervě.
+      // Host je u počítače neaktivní – po lhůtě za něj táhne jeho vlastní automatika.
       await run(clock, 12_000, 250);
       if (s.host.phase.name === 'round-result') {
         s.host.continueAfterRound();
@@ -365,6 +361,60 @@ describe('online zápas – podvody', () => {
     void seeds.start();
     return received;
   }
+
+  it('hostitel si u hry bez tajných dat vymyslí vítěze → host to pozná', async () => {
+    // Upravený klient hostitele: vyhrává vždycky on.
+    const cheating: AnyMiniGameModule = {
+      ...pick,
+      logic: {
+        ...pick.logic,
+        outcome: (st) => (pick.logic.outcome(st) === null ? null : win('A')),
+      },
+    };
+    const host = stubbed(cheating);
+    const guest = stubbed(pick);
+    const s = await sessions(
+      [host.module],
+      { kind: 'vlastni', bestOf: 1, picks: ['pick'] },
+      {
+        guestGames: [guest.module],
+      },
+    );
+    await toPlaying(s.host, s.guest);
+    lastView(host.views, 'A').ctx.submit('A', { n: 1 });
+    lastView(guest.views, 'B').ctx.submit('B', { n: 5 });
+    await run(clock, 3000);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'B', reason: 'cheat' });
+  });
+
+  it('hostitel podvrhne „kontumace za neaktivitu“ → host to pozná', async () => {
+    const s = await sessions([pick], { kind: 'vlastni', bestOf: 1, picks: ['pick'] });
+    await toPlaying(s.host, s.guest);
+    s.hostPairing.peer.send({ type: 'match-end', match: 1, winner: 'A', reason: 'afk' });
+    await run(clock, 500);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'B', reason: 'cheat' });
+  });
+
+  it('hostitel podvrhne předčasný „timeout“ → host to pozná', async () => {
+    const s = await sessions([pick], { kind: 'vlastni', bestOf: 1, picks: ['pick'] });
+    await toPlaying(s.host, s.guest);
+    s.hostPairing.peer.send({ type: 'match-end', match: 1, winner: 'A', reason: 'timeout' });
+    await run(clock, 300);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'B', reason: 'cheat' });
+  });
+
+  it('hostitel, který přestane hrát, prohraje – pojistku má i host', async () => {
+    const s = await sessions(
+      [pick],
+      { kind: 'vlastni', bestOf: 1, picks: ['pick'] },
+      {
+        mountHost: false,
+      },
+    );
+    await toPlaying(s.host, s.guest);
+    await run(clock, 15_000, 250);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'B', reason: 'timeout' });
+  });
 
   it('host odhalí jiný tah, než ke kterému se zavázal → prohra kontumací', async () => {
     const knp = stubbed(rps);
@@ -644,7 +694,10 @@ describe('online zápas – skrytá informace (Logik)', () => {
     await toPlaying(s.host, s.guest);
     lastView(lk.views, 'A').ctx.submitSecret('A', [0, 0, 0, 0]);
     await run(clock, 71_000, 1000);
-    expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'afk' });
+    expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'timeout' });
+    // Poctivý (jen zamrzlý) host kontumaci přijme – žádné falešné obvinění z podvodu.
+    await run(clock, 500);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'timeout' });
   });
 });
 
@@ -775,7 +828,10 @@ describe('online zápas – karty (mental poker)', () => {
     await until(() => frameOf(oko.views, 'A')?.cards != null, 'zamíchaný balíček');
     lastView(oko.views, 'A').ctx.submit('A', { kind: 'stand' });
     await run(clock, 41_000, 1000);
-    expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'afk' });
+    expect(s.host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'timeout' });
+    // Poctivý (jen zamrzlý) host kontumaci přijme – žádné falešné obvinění z podvodu.
+    await run(clock, 500);
+    expect(s.guest.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'timeout' });
   });
 });
 

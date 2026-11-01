@@ -11,7 +11,8 @@ import type { TimerHandle } from '../core/util/clock';
 
 export interface GuestLink {
   readonly me: PlayerSlot;
-  send(move: unknown, auto: boolean): void;
+  /** @param forced tah z tajných dat (odpověď) – do neaktivity se nepočítá */
+  send(move: unknown, auto: boolean, forced: boolean): void;
   seal(move: unknown, auto: boolean): void;
   /** Hry se skrytou informací: odešle závazek (hash) tajných dat. */
   commitSecret(secret: unknown): Promise<void>;
@@ -115,6 +116,11 @@ export class RemoteRunner<S, M, V, Sec = unknown> implements MiniGame {
     this.view?.destroy();
   }
 
+  /** Čeká hra na můj tah? */
+  get awaitingMe(): boolean {
+    return this.canAct;
+  }
+
   private get canAct(): boolean {
     const latest = this.latest;
     return (
@@ -141,7 +147,7 @@ export class RemoteRunner<S, M, V, Sec = unknown> implements MiniGame {
     });
   }
 
-  private submit(player: PlayerSlot, input: unknown, auto: boolean): void {
+  private submit(player: PlayerSlot, input: unknown, auto: boolean, forced = false): void {
     if (this.destroyed || player !== this.link.me || !this.canAct) return;
     const parsed = this.game.moveSchema.safeParse(input);
     if (!parsed.success) {
@@ -154,7 +160,7 @@ export class RemoteRunner<S, M, V, Sec = unknown> implements MiniGame {
       this.link.seal(parsed.data, auto);
     } else {
       this.locked = true;
-      this.link.send(parsed.data, auto);
+      this.link.send(parsed.data, auto, forced);
     }
     this.render();
   }
@@ -192,7 +198,7 @@ export class RemoteRunner<S, M, V, Sec = unknown> implements MiniGame {
     if (!hidden || !this.secret || !latest || !this.canAct) return false;
     const move = hidden.respond(latest.view, this.link.me, this.secret.value);
     if (move === null) return false;
-    this.submit(this.link.me, move, auto);
+    this.submit(this.link.me, move, auto, true);
     return true;
   }
 

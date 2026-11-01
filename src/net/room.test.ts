@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ManualClock } from '../core/util/clock';
 import { run, runUntil, settledFlag } from '../test/helpers';
-import { createKeyPair } from './crypto';
+import { commitPublicKey, createKeyPair } from './crypto';
 import { InMemoryHub } from './InMemoryTransport';
 import { BUILD_ID, PROTOCOL_VERSION, type SessionBody } from './protocol';
 import {
@@ -87,10 +87,15 @@ describe('párování', () => {
     const joining = join('Jana');
     await runUntil(clock, settledFlag(joining));
     const guest = await joining;
+    // Hostitel spáruje až po odhalení klíče, ke kterému se host zavázal v hello.
+    await runUntil(clock, () => guests.length > 0);
     const host = guests[0];
     expect(host?.opponent.nickname).toBe('Jana');
     expect(guest.opponent.nickname).toBe('Hostitel');
     expect(guest.format).toEqual(FORMAT);
+    // Kontrolní kód: oba vidí stejný (nikdo se nevložil mezi ně).
+    expect(guest.check).toMatch(/^\d{3} \d{3}$/);
+    expect(host?.check).toBe(guest.check);
 
     const got: SessionBody[] = [];
     host?.peer.onMessage((b) => got.push(b));
@@ -131,6 +136,27 @@ describe('párování', () => {
     expect(answers).toEqual([
       expect.objectContaining({ type: 'version-mismatch', to: id, build: BUILD_ID }),
     ]);
+  });
+
+  it('po spárování cizí hello s jinou verzí zápas neukončí', async () => {
+    const { room } = await openHost();
+    const mismatch = vi.fn();
+    room.onVersionMismatch(mismatch);
+    const guest = join('Jana');
+    await runUntil(clock, settledFlag(guest));
+    await guest;
+    const fake = hub.createTransport();
+    await fake.open('ABCDE');
+    fake.send({
+      v: PROTOCOL_VERSION + 1,
+      type: 'hello',
+      from: newClientId(),
+      nickname: 'Cizí',
+      build: 'jiny-build',
+      pub: (await createKeyPair()).publicKey,
+    });
+    await run(clock, 200);
+    expect(mismatch).not.toHaveBeenCalled();
   });
 
   it('hostitel s jinou verzí: host odmítne a dá mu vědět', async () => {
@@ -185,6 +211,43 @@ describe('párování', () => {
     expect(opening.reason).toBe('unavailable');
   });
 
+  it('hostitel přijme jen klíč, ke kterému se host zavázal', async () => {
+    const { guests } = await openHost();
+    const fake = hub.createTransport();
+    await fake.open('ABCDE');
+    const id = newClientId();
+    const promised = await createKeyPair();
+    const other = await createKeyPair();
+    let hostId: string | null = null;
+    fake.onMessage((m) => {
+      const msg = m as { type: string; from: string };
+      if (msg.type === 'welcome') hostId = msg.from;
+    });
+    fake.send({
+      v: PROTOCOL_VERSION,
+      type: 'hello',
+      from: id,
+      nickname: 'Jana',
+      build: BUILD_ID,
+      commit: await commitPublicKey(promised.publicKey),
+    });
+    await runUntil(clock, () => hostId !== null);
+    const reveal = (pub: string) => ({
+      v: PROTOCOL_VERSION,
+      type: 'key',
+      from: id,
+      to: hostId,
+      pub,
+    });
+    // Jiný klíč než ten slíbený (útočník by ho dopočítal až po welcome) – nic.
+    fake.send(reveal(other.publicKey));
+    await run(clock, 300);
+    expect(guests).toHaveLength(0);
+    fake.send(reveal(promised.publicKey));
+    await runUntil(clock, () => guests.length > 0);
+    expect(guests).toHaveLength(1);
+  });
+
   it('ztracené welcome se po opakovaném hello pošle znovu', async () => {
     const { guests } = await openHost();
     const lossy = hub.createTransport();
@@ -194,9 +257,12 @@ describe('párování', () => {
     await vi.waitFor(() => expect(send).toHaveBeenCalled());
     lossy.connected = false;
     await run(clock, 500);
-    expect(guests).toHaveLength(1);
+    // Welcome se ztratilo a host klíč ještě neodhalil – hostitel zatím nespároval.
+    expect(guests).toHaveLength(0);
     lossy.connected = true;
     await run(clock, 1500);
     await expect(joining).resolves.toMatchObject({ opponent: { nickname: 'Hostitel' } });
+    await runUntil(clock, () => guests.length > 0);
+    expect(guests).toHaveLength(1);
   });
 });

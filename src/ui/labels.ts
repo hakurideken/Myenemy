@@ -64,8 +64,12 @@ const t = translations<Labels>(
       left: (iWon) => (iWon ? 'Soupeř opustil zápas – výhra kontumací.' : 'Zápas jsi opustil.'),
       afk: (iWon) =>
         iWon
-          ? 'Soupeř třikrát po sobě nereagoval – výhra kontumací.'
-          : 'Třikrát po sobě jsi nereagoval – prohra kontumací.',
+          ? 'Soupeř přestal hrát – výhra kontumací.'
+          : 'Hra tě vyhodnotila jako neaktivního hráče – prohra kontumací.',
+      timeout: (iWon) =>
+        iWon
+          ? 'Soupeř v limitu vůbec nezahrál – výhra kontumací.'
+          : 'Tvůj tah se k soupeři v limitu nedostal – prohra kontumací.',
       cheat: (iWon, detail) =>
         iWon
           ? `Soupeř poslal data, která nesedí s jeho závazkem${detail ? `: ${detail}` : '.'} Výhra kontumací.`
@@ -114,8 +118,12 @@ const t = translations<Labels>(
         iWon ? 'Your opponent left the match – you win by forfeit.' : 'You left the match.',
       afk: (iWon) =>
         iWon
-          ? 'Your opponent did not react three times in a row – you win by forfeit.'
-          : 'You did not react three times in a row – you lose by forfeit.',
+          ? 'Your opponent stopped playing – you win by forfeit.'
+          : 'The game rated you as inactive – you lose by forfeit.',
+      timeout: (iWon) =>
+        iWon
+          ? 'Your opponent did not move within the limit – you win by forfeit.'
+          : 'Your move did not reach your opponent in time – you lose by forfeit.',
       cheat: (iWon, detail) =>
         iWon
           ? `Your opponent sent data that does not match their commitment${detail ? `: ${detail}` : '.'} You win by forfeit.`

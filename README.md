@@ -440,15 +440,38 @@ src/
 - Produkční build obsahuje Content-Security-Policy (`<meta>`, protože GitHub Pages neumí
   vlastní hlavičky): skripty a styly jen z vlastní domény, síť jen na nastavený Supabase.
 - Přezdívka: 2–16 znaků po oříznutí, písmena včetně diakritiky, číslice, mezera a `_ . -`;
-  žádné řídicí ani neviditelné znaky. Kontroluje se i u přezdívky soupeře ze sítě.
-- V repozitáři nejsou žádná tajemství; konfigurace Supabase jde přes `VITE_…` proměnné.
+  žádné řídicí ani neviditelné znaky (ani hangulská výplň) a žádné míchání latinky, azbuky
+  a řečtiny („Pаvel“ s cyrilským „а“). Kontroluje se i u přezdívky soupeře ze sítě.
+- V repozitáři nejsou žádná tajemství; konfigurace Supabase jde přes `VITE_…` proměnné
+  repozitáře (ne secrets – hodnoty jsou ve veřejném bundlu). Bez nich CSP povolí jen vlastní
+  doménu.
+- Online: hry bez tajných dat počítají oba hráči a výsledek si každý ověří sám (stejně jako
+  karty a mlha), takže upravený klient hostitele vítěze nevymyslí. Karty v mental pokeru
+  jsou kódované hashem – mezi zašifrovanými kartami nejdou najít vztahy.
+- Spojení: po spárování nic neukončí nepodepsaná zpráva „jiná verze“ ani cizí hello;
+  přehrané staré zprávy neudrží odpojeného soupeře naživu. V lobby oba vidí kontrolní kód
+  spojení – když se liší, vložil se mezi ně někdo cizí. Host se ke svému klíči nejdřív jen
+  zaváže (otisk v hello) a odhalí ho až po odpovědi hostitele, takže útočník nemůže klíče
+  dohledávat, dokud kódy nevyjdou stejně.
+- Kontumace za neaktivitu: neaktivitu počítají oba hráči a pojistný časovač mají oba. Ohlášenou
+  kontumaci hráč přijme, jen když ji vidí i sám (třikrát za něj táhla automatika, nebo je na
+  tahu a od posledního tahu uběhl celý limit – třeba mu hra zamrzla v záložce na pozadí),
+  případně když soupeř vzdává sebe; jinak jde o podvod. Kdo se v hello zaváže a klíč
+  neodhalí, místnost neblokuje – po 10 s se uvolní.
+- CI: akce připnuté na konkrétní commit (SHA), checkout bez uložených přihlašovacích údajů,
+  Dependabot hlídá aktualizace.
+- Soukromí: online se přes Supabase posílá jen přezdívka a tahy, hra nic neukládá (informace
+  je v online menu).
 
 **Známá omezení online režimu (bez serveru, který by rozhodoval):**
 
-- Reakční časy jsou na důvěře – upravený klient může poslat vymyšlený (ale ≥ 100 ms) čas.
-- Při výpadku spojení vidí výhru kontumací oba hráči (každý vidí odpojení toho druhého).
+- Reakční časy a počty kliknutí v Klikacím souboji jsou na důvěře – upravený klient může
+  poslat vymyšlený (ale ≥ 100 ms) čas nebo počet.
+- Při výpadku spojení nebo zamrznutí hry vidí výhru kontumací oba hráči (každý vidí, že ten
+  druhý přestal hrát).
 - Kdo zná kód místnosti dřív než pozvaný soupeř, může se připojit místo něj. Po spárování
-  už do zápasu zasahovat nemůže (podpisy zpráv).
+  už do zápasu zasahovat nemůže (podpisy zpráv). Vložit se mezi hráče („muž uprostřed“)
+  odhalí kontrolní kód v lobby – jen když si ho hráči opravdu porovnají.
 - Lež v odpovědi (Lodě, Logik) se pozná až po konci hry – podvodník ale prohraje celý zápas.
 - Karty: kdo si pamatuje otočené karty (pexeso, otočený balíček v Prší), může si je
   zobrazit i upravený klient – jsou to veřejně viděné karty, stejně jako ve skutečné hře.

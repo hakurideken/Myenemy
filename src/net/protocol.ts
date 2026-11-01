@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { validateNickname } from '../core/nickname';
 
 /** Zvýšit při jakékoli nekompatibilní změně zpráv. */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 export const BUILD_ID: string = __BUILD_ID__;
 /** Horní mez velikosti jedné zprávy (znaky kanonického JSON). */
 export const MAX_MESSAGE_CHARS = 32_000;
@@ -50,12 +50,22 @@ export const matchFormatSchema = z.discriminatedUnion('kind', [
 
 // ---------- Párování (nepodepsané, před ustavením spojení) ----------
 
+/** Host se v hello ke svému klíči jen zaváže (otisk), klíč odhalí až po welcome. */
 export const helloSchema = z.object({
   v: z.literal(PROTOCOL_VERSION),
   type: z.literal('hello'),
   from: clientIdSchema,
   nickname: nicknameSchema,
   build: buildSchema,
+  commit: hex64,
+});
+
+/** Host odhalí klíč, ke kterému se zavázal v hello. */
+export const keySchema = z.object({
+  v: z.literal(PROTOCOL_VERSION),
+  type: z.literal('key'),
+  from: clientIdSchema,
+  to: clientIdSchema,
   pub: publicKeySchema,
 });
 
@@ -91,6 +101,7 @@ export const versionProbeSchema = z.object({ v: z.number(), type: z.string().max
 
 export type Hello = z.infer<typeof helloSchema>;
 export type Welcome = z.infer<typeof welcomeSchema>;
+export type KeyReveal = z.infer<typeof keySchema>;
 
 export function versionMismatch(
   from: string,
@@ -114,6 +125,8 @@ export const sessionEnvelopeSchema = z.object({
   to: clientIdSchema,
   kind: z.enum(['msg', 'ack', 'ping', 'bye']),
   seq: z.number().int().min(0).optional(),
+  /** Pořadí obálky u odesílatele – roste s každou odeslanou, přehraná stará se pozná. */
+  n: z.number().int().min(0),
   /** Nejvyšší pořadové číslo, které odesílatel přijal bez mezer (−1 = nic). */
   ack: z.number().int().min(-1),
   body: z.unknown().optional(),
@@ -235,7 +248,7 @@ export const sessionBodySchema = z.discriminatedUnion('type', [
     type: z.literal('match-end'),
     match: matchNo,
     winner: playerSlotSchema,
-    reason: z.enum(['afk']),
+    reason: z.enum(['afk', 'timeout']),
   }),
   z.object({ type: z.literal('rematch'), match: matchNo }),
   z.object({ type: z.literal('cheat'), match: matchNo, detail: z.string().max(200) }),

@@ -1,19 +1,26 @@
 import type { MatchFormat } from '../core/match/planMatch';
 import type { Clock, TimerHandle } from '../core/util/clock';
 import { randomHex } from '../core/util/commitReveal';
-import { createKeyPair, deriveSessionKey, type SessionKeyPair } from './crypto';
+import {
+  commitPublicKey,
+  createKeyPair,
+  deriveSessionKey,
+  pairingCode,
+  type SessionKeyPair,
+} from './crypto';
 import { Peer, type PeerTiming } from './Peer';
 import {
   BUILD_ID,
   helloSchema,
   isRecord,
+  keySchema,
   PROTOCOL_VERSION,
   roomFullSchema,
   versionMismatch,
-  versionMismatchSchema,
   versionProbeSchema,
   welcomeSchema,
   type Hello,
+  type KeyReveal,
   type Welcome,
 } from './protocol';
 import { Listeners, type Transport } from './Transport';
@@ -62,6 +69,8 @@ export interface Pairing {
   readonly peer: Peer;
   readonly opponent: Identity;
   readonly format: MatchFormat;
+  /** Kontrolní kód – stejný u obou hráčů, pokud se mezi ně nikdo nevložil. */
+  readonly check: string;
 }
 
 export type PairingFailure = 'unavailable' | 'full' | 'version' | 'no-host';
@@ -92,7 +101,14 @@ async function openTransport(o: RoomOptions): Promise<SessionKeyPair> {
 
 /** Hostitel: přijme prvního hosta, další dostanou „místnost je plná“. */
 export class HostRoom {
-  private guest: { id: string; welcome: Welcome | null } | null = null;
+  private guest: {
+    readonly id: string;
+    readonly nickname: string;
+    /** Otisk klíče hosta z hello – odhalený klíč musí sedět. */
+    readonly commit: string;
+    readonly welcome: Welcome;
+    paired: boolean;
+  } | null = null;
   private readonly guests = new Listeners<Pairing>();
   private readonly mismatches = new Listeners<void>();
   private readonly off: () => void;
@@ -128,19 +144,19 @@ export class HostRoom {
     const probe = versionProbeSchema.safeParse(raw);
     if (!probe.success) return;
 
-    if (probe.data.type === 'version-mismatch') {
-      const msg = versionMismatchSchema.safeParse(raw);
-      if (msg.success && msg.data.to === me.id && msg.data.from === this.guest?.id) {
-        this.mismatches.emit();
-      }
+    if (probe.data.type === 'key') {
+      await this.receiveKey(raw);
       return;
     }
+    // Hostitel neshodu verze pozná už z hello. Zpráva „jiná verze“ je nepodepsaná, takže
+    // by ji mohl poslat kdokoli – hostitele nic neukončí.
     if (probe.data.type !== 'hello') return;
 
     const from = typeof raw.from === 'string' ? raw.from.slice(0, 64) : undefined;
     if (probe.data.v !== PROTOCOL_VERSION || raw.build !== BUILD_ID) {
       transport.send(versionMismatch(me.id, from));
-      this.mismatches.emit();
+      // Po spárování už rozehraný zápas cizí hello nesmí ukončit.
+      if (!this.guest) this.mismatches.emit();
       return;
     }
     const parsed = helloSchema.safeParse(raw);
@@ -155,22 +171,15 @@ export class HostRoom {
     }
     if (this.guest) {
       // Host hello opakuje, dokud nedostane odpověď – welcome mohlo cestou zmizet.
-      if (this.guest.welcome) transport.send(this.guest.welcome);
+      transport.send(this.guest.welcome);
       return;
     }
-    await this.accept(hello);
+    this.welcome(hello);
   }
 
-  private async accept(hello: Hello): Promise<void> {
-    const { me, transport, clock, room, format, timing } = this.o;
-    this.guest = { id: hello.from, welcome: null };
-    let key: CryptoKey;
-    try {
-      key = await deriveSessionKey(this.keys, hello.pub, room);
-    } catch {
-      this.guest = null;
-      return;
-    }
+  /** První host: odpověď s vlastním klíčem; spojení vznikne, až host odhalí svůj. */
+  private welcome(hello: Hello): void {
+    const { me, transport, format } = this.o;
     const welcome: Welcome = {
       v: PROTOCOL_VERSION,
       type: 'welcome',
@@ -181,18 +190,81 @@ export class HostRoom {
       pub: this.keys.publicKey,
       format,
     };
-    this.guest.welcome = welcome;
+    const guest = {
+      id: hello.from,
+      nickname: hello.nickname,
+      commit: hello.commit,
+      welcome,
+      paired: false,
+    };
+    this.guest = guest;
     transport.send(welcome);
+    // Kdo se zaváže a klíč nikdy neodhalí, by místnost blokoval – po lhůtě se uvolní.
+    this.o.clock.setTimeout(() => {
+      if (this.guest === guest && !guest.paired) this.guest = null;
+    }, 2 * JOIN_TIMEOUT_MS);
+  }
+
+  private async receiveKey(raw: unknown): Promise<void> {
+    const { me, transport, clock, room, format, timing } = this.o;
+    const parsed = keySchema.safeParse(raw);
+    const guest = this.guest;
+    if (!parsed.success || !guest || guest.paired) return;
+    const reveal: KeyReveal = parsed.data;
+    if (reveal.from !== guest.id || reveal.to !== me.id) return;
+    // Klíč musí být ten, ke kterému se host zavázal dřív, než viděl ten náš.
+    if ((await commitPublicKey(reveal.pub)) !== guest.commit || guest.paired) return;
+    guest.paired = true;
+    let key: CryptoKey;
+    let check: string;
+    try {
+      key = await deriveSessionKey(this.keys, reveal.pub, room);
+      check = await pairingCode(this.keys.publicKey, reveal.pub, room);
+    } catch {
+      guest.paired = false;
+      return;
+    }
     const peer = new Peer({
       transport,
       clock,
       myId: me.id,
-      peerId: hello.from,
+      peerId: guest.id,
       key,
       ...(timing ? { timing } : {}),
     });
-    this.guests.emit({ peer, opponent: { id: hello.from, nickname: hello.nickname }, format });
+    this.guests.emit({
+      peer,
+      opponent: { id: guest.id, nickname: guest.nickname },
+      format,
+      check,
+    });
   }
+}
+
+/**
+ * Host odhalí hostiteli svůj klíč. Opakuje se, dokud hostitel neozve podepsanou zprávou
+ * (odhalení se mohlo cestou ztratit) nebo se spojení nezavře.
+ */
+function revealKey(o: RoomOptions, peer: Peer, keys: SessionKeyPair, hostId: string): void {
+  const reveal: KeyReveal = {
+    v: PROTOCOL_VERSION,
+    type: 'key',
+    from: o.me.id,
+    to: hostId,
+    pub: keys.publicKey,
+  };
+  let timer: TimerHandle | null = null;
+  let done = false;
+  const send = (): void => {
+    if (done || peer.isClosed) return;
+    o.transport.send(reveal);
+    timer = o.clock.setTimeout(send, HELLO_RETRY_MS);
+  };
+  peer.onContact(() => {
+    done = true;
+    if (timer !== null) o.clock.clearTimeout(timer);
+  });
+  send();
 }
 
 /** Host: připojí se kódem; selže s PairingError (plno / jiná verze / hostitel neodpovídá / server nedostupný). */
@@ -223,21 +295,24 @@ export async function joinRoom(o: RoomOptions): Promise<Pairing> {
     // Lhůta běží od otevření kanálu – včetně generování klíčů.
     const deadline = clock.setTimeout(() => finish(new PairingError('no-host')), JOIN_TIMEOUT_MS);
 
-    createKeyPair().then(
-      (keys) => {
-        if (!settled) listen(keys);
-      },
-      () => finish(new PairingError('no-host')),
-    );
+    createKeyPair()
+      .then(async (keys) => ({ keys, commit: await commitPublicKey(keys.publicKey) }))
+      .then(
+        ({ keys, commit }) => {
+          if (!settled) listen(keys, commit);
+        },
+        () => finish(new PairingError('no-host')),
+      );
 
-    const listen = (keys: SessionKeyPair): void => {
+    const listen = (keys: SessionKeyPair, commit: string): void => {
+      // Klíč zatím jen závazkem – odhalí se až po welcome (viz pairingCode).
       const hello: Hello = {
         v: PROTOCOL_VERSION,
         type: 'hello',
         from: me.id,
         nickname: me.nickname,
         build: BUILD_ID,
-        pub: keys.publicKey,
+        commit,
       };
       off = transport.onMessage((raw) => {
         if (settled || accepting || !isRecord(raw) || raw.to !== me.id) return;
@@ -266,20 +341,27 @@ export async function joinRoom(o: RoomOptions): Promise<Pairing> {
         }
         const welcome = parsed.data;
         accepting = true;
-        deriveSessionKey(keys, welcome.pub, room).then(
-          (key) =>
+        Promise.all([
+          deriveSessionKey(keys, welcome.pub, room),
+          pairingCode(keys.publicKey, welcome.pub, room),
+        ]).then(
+          ([key, check]) => {
+            const peer = new Peer({
+              transport,
+              clock,
+              myId: me.id,
+              peerId: welcome.from,
+              key,
+              ...(timing ? { timing } : {}),
+            });
+            revealKey(o, peer, keys, welcome.from);
             finish({
-              peer: new Peer({
-                transport,
-                clock,
-                myId: me.id,
-                peerId: welcome.from,
-                key,
-                ...(timing ? { timing } : {}),
-              }),
+              peer,
               opponent: { id: welcome.from, nickname: welcome.nickname },
               format: welcome.format,
-            }),
+              check,
+            });
+          },
           () => finish(new PairingError('no-host')),
         );
       });

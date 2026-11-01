@@ -59,14 +59,26 @@ describe('mental poker – aritmetika', () => {
     expect(jacobi(P - 1n, P)).toBe(-1);
     expect(jacobi(15n, 7n)).toBe(1);
     expect(jacobi(3n, 7n)).toBe(-1);
-    for (let id = 0; id < 32; id++) expect(isDeckElement(encodeCard(id))).toBe(true);
   });
 
-  it('šifrování komutuje a dvojí odemknutí vrátí kartu', () => {
-    const codec = new CardCodec(32);
+  it('karty jsou rezidua bez vzájemných vztahů (šifrování by je prozradilo)', async () => {
+    const codec = await CardCodec.create(32);
+    const deck = codec.encodedDeck();
+    expect(deck.every(isDeckElement)).toBe(true);
+    expect(new Set(deck).size).toBe(32);
+    // Dříve (id + 2)²: 4 · 9 = 36 – součin dvou karet byl jiná karta.
+    const values = new Set(deck);
+    for (const a of deck) {
+      for (const b of deck) expect(values.has((a * b) % P)).toBe(false);
+    }
+    expect(await encodeCard(5)).toBe(deck[5]);
+  });
+
+  it('šifrování komutuje a dvojí odemknutí vrátí kartu', async () => {
+    const codec = await CardCodec.create(32);
     const a = createKeyPair();
     const b = createKeyPair();
-    const m = encodeCard(17);
+    const m = await encodeCard(17);
     const ab = modPow(modPow(m, a.e), b.e);
     expect(modPow(modPow(m, b.e), a.e)).toBe(ab);
     expect(codec.decode(unlockCard(ab, a.d, b.d))).toBe(17);

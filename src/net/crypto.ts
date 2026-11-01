@@ -61,6 +61,33 @@ export async function deriveSessionKey(
   );
 }
 
+/** Otisk veřejného klíče pro závazek v hello (SHA-256, hex). */
+export async function commitPublicKey(publicKey: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', utf8(`myenemy/pub-commit/v1|${publicKey}`));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Kontrolní kód spojení (6 číslic) z obou veřejných klíčů a kódu místnosti. Oba hráči
+ * vidí stejný, jen když mezi ně nikdo nevložil vlastní klíče (útok „muž uprostřed“).
+ * Host svůj klíč odhalí až po welcome (v hello je jen závazek), takže útočník nemůže
+ * dohledávat klíče, dokud kódy nevyjdou stejně – trefí se jen s pravděpodobností 1 : 10⁶.
+ */
+export async function pairingCode(
+  ownPublicKey: string,
+  peerPublicKey: string,
+  context: string,
+): Promise<string> {
+  const [first, second] = [ownPublicKey, peerPublicKey].sort();
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    utf8(`myenemy/pairing/v1|${context}|${first ?? ''}|${second ?? ''}`),
+  );
+  const value = new DataView(digest).getUint32(0) % 1_000_000;
+  const digits = value.toString().padStart(6, '0');
+  return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+}
+
 export async function signText(key: CryptoKey, text: string): Promise<string> {
   const mac = await crypto.subtle.sign('HMAC', key, utf8(text));
   return toBase64Url(new Uint8Array(mac));

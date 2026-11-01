@@ -1,4 +1,4 @@
-import { jacobi, modPow, randomBelow } from '../cards/mentalPoker';
+import { hashToResidue, jacobi, modPow, randomBelow } from '../cards/mentalPoker';
 
 /**
  * Šifrovaný průnik množin pro mlhu (Diffie–Hellman PSI). Pozorovatel pošle štítky, kam
@@ -44,20 +44,11 @@ export function parseFogHex(text: string): bigint | null {
 
 const hashes = new Map<string, Promise<bigint>>();
 
-/** Štítek → prvek grupy: 1024 bitů z SHA-512, na druhou (kvadratické reziduum). */
+/** Štítek → prvek grupy (pseudonáhodné kvadratické reziduum). */
 export function hashToGroup(label: string): Promise<bigint> {
   let cached = hashes.get(label);
   if (!cached) {
-    cached = (async () => {
-      const encoder = new TextEncoder();
-      let value = 0n;
-      for (const part of ['0', '1']) {
-        const digest = await crypto.subtle.digest('SHA-512', encoder.encode(`${part}|${label}`));
-        for (const byte of new Uint8Array(digest)) value = (value << 8n) | BigInt(byte);
-      }
-      const base = value % FOG_P;
-      return (base * base) % FOG_P;
-    })();
+    cached = hashToResidue(`myenemy-fog:${label}`, FOG_P);
     if (hashes.size > 5000) hashes.clear();
     hashes.set(label, cached);
   }

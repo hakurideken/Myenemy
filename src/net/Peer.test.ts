@@ -104,6 +104,7 @@ describe('Peer – bezpečnost a verze', () => {
       to: B_ID,
       kind: 'msg',
       seq: 0,
+      n: 0,
       ack: -1,
       body: rematch(1),
     };
@@ -115,14 +116,17 @@ describe('Peer – bezpečnost a verze', () => {
     expect(console.warn).toHaveBeenCalledWith('[peer] zpráva s neplatným podpisem zahozena');
   });
 
-  it('zpráva jiné verze protokolu ohlásí neshodu verzí', async () => {
+  it('zpráva jiné verze ani nepodepsaná „jiná verze“ spojení neukončí', async () => {
     const hub = new InMemoryHub({ clock });
-    const { b, ta } = await connectedPair(hub, clock);
-    const mismatch = vi.fn();
-    b.onVersionMismatch(mismatch);
+    const { a, b, ta } = await connectedPair(hub, clock);
     ta.send({ v: PROTOCOL_VERSION + 1, type: 'session', from: A_ID, to: B_ID, cokoli: true });
-    await run(clock, 100);
-    expect(mismatch).toHaveBeenCalledOnce();
+    ta.send({ v: PROTOCOL_VERSION, type: 'version-mismatch', from: A_ID, to: B_ID, build: 'x' });
+    const got: SessionBody[] = [];
+    b.onMessage((body) => got.push(body));
+    a.send(rematch(1));
+    await run(clock, 200);
+    expect(b.isClosed).toBe(false);
+    expect(got).toEqual([rematch(1)]);
   });
 });
 
@@ -132,7 +136,7 @@ describe('Peer – živost spojení', () => {
     const pair = await connectedPair(hub, clock);
     const statuses: PeerStatus[] = [];
     pair.b.onStatus((s) => statuses.push(s));
-    return { ...pair, statuses };
+    return { ...pair, statuses, hub };
   }
 
   it('po 5 s ticha je soupeř „ztracený“, po návratu zase v pořádku', async () => {
@@ -155,6 +159,23 @@ describe('Peer – živost spojení', () => {
     await run(clock, 2000, 250);
     expect(statuses).toEqual(['lost', 'gone']);
     expect(b.isClosed).toBe(true);
+  });
+
+  it('přehrané staré zprávy odpojeného soupeře neudrží naživu', async () => {
+    const { ta, tb, statuses, hub } = await watched();
+    const captured: unknown[] = [];
+    tb.onMessage((m) => captured.push(m));
+    await run(clock, 3000);
+    expect(captured.length).toBeGreaterThan(0);
+    ta.setConnected(false);
+    // Útočník v kanálu opakuje dříve zachycené (platně podepsané) obálky.
+    const eve = hub.createTransport();
+    await eve.open('ROOM1');
+    for (let t = 0; t < 7000; t += 500) {
+      for (const m of captured) eve.send(m);
+      await run(clock, 500);
+    }
+    expect(statuses).toEqual(['lost']);
   });
 
   it('bye ukončí spojení okamžitě', async () => {

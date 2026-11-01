@@ -60,6 +60,7 @@ const t = translations(
     secretContradiction: 'Soupeř během hry odpovídal v rozporu se svými tajnými daty.',
     wrongRound: 'Hostitel spustil jiné kolo, než vychází ze zápasu.',
     reported: 'Soupeř nahlásil nesoulad v datech zápasu.',
+    falseAfk: 'Soupeř ohlásil tvou neaktivitu, která neodpovídá průběhu zápasu.',
     oppRevealedInvalid: 'Soupeř odhalil neplatný tah.',
     hostNoCommit: 'Hostitel se nezavázal ke svým tajným datům před začátkem hry.',
   },
@@ -89,6 +90,7 @@ const t = translations(
     secretContradiction: 'During the game your opponent answered against their own secret data.',
     wrongRound: 'The host started a different round than the match dictates.',
     reported: 'Your opponent reported a data mismatch in the match.',
+    falseAfk: 'Your opponent reported you as inactive, which does not match the match.',
     oppRevealedInvalid: 'Your opponent revealed an invalid move.',
     hostNoCommit: 'The host did not commit to their secret data before the game started.',
   },
@@ -172,6 +174,11 @@ interface RoundState {
   readonly dealer: MentalPokerDealer | null;
   /** Hry v mlze: šifrovaná pozorování (logiku spouštějí oba jako u karet). */
   readonly fog: OnlineFog | null;
+  /**
+   * Hru počítají oba hráči a výsledek si každý ověří sám (karty, mlha i hry bez tajných
+   * dat a zapečetěných tahů). Jinak rozhoduje hostitel a host ho ověřuje po konci hry.
+   */
+  readonly symmetric: boolean;
   peer: AnyRunner | null;
   /** Karty: tahy soupeře se zpracovávají přísně po sobě (odhalení je asynchronní). */
   cardChain: Promise<void>;
@@ -189,6 +196,8 @@ interface RoundState {
   /** Host: stav, který přišel dřív, než se kolo vykreslilo. */
   pendingState: StateBody | null;
   latestState: StateBody | null;
+  /** Kdy naposledy přibyl tah – od té doby běží lhůta toho, kdo je na tahu. */
+  turnSince: number;
   /** Host: ověření odhaleného tahu hostitele (běží asynchronně). */
   revealCheck: Promise<boolean> | null;
   stateSeq: number;
@@ -241,7 +250,6 @@ export class OnlineSession {
     this.infos = this.games.map(({ id, name, type, length }) => ({ id, name, type, length }));
     o.peer.onStatus((status) => this.onPeerStatus(status));
     o.peer.onBye(() => this.onOpponentGone('left'));
-    o.peer.onVersionMismatch(() => this.close('version', null));
     o.peer.onMessage((body) => this.handle(body));
     this.beginMatch();
   }
@@ -357,7 +365,7 @@ export class OnlineSession {
       showTurnTimer: (deadline, total) => mount.showTurnTimer(deadline, total),
     };
 
-    if (round.dealer || round.fog) {
+    if (round.symmetric) {
       this.mountSymmetricRound(round, base);
     } else if (this.o.role === 'host') {
       const runner = new GameRunner(game);
@@ -379,8 +387,15 @@ export class OnlineSession {
     } else {
       const runner = new RemoteRunner(game, {
         me: this.me,
-        send: (move, auto) => this.sendGame(current, { kind: 'move', move, auto }),
-        seal: (move, auto) => void round.sealed?.seal(move, auto),
+        send: (move, auto, forced) => {
+          // Neaktivitu si počítám i sám, ať můžu ověřit, když ji soupeř ohlásí.
+          if (!forced) this.countAfk(this.me, auto);
+          this.sendGame(current, { kind: 'move', move, auto });
+        },
+        seal: (move, auto) => {
+          this.countAfk(this.me, auto);
+          void round.sealed?.seal(move, auto);
+        },
         commitSecret: (secret) => this.commitSecret(round, secret),
       });
       round.guest = runner;
@@ -550,6 +565,7 @@ export class OnlineSession {
             (detail) => this.detectCheat(detail),
           )
         : null,
+      symmetric: Boolean(game.cards || game.fog) || (!game.hidden && !game.sealed),
       fog: game.fog
         ? new OnlineFog(
             game.fog,
@@ -573,6 +589,7 @@ export class OnlineSession {
       stateSeq: 0,
       fallback: null,
       ended: false,
+      turnSince: this.o.clock.now(),
     };
     this.setPhase({ name: 'playing', current });
     // Míchání začne hned, ještě než se kolo vykreslí.
@@ -626,15 +643,42 @@ export class OnlineSession {
       // Po konci hry už klíče nic neprozradí – soupeř si ověří celý balíček.
       round.dealer?.sendAudit();
     }
-    if (this.o.role !== 'host') return;
+    // Pojistka proti soupeři, který přestal hrát – u obou hráčů (stav drží oba).
     if (update.canAct && update.finished === null) {
       if (round.fallback === null) {
-        const limit = (round.game.moveTimeoutMs ?? UNTIMED_GAME_LIMIT_MS) + REMOTE_GRACE_MS;
+        const limit = this.moveLimit(round, update.view) + REMOTE_GRACE_MS;
         round.fallback = this.o.clock.setTimeout(() => this.onRemoteSilent(round), limit);
       }
     } else {
       this.clearFallback(round);
     }
+  }
+
+  /** Limit na tah podle stavu hry (bez rezervy na síť). */
+  private moveLimit(round: RoundState, view: unknown): number {
+    const { game } = round;
+    const parsed = view === null || view === undefined ? null : game.viewSchema.safeParse(view);
+    const timeout =
+      parsed?.success && game.moveTimeout ? game.moveTimeout(parsed.data) : game.moveTimeoutMs;
+    return timeout ?? UNTIMED_GAME_LIMIT_MS;
+  }
+
+  /**
+   * Ohlášený timeout je věrohodný: jsem na tahu a od posledního tahu uběhl celý limit
+   * (můj klient mohl zamrznout, třeba v záložce na pozadí).
+   */
+  private timedOut(): boolean {
+    const round = this.round;
+    if (!round || round.ended) return false;
+    // Když u mě hra vůbec neběží (kolo se nevykreslilo), rozhoduje jen uplynulý čas.
+    const runner = this.cardRunner(round);
+    const mine = round.symmetric
+      ? (runner?.isToMove(this.me) ?? true)
+      : round.guest
+        ? round.guest.awaitingMe
+        : (round.latestState?.canAct ?? true);
+    const view = round.symmetric ? round.lastView : round.latestState?.view;
+    return mine && this.o.clock.now() - round.turnSince >= this.moveLimit(round, view);
   }
 
   private cardLocalMove(
@@ -645,6 +689,7 @@ export class OnlineSession {
     forced: boolean,
   ): void {
     if (this.round !== round || round.ended) return;
+    round.turnSince = this.o.clock.now();
     // Vynucený tah (ohlášení chycení) není rozhodnutí hráče – do neaktivity se nepočítá.
     if (!forced) this.countAfk(this.me, auto);
     // Klíče k vyloženým kartám jdou napřed, ať soupeř tah hned ověří.
@@ -681,7 +726,7 @@ export class OnlineSession {
   /** Tahy soupeře v karetní hře – po sobě, až když je balíček připravený. */
   private cardMessage(round: RoundState, msg: CardPlay): void {
     const dealer = round.dealer;
-    if (!dealer && !round.fog) return;
+    if (!round.symmetric) return;
     round.cardChain = round.cardChain
       .then(() => Promise.all([dealer?.ready(), round.cardMounted]))
       .then(() => this.applyCardMessage(round, msg))
@@ -732,6 +777,7 @@ export class OnlineSession {
       return;
     }
     this.clearFallback(round);
+    round.turnSince = this.o.clock.now();
     // Oba hráči mají stejný stav – neplatný tah znamená upravený klient.
     if (!runner.submitRemote(this.opponent, parsed.data)) {
       this.detectCheat(t.oppIllegal);
@@ -753,7 +799,7 @@ export class OnlineSession {
   ): Promise<string | null> {
     const dealer = round.dealer;
     const fog = round.fog;
-    if (!dealer && !fog) return null;
+    if (!round.symmetric) return null;
     if (outcome !== null) {
       const mine = await this.waitCardOutcome(round);
       if (!mine) return t.notOverHere;
@@ -772,20 +818,15 @@ export class OnlineSession {
   /** Hostitel: host v limitu nereagoval – zahraje se za něj (nebo prohra, pokud neodhalil). */
   private onRemoteSilent(round: RoundState): void {
     round.fallback = null;
-    const runner = round.host;
+    const runner = round.symmetric ? this.cardRunner(round) : round.host;
     if (this.round !== round || round.ended || !runner || !runner.isToMove(this.opponent)) return;
     if (round.sealed?.opponentCommitted) {
       this.detectCheat(t.oppNotRevealed);
       return;
     }
-    // Karty a mlha: stav drží i host, takže za něj hostitel táhnout nemůže.
-    if (round.dealer || round.fog) {
-      this.forfeitAfk(this.opponent);
-      return;
-    }
-    if (runner.autoMove(this.opponent)) this.countAfk(this.opponent, true);
-    // Tah z tajných dat (rozmístění, odpověď) za soupeře zahrát nejde.
-    else this.forfeitAfk(this.opponent);
+    // Soupeřův klient sám táhne automaticky po limitu; když ani to nepřišlo, přestal hrát.
+    // Za něj se netáhne – to by on nemohl ověřit (viz match-end).
+    this.forfeitAfk(this.opponent, 'timeout');
   }
 
   private clearFallback(round: RoundState): void {
@@ -793,28 +834,28 @@ export class OnlineSession {
     round.fallback = null;
   }
 
+  /** Neaktivitu počítají oba (každý aspoň sám sobě), ať jde ohlášení kontumace ověřit. */
   private countAfk(player: PlayerSlot, auto: boolean): void {
-    if (this.o.role !== 'host') return;
     this.afk[player] = auto ? this.afk[player] + 1 : 0;
     if (this.afk[player] >= AFK_FORFEIT_AFTER) this.forfeitAfk(player);
   }
 
-  private forfeitAfk(player: PlayerSlot): void {
-    if (this.o.role !== 'host' || !this.controller || this.controller.isOver) return;
+  private forfeitAfk(player: PlayerSlot, reason: 'afk' | 'timeout' = 'afk'): void {
+    if (!this.controller || this.controller.isOver) return;
     this.send({
       type: 'match-end',
       match: this.matchNo,
       winner: otherPlayer(player),
-      reason: 'afk',
+      reason,
     });
-    this.endByForfeit(player, 'afk');
+    this.endByForfeit(player, reason);
   }
 
   private hostRoundEnd(round: RoundState, result: RoundEnd): void {
     if (this.round !== round || round.ended || !this.controller) return;
     round.ended = true;
     this.clearFallback(round);
-    if (round.dealer || round.fog) {
+    if (round.symmetric) {
       // Karty a mlha: výsledek až po ověření (audit klíčů, tras).
       void this.verifyCardRound(round, null).then((problem) => {
         if (this.round !== round || this.closed) return;
@@ -856,14 +897,13 @@ export class OnlineSession {
     const round = this.round;
     if (!round || round.ended || roundKey(round.current) !== roundKey(body)) return;
     round.ended = true;
-    const problem =
-      round.dealer || round.fog
-        ? await this.verifyCardRound(round, body.outcome)
-        : round.sealed
-          ? await this.verifySealedRound(round, body.outcome)
-          : round.secrets
-            ? await this.verifyHiddenRound(round, body.outcome)
-            : null;
+    const problem = round.symmetric
+      ? await this.verifyCardRound(round, body.outcome)
+      : round.sealed
+        ? await this.verifySealedRound(round, body.outcome)
+        : round.secrets
+          ? await this.verifyHiddenRound(round, body.outcome)
+          : null;
     if (problem) {
       this.detectCheat(problem);
       return;
@@ -887,7 +927,7 @@ export class OnlineSession {
     round: RoundState,
     body: Extract<SessionBody, { type: 'round-end' }>,
   ): string {
-    const raw = round.dealer || round.fog ? round.lastView : round.latestState?.view;
+    const raw = round.symmetric ? round.lastView : round.latestState?.view;
     const view = raw === undefined || raw === null ? null : round.game.viewSchema.safeParse(raw);
     if (!view?.success) return body.summary;
     try {
@@ -1088,12 +1128,31 @@ export class OnlineSession {
       case 'game':
         this.handleGame(body);
         break;
-      case 'round-end':
-        if (!host) void this.guestRoundEnd(body);
+      case 'round-end': {
+        if (host) break;
+        const round = this.round;
+        // Symetrický režim: konec kola až po tazích, které přišly před ním (běží v řetězu).
+        if (round?.symmetric) {
+          round.cardChain = round.cardChain.then(() => {
+            void this.guestRoundEnd(body);
+          });
+        } else {
+          void this.guestRoundEnd(body);
+        }
         break;
+      }
       case 'match-end':
-        if (!host && this.controller && !this.controller.isOver) {
+        if (!this.controller || this.controller.isOver) break;
+        // Kontumaci za neaktivitu přijmu, jen když prohrává ten, kdo ji hlásí, nebo ji vidím
+        // i já – jinak by si upravený klient vítěze vymyslel.
+        if (
+          body.winner === this.me ||
+          (body.reason === 'afk' && this.afk[this.me] >= AFK_FORFEIT_AFTER) ||
+          (body.reason === 'timeout' && this.timedOut())
+        ) {
           this.endByForfeit(otherPlayer(body.winner), body.reason);
+        } else {
+          this.detectCheat(t.falseAfk);
         }
         break;
       case 'rematch':
@@ -1133,7 +1192,7 @@ export class OnlineSession {
       return;
     }
     if (round.ended) return;
-    if (round.dealer || round.fog) {
+    if (round.symmetric) {
       if (msg.kind === 'move' || msg.kind === 'commit' || msg.kind === 'reveal') {
         this.cardMessage(round, msg);
       }
@@ -1209,6 +1268,9 @@ export class OnlineSession {
     switch (msg.kind) {
       case 'state':
         if (!this.guestHiddenState(round, msg)) return;
+        if (round.latestState?.canAct !== msg.canAct || !round.latestState) {
+          round.turnSince = this.o.clock.now();
+        }
         round.latestState = msg;
         if (round.guest) round.guest.receiveState(msg);
         else round.pendingState = msg;

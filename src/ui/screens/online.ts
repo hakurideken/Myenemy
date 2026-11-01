@@ -45,6 +45,11 @@ const t = translations(
     seedNote:
       'Pořadí her i veškerá náhoda vychází ze seedu, ke kterému přispěli oba hráči – nemůže ho ovlivnit ani hostitel.',
     leave: 'Odejít',
+    privacy:
+      'Soukromí: při online hře se přes službu Supabase posílá jen přezdívka a herní tahy, hra nic neukládá. Přezdívka a nastavení zůstávají jen v tomto prohlížeči. Poskytovatel služby může vést krátké provozní záznamy (např. IP adresu).',
+    checkCode: 'Kontrolní kód spojení',
+    checkNote:
+      'Porovnejte si ho se soupeřem (třeba ve zprávě). Pokud se liší, někdo se vložil mezi vás – odejděte.',
   },
   {
     title: 'Online duel',
@@ -81,6 +86,11 @@ const t = translations(
     seedNote:
       'The game order and all randomness come from a seed both players contributed to – not even the host can influence it.',
     leave: 'Leave',
+    privacy:
+      'Privacy: online play sends only your nickname and game moves through the Supabase service; the game stores nothing. Your nickname and settings stay in this browser only. The service provider may keep short operational logs (e.g. your IP address).',
+    checkCode: 'Connection check code',
+    checkNote:
+      'Compare it with your opponent (e.g. in a message). If it differs, someone got between you – leave.',
   },
 );
 
@@ -159,6 +169,7 @@ export function onlineMenuScreen(app: App, available: boolean): Mount {
         error,
         h('button', { type: 'submit', class: 'btn btn-lg' }, t.join),
       ),
+      h('p', { class: 'note' }, t.privacy),
       button(t.backToMenu, () => app.goMenu(), 'btn btn-ghost'),
     );
   };
@@ -250,6 +261,8 @@ interface LobbyOptions {
   readonly format: MatchFormat;
   /** null = ještě se losuje společný seed. */
   readonly plan: MatchPlan | null;
+  /** Kontrolní kód spojení (stejný u obou hráčů, pokud se mezi ně nikdo nevložil). */
+  readonly check: string | null;
   readonly onStart: () => void;
   readonly onLeave: () => void;
 }
@@ -285,6 +298,15 @@ export function lobbyScreen(o: LobbyOptions): Mount {
         o.plan ? slotList(o.plan) : null,
         h('p', { class: 'note' }, RULES_NOTE),
         h('p', { class: 'note' }, t.seedNote),
+        o.check
+          ? h(
+              'p',
+              { class: 'note check-code' },
+              `${t.checkCode}: `,
+              h('strong', { class: 'check-digits' }, o.check),
+              `. ${t.checkNote}`,
+            )
+          : null,
         h('div', { class: 'actions' }, button(t.leave, o.onLeave, 'btn btn-ghost'), action),
       ),
     );

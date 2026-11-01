@@ -116,6 +116,8 @@ export class OnlineFlow {
   private transport: Transport | null = null;
   private hostRoom: HostRoom | null = null;
   private session: OnlineSession | null = null;
+  /** Kontrolní kód spojení pro lobby. */
+  private check: string | null = null;
   private disposed = false;
   private lastScreen: string | null = null;
   private readonly onPageHide = (): void => this.dispose();
@@ -258,6 +260,7 @@ export class OnlineFlow {
 
   private startSession(role: 'host' | 'guest', pairing: Pairing): void {
     if (this.session || this.disposed) return;
+    this.check = pairing.check;
     const names =
       role === 'host'
         ? { A: this.me.nickname, B: pairing.opponent.nickname }
@@ -325,6 +328,7 @@ export class OnlineFlow {
             names,
             format: s.format,
             plan: phase.name === 'lobby' ? phase.plan : null,
+            check: this.check,
             onStart: () => s.startMatch(),
             onLeave: () => this.exit(),
           }),

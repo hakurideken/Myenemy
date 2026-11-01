@@ -53,6 +53,9 @@ type Unsigned = Omit<SessionEnvelope, 'mac'>;
  */
 export class Peer {
   private nextSeq = 0;
+  /** Pořadí obálek (všech druhů): odchozí a nejvyšší přijaté. */
+  private nextEnvelope = 0;
+  private lastEnvelope = -1;
   private expected = 0;
   private readonly outbox = new Map<number, SessionEnvelope>();
   private readonly inbox = new Map<number, unknown>();
@@ -67,7 +70,8 @@ export class Peer {
   private readonly messages = new Listeners<SessionBody>();
   private readonly statuses = new Listeners<PeerStatus>();
   private readonly byes = new Listeners<void>();
-  private readonly mismatches = new Listeners<void>();
+  private readonly contacts = new Listeners<void>();
+  private contacted = false;
   private readonly unsubscribe: (() => void)[];
   private readonly timing: PeerTiming;
 
@@ -112,8 +116,13 @@ export class Peer {
     return this.byes.add(handler);
   }
 
-  onVersionMismatch(handler: () => void): () => void {
-    return this.mismatches.add(handler);
+  /** První platně podepsaná zpráva od soupeře – spojení opravdu funguje oběma směry. */
+  onContact(handler: () => void): () => void {
+    if (this.contacted) {
+      handler();
+      return () => undefined;
+    }
+    return this.contacts.add(handler);
   }
 
   send(body: SessionBody): void {
@@ -166,6 +175,7 @@ export class Peer {
           to: this.o.peerId,
           kind,
           ...(part.seq !== undefined ? { seq: part.seq } : {}),
+          n: this.nextEnvelope++,
           ack: this.expected - 1,
           ...(part.body !== undefined ? { body: part.body } : {}),
         };
@@ -192,10 +202,9 @@ export class Peer {
   private async process(raw: Record<string, unknown>): Promise<void> {
     const probe = versionProbeSchema.safeParse(raw);
     if (!probe.success) return;
-    if (probe.data.v !== PROTOCOL_VERSION || probe.data.type === 'version-mismatch') {
-      this.mismatches.emit();
-      return;
-    }
+    // Neshoda verzí se řeší při párování. Po něm je nepodepsaná zpráva o jiné verzi jen
+    // pokus cizího zápas ukončit – tiše se zahodí.
+    if (probe.data.v !== PROTOCOL_VERSION || probe.data.type !== 'session') return;
     const parsed = sessionEnvelopeSchema.safeParse(raw);
     if (!parsed.success) {
       console.warn('[peer] nevalidní obálka zahozena', parsed.error.issues);
@@ -212,7 +221,15 @@ export class Peer {
       return;
     }
     if (this.closed) return;
-    this.heard();
+    // Živost jen podle nové obálky – přehraná stará (třeba ping) soupeře „neoživí“.
+    if (unsigned.n > this.lastEnvelope) {
+      this.lastEnvelope = unsigned.n;
+      this.heard();
+    }
+    if (!this.contacted) {
+      this.contacted = true;
+      this.contacts.emit();
+    }
     for (const seq of [...this.outbox.keys()]) if (seq <= unsigned.ack) this.outbox.delete(seq);
     if (unsigned.kind === 'msg' && unsigned.seq !== undefined) {
       this.receiveMessage(unsigned.seq, unsigned.body);

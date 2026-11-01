@@ -64,7 +64,9 @@ export type AuditResult = string | null;
  * všechny klíče a ověří, že balíček obsahoval každou kartu právě jednou.
  */
 export class MentalPokerDealer implements CardDealer {
-  private readonly codec: CardCodec;
+  /** Kódování karet (počítá se hashem, proto asynchronně). */
+  private readonly codec: Promise<CardCodec>;
+  private decoder: CardCodec | null = null;
   private readonly keys: PokerKeys;
   private readonly opponent: PlayerSlot;
   /** Zamčený balíček po kroku 4. */
@@ -89,7 +91,7 @@ export class MentalPokerDealer implements CardDealer {
     private readonly send: (message: PokerMessage) => void,
     private readonly onCheat: (detail: string) => void,
   ) {
-    this.codec = new CardCodec(deckSize);
+    this.codec = CardCodec.create(deckSize);
     this.keys = createPokerKeys(deckSize);
     this.opponent = otherPlayer(me);
     this.expectedStage = me === 'A' ? 2 : 1;
@@ -102,7 +104,8 @@ export class MentalPokerDealer implements CardDealer {
   start(): void {
     if (this.me !== 'A') return;
     this.enqueue(async () => {
-      const stage1 = await encryptAndShuffle(this.codec.encodedDeck(), this.keys.global);
+      const codec = await this.codec;
+      const stage1 = await encryptAndShuffle(codec.encodedDeck(), this.keys.global);
       this.sendDeck(1, stage1);
     });
   }
@@ -219,11 +222,11 @@ export class MentalPokerDealer implements CardDealer {
         case 3: {
           const final = await lockPerCard(parsed, this.keys);
           this.sendDeck(4, final);
-          this.finishShuffle(final);
+          this.finishShuffle(final, await this.codec);
           break;
         }
         case 4:
-          this.finishShuffle(parsed);
+          this.finishShuffle(parsed, await this.codec);
           break;
       }
     });
@@ -276,7 +279,8 @@ export class MentalPokerDealer implements CardDealer {
     if (!this.failed) this.send({ kind: 'deck', stage, cards: deck.map(toHex) });
   }
 
-  private finishShuffle(deck: readonly bigint[]): void {
+  private finishShuffle(deck: readonly bigint[], codec: CardCodec): void {
+    this.decoder = codec;
     this.deck = deck;
     this.unlockAll();
     this.resolveReady();
@@ -303,7 +307,7 @@ export class MentalPokerDealer implements CardDealer {
     const locked = this.deck?.[pos];
     const mine = this.keys.perCard[pos];
     if (locked === undefined || !mine) return null;
-    return this.codec.decode(unlockCard(locked, mine.d, theirs));
+    return this.decoder?.decode(unlockCard(locked, mine.d, theirs)) ?? null;
   }
 
   private settleAudit(result: AuditResult): void {

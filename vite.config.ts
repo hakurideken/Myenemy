@@ -2,7 +2,7 @@ import { loadEnv, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import pkg from './package.json' with { type: 'json' };
 
-/** Povolené cíle síťového spojení: Supabase z konfigurace, jinak libovolný *.supabase.co. */
+/** Povolené cíle síťového spojení: Supabase z konfigurace, jinak jen vlastní doména. */
 function connectSources(supabaseUrl: string | undefined): string {
   if (supabaseUrl) {
     try {
@@ -13,7 +13,8 @@ function connectSources(supabaseUrl: string | undefined): string {
       /* neplatná URL – zachytí ji i aplikace a online režim vypne */
     }
   }
-  return "'self' https://*.supabase.co wss://*.supabase.co";
+  // Bez nastaveného Supabase je online vypnuté – není důvod povolovat cizí domény.
+  return "'self'";
 }
 
 const CHARSET_META = '<meta charset="UTF-8" />';

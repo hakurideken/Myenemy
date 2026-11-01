@@ -13,7 +13,8 @@ import type { MatchPlan } from './planMatch';
 export const MAX_DRAW_REPLAYS = 3;
 
 /** disconnect = spojení vypadlo, left = soupeř zápas opustil, afk = 3× po sobě neaktivní. */
-export type ForfeitReason = 'disconnect' | 'left' | 'cheat' | 'afk';
+/** afk = opakovaně táhla automatika, timeout = soupeř v limitu vůbec nezahrál. */
+export type ForfeitReason = 'disconnect' | 'left' | 'cheat' | 'afk' | 'timeout';
 export type EndReason = 'score' | ForfeitReason;
 
 export interface CurrentGame {
