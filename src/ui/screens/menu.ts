@@ -1,9 +1,7 @@
-import { GAMES } from '../../games/registry';
 import type { App, Mount } from '../App';
 import { button, logo } from '../components/common';
 import { h } from '../dom';
 import { lang, translations } from '../../i18n';
-import { plural } from '../labels';
 
 const t = translations(
   {
@@ -19,7 +17,7 @@ const t = translations(
     onlineOff: 'Na tomhle webu zatím nenastaveno',
     settings: 'Nastavení',
     nickname: 'Změnit přezdívku',
-    games: (n: number) => `${n} ${plural(n, 'minihra', 'minihry', 'miniher')} v arzenálu: `,
+    games: 'Sada miniher pro dva – souboj 1v1.',
   },
   {
     heading: 'Myenemy – main menu',
@@ -34,7 +32,7 @@ const t = translations(
     onlineOff: 'Not set up on this site yet',
     settings: 'Settings',
     nickname: 'Change nickname',
-    games: (n: number) => `${n} ${n === 1 ? 'minigame' : 'minigames'} in the arsenal: `,
+    games: 'A set of minigames for two – a 1v1 duel.',
   },
 );
 
@@ -60,7 +58,6 @@ function menuButton(
 
 export function menuScreen(app: App): Mount {
   return (root) => {
-    const count = GAMES.length;
     root.append(
       h(
         'main',
@@ -90,7 +87,7 @@ export function menuScreen(app: App): Mount {
             { lang: lang() === 'en' ? 'cs' : 'en' },
           ),
         ),
-        h('p', { class: 'menu-games' }, t.games(count), GAMES.map((g) => g.name).join(', ')),
+        h('p', { class: 'menu-games' }, t.games),
       ),
     );
   };
