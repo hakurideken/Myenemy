@@ -414,6 +414,18 @@ vypni Hudbu (zvuky efektů zůstanou) a posuvníkem změň hlasitost. Dohraj zá
 (třeba best of 1, KNP) – při výhře zazní fanfára, při prohře „Try Again“, po návratu do
 menu zase podklad.
 
+**Animace konce zápasu** (`src/ui/components/celebration.ts`, SVG + CSS, bez obrázků):
+
+- **Výhra:** ohňostroj (8 výbuchů v barvách hry) a panďulák v barvě vítěze přinese
+  korunu, vyskočí, nasadí ji na zlatou trofej a zamává. Asi 7 s, jednou; koruna zůstane.
+- **Prohra:** vybledlá trofej, tři panďuláci brečí (třesou se, kapou slzy) a dva
+  v barvě soupeře chodí sem a tam, zastaví se a ukážou prostředníček – dokola.
+- „Omezit animace“ (nastavení i systém) ukáže rovnou konečný obrázek bez pohybu.
+  Scéna je jen dekorace (pro čtečku skrytá), tlačítka fungují hned.
+
+**Jak otestovat:** dohraj zápas proti AI (best of 1, KNP) – jednou vyhraj, jednou prohraj.
+Pak zapni Nastavení → Omezit animace a zkontroluj klidové obrázky.
+
 ## Architektura
 
 ```

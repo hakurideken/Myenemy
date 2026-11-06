@@ -4,7 +4,7 @@ import { otherPlayer, type PerPlayer, type PlayerSlot } from '../../core/types';
 import { getGame } from '../../games/registry';
 import type { Mount } from '../App';
 import { bigScore, button } from '../components/common';
-import { trophyIcon } from '../components/icons';
+import { defeatScene, victoryScene } from '../components/celebration';
 import { h } from '../dom';
 import { translations } from '../../i18n';
 import { endReasonText } from '../labels';
@@ -97,7 +97,12 @@ export function matchResultScreen(o: MatchResultOptions): Mount {
         h(
           'section',
           { class: `result-card result--${winner.toLowerCase()}` },
-          h('div', { class: 'trophy' }, trophyIcon()),
+          // Výhra: ohňostroj a korunovace trofeje; prohra: pláč a posměch soupeřových panďuláků.
+          h(
+            'div',
+            { class: 'trophy trophy--scene' },
+            winner === o.me ? victoryScene(winner) : defeatScene(winner),
+          ),
           h('p', { class: 'kicker' }, t.end),
           h('h1', { class: 'result-title', tabindex: '-1' }, t.winner(names[winner])),
           reasonText ? h('p', { class: 'result-summary' }, reasonText) : null,

@@ -14,18 +14,3 @@ export function swordsIcon(): SVGSVGElement {
     ),
   );
 }
-
-export function trophyIcon(): SVGSVGElement {
-  return svg(
-    'svg',
-    { ...decorative, viewBox: '0 0 64 64', class: 'icon-trophy' },
-    svg('path', {
-      d: 'M18 12H9v4a9 9 0 0 0 9 9M46 12h9v4a9 9 0 0 1-9 9',
-      fill: 'none',
-      stroke: 'var(--gold)',
-      'stroke-width': '4',
-    }),
-    svg('path', { d: 'M18 8h28v14a14 14 0 0 1-28 0Z', fill: 'var(--gold)' }),
-    svg('path', { d: 'M28 35h8v10h-8ZM20 47h24v9H20Z', fill: 'var(--gold)' }),
-  );
-}
