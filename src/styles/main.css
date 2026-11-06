@@ -1297,20 +1297,21 @@ legend {
     cel-wave 1.2s ease-in-out 7s infinite;
 }
 
-.pd--bearer .pd-leg--l,
-.pd--taunter .pd-leg--l {
+.pd--bearer .pd-leg--l {
   animation: cel-step 0.72s linear 1s 4;
 }
 
-.pd--bearer .pd-leg--r,
-.pd--taunter .pd-leg--r {
+.pd--bearer .pd-leg--r {
   animation: cel-step-r 0.72s linear 1s 4;
 }
 
-.pd--taunter .pd-leg--l,
+/* Posměváčci kráčí jen při chůzi – při zastavení (gesto) stojí. Stejný 7s cyklus jako chůze. */
+.pd--taunter .pd-leg--l {
+  animation: cel-taunt-leg-l 7s linear both infinite;
+}
+
 .pd--taunter .pd-leg--r {
-  animation-delay: 0s;
-  animation-iteration-count: infinite;
+  animation: cel-taunt-leg-r 7s linear both infinite;
 }
 
 /* Prohra: pláč a posměváčci */
@@ -1483,6 +1484,60 @@ html.reduce-motion .celebration * {
 
   50% {
     transform: rotate(-115deg);
+  }
+}
+
+@keyframes cel-taunt-leg-l {
+  0%,
+  8.75%,
+  17.5%,
+  26.25%,
+  35%,
+  50%,
+  58.75%,
+  67.5%,
+  76.25%,
+  85%,
+  100% {
+    transform: rotate(16deg);
+  }
+
+  4.375%,
+  13.125%,
+  21.875%,
+  30.625%,
+  54.375%,
+  63.125%,
+  71.875%,
+  80.625% {
+    transform: rotate(-22deg);
+  }
+}
+
+@keyframes cel-taunt-leg-r {
+  0%,
+  8.75%,
+  17.5%,
+  26.25%,
+  35%,
+  50%,
+  58.75%,
+  67.5%,
+  76.25%,
+  85%,
+  100% {
+    transform: rotate(-16deg);
+  }
+
+  4.375%,
+  13.125%,
+  21.875%,
+  30.625%,
+  54.375%,
+  63.125%,
+  71.875%,
+  80.625% {
+    transform: rotate(22deg);
   }
 }
 
