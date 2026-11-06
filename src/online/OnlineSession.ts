@@ -618,7 +618,7 @@ export class OnlineSession {
       if (round.fallback === null) {
         const { game } = round;
         const timeout = game.moveTimeout ? game.moveTimeout(update.view) : game.moveTimeoutMs;
-        const limit = (timeout ?? UNTIMED_GAME_LIMIT_MS) + REMOTE_GRACE_MS;
+        const limit = (timeout ?? game.untimedLimitMs ?? UNTIMED_GAME_LIMIT_MS) + REMOTE_GRACE_MS;
         round.fallback = this.o.clock.setTimeout(() => this.onRemoteSilent(round), limit);
       }
     } else {
@@ -659,7 +659,7 @@ export class OnlineSession {
     const parsed = view === null || view === undefined ? null : game.viewSchema.safeParse(view);
     const timeout =
       parsed?.success && game.moveTimeout ? game.moveTimeout(parsed.data) : game.moveTimeoutMs;
-    return timeout ?? UNTIMED_GAME_LIMIT_MS;
+    return timeout ?? game.untimedLimitMs ?? UNTIMED_GAME_LIMIT_MS;
   }
 
   /**

@@ -294,7 +294,8 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
     this.clearMoveTimer(player);
     if (notify && this.context.seats[player].kind === 'human') {
       const shared = this.game.fog ? this.game.fog.publicMove(move) : move;
-      this.context.bridge?.localMove(player, shared, auto, toMove.length > 1, forced);
+      const simultaneous = toMove.length > 1 && !this.game.liveMoves;
+      this.context.bridge?.localMove(player, shared, auto, simultaneous, forced);
     }
     this.step();
     return true;

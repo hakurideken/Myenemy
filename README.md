@@ -21,6 +21,7 @@ Webová hra – souboj 1v1 v sadě miniher. Hraje se proti AI nebo online s kód
 | Kámen-nůžky-papír | tahová (současná) | rychlá | hotovo |
 | Klikací souboj    | reakční           | rychlá | hotovo |
 | Postřeh           | reakční           | rychlá | hotovo |
+| Kachní hon        | reakční           | delší  | hotovo |
 | Piškvorky 3×3     | tahová            | rychlá | hotovo |
 | Čtyři v řadě      | tahová            | delší  | hotovo |
 | Sirky (Nim)       | tahová            | rychlá | hotovo |
@@ -52,6 +53,7 @@ skupin v `src/ui/labels.ts` (`COGNITIVE_LABEL`).
 | Rychlý tasec      | Rychlost a postřeh    | –                     |
 | Klikací souboj    | Rychlost a postřeh    | –                     |
 | Postřeh           | Rychlost a postřeh    | –                     |
+| Kachní hon        | Rychlost a postřeh    | –                     |
 | Pexeso duel       | Paměť                 | Rychlost a postřeh    |
 | Logik souboj      | Logika a dedukce      | Paměť                 |
 | Lodě              | Logika a dedukce      | Odhad a čtení soupeře |
@@ -361,6 +363,33 @@ zkus, že vidíš jen své okolí (zbytek je tmavý), soupeře jen v dosahu (jin
 naposledy), stopy lišky a přestávku s oběma trasami. Online stejně, ideálně ve dvou
 prohlížečích (oba musí mít novou verzi – změnil se protokol).
 
+**Zrušená hra ve dvou na jednom zařízení.** Hraje se jen proti AI nebo online. Z enginu
+zmizelo předávání zařízení (`handoff`, `localLayout`, hotseat v `GameRunner`), z menu
+volba „Dva hráči na jednom zařízení“ a reakční hry už nemají půlenou obrazovku.
+
+**Kachní hon (nová hra).** Po odpočtu létají minutu nad krajinou kachny – celkem 15
+(lichý počet), najednou nejvýš 3. Každá vylétne z trávy, letí po své lomené dráze
+(mění směr), po chvíli uletí nahoru za okraj; pozdější kachny jsou rychlejší a létají
+kratší dobu. Kachnu získá, kdo ji trefí první – padá v jeho barvě. Vyhrává víc kachen,
+při shodě menší součet reakcí (zásah − vylétnutí kachny; zásah do 150 ms od vylétnutí neplatí), úplná shoda je remíza
+(rozhodující kolo). Po minutí se puška 0,45 s nabíjí, aby se nevyplatilo „kropit“ naslepo.
+
+- Ovládání: klik / klepnutí na kachnu; bez myši šipky posouvají zaměřovač, mezerník nebo
+  Enter střílí.
+- Dráhy jsou ze společného seedu – online je mají oba hráči stejné. Zásah nese čas a místo;
+  logika ověří, že tam kachna v tu chvíli opravdu byla. O sporné kachně rozhodne dřívější
+  čas (výsledek nezávisí na tom, v jakém pořadí zásahy dorazily).
+- Online se zásahy posílají hned (`liveMoves` – bez zapečetění), takže každý vidí, co
+  soupeř sestřelil. Čas zásahu měří klient střelce (stejně jako u ostatních reakčních her).
+  Soupeř smí mlčet celou minutu (`untimedLimitMs`), než by přišla kontumace.
+- AI míří na kachny podle pořadí. Bez soupeře sestřelí lehká asi 5, střední asi 9
+  a těžká asi 13 kachen z 15 (těžká reaguje za 0,7–1,15 s od vylétnutí).
+
+**Jak otestovat:** Proti AI → Vlastní výběr → best of 1 → Vybrat hry → Kachní hon. Střílej
+na kachny, zkus minout (zaměřovač se na chvíli zašedí, „Nabíjím…“) a ovládání šipkami.
+Online (`?duo` nebo dva prohlížeče): zásah v jedné polovině se hned ukáže v druhé (kachna
+padá v barvě střelce, skóre nahoře) a výsledek kola je u obou stejný.
+
 ## Architektura
 
 ```
@@ -415,6 +444,8 @@ src/
    řekne, kdo má na kterou kartu nárok (`privateFor`, `publicCards`), na co čeká
    (`pendingPublic` → `reveal`) a které karty tah tvrdí (`claims`). Karty rozdává
    lokálně `LocalDealer`, online `MentalPokerDealer`.
+   Hra, ve které oba hrají průběžně a vidí tahy soupeře hned (jako Kachní hon), nastaví
+   `liveMoves` – logika pak musí dát stejný stav v libovolném pořadí tahů obou hráčů.
    Hra v mlze (jako Hon v mlze) nastaví `fog`: soukromý stav hráče (poloha) a jeho krok,
    veřejnou podobu tahu a štítky „kam hráč dohlédne“ a „čím se prozrazuje“. Kdo co vidí,
    je jejich průnik – lokálně `LocalFog`, online `OnlineFog` šifrovaně s ověřením po úseku.
@@ -456,7 +487,7 @@ src/
 
 **Známá omezení online režimu (bez serveru, který by rozhodoval):**
 
-- Reakční časy a počty kliknutí v Klikacím souboji jsou na důvěře – upravený klient může
+- Reakční časy, časy zásahů v Kachním honu a počty kliknutí v Klikacím souboji jsou na důvěře – upravený klient může
   poslat vymyšlený (ale ≥ 100 ms) čas nebo počet.
 - Při výpadku spojení nebo zamrznutí hry vidí výhru kontumací oba hráči (každý vidí, že ten
   druhý přestal hrát).

@@ -12,6 +12,8 @@ import { DRAW, win, type PlayerSlot } from '../core/types';
 import { ManualClock } from '../core/util/clock';
 import { commit } from '../core/util/commitReveal';
 import { createRng } from '../core/util/rng';
+import { duckHunt } from '../games/duck-hunt';
+import { duckAt, type DuckMove, type DuckView } from '../games/duck-hunt/logic';
 import { hunt } from '../games/hunt';
 import { huntAIMove } from '../games/hunt/ai';
 import type { HuntView } from '../games/hunt/logic';
@@ -255,6 +257,47 @@ describe('online zápas – průběh', () => {
     if (phase.name !== 'round-result') throw new Error(`fáze ${phase.name}`);
     expect(phase.report).toMatchObject({ winner: 'A' });
     expect(phase.result.summary).toContain('předčasně');
+  });
+
+  it('Kachní hon: zásahy soupeře jsou vidět hned, spornou kachnu získá dřívější zásah', async () => {
+    const dh = stubbed(duckHunt);
+    const s = await sessions([dh.module], { kind: 'vlastni', bestOf: 1, picks: ['duck-hunt'] });
+    await toPlaying(s.host, s.guest);
+    const viewOf = (p: PlayerSlot): DuckView =>
+      lastView(dh.views, p).renders.at(-1)?.view as DuckView;
+    const submit = (p: PlayerSlot, move: DuckMove): void =>
+      lastView(dh.views, p).ctx.submit(p, move);
+    const { ducks } = viewOf('A');
+    expect(viewOf('B').ducks).toEqual(ducks); // dráhy ze společného seedu
+    const shot = (duck: number, offset = 0): DuckMove => {
+      const d = ducks[duck];
+      if (!d) throw new Error('chybí kachna');
+      const t = Math.round((d.spawn + d.gone) / 2) + offset;
+      const at = duckAt(d, t);
+      if (!at) throw new Error('kachna neletí');
+      return { kind: 'shot', duck, t, x: at.x, y: at.y };
+    };
+    submit('A', shot(0)); // A trefí kachnu 0 později…
+    submit('B', shot(0, -50)); // …B o 50 ms dřív
+    submit('B', shot(1));
+    await run(clock, 300);
+    // Bez čekání na konec: oba vidí zásahy soupeře a stejného vlastníka kachny.
+    expect(viewOf('A').shots.B).toHaveLength(2);
+    expect(viewOf('B').shots.A).toHaveLength(1);
+    expect(viewOf('A').owners.slice(0, 2)).toEqual(['B', 'B']);
+    expect(viewOf('B').owners.slice(0, 2)).toEqual(['B', 'B']);
+    // Minuta střílení bez zásahu není neaktivita – kontumace nepřijde.
+    await run(clock, 50_000);
+    expect(phaseOf(s.host)).toBe('playing');
+    expect(phaseOf(s.guest)).toBe('playing');
+    submit('A', { kind: 'done' });
+    submit('B', { kind: 'done' });
+    await run(clock, 4000);
+    const h = s.host.phase;
+    const g = s.guest.phase;
+    if (h.name !== 'round-result' || g.name !== 'round-result') throw new Error('fáze');
+    expect(h.report).toMatchObject({ winner: 'B' });
+    expect(g.result.outcome).toEqual(h.result.outcome);
   });
 
   it('odveta ve stejné místnosti: nový seed a znovu lobby', async () => {

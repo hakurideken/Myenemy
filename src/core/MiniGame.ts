@@ -288,6 +288,16 @@ export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
    * a jinak by viděl volbu soupeře dřív, než zvolí sám. Jen pro hry s jedním současným
    * tajným tahem na hráče – host pak výsledek ověří přehráním z odhalených tahů.
    */
+  /**
+   * Tahy obou hráčů běží průběžně a soupeř je vidí hned (Kachní hon) – online se
+   * nepečetí. Logika musí dát stejný stav v libovolném pořadí tahů obou hráčů.
+   */
+  readonly liveMoves?: boolean;
+  /**
+   * Online hry bez limitu na tah: jak dlouho smí soupeř mlčet, než se kolo ukončí
+   * kontumací (výchozí 15 s – stačí na krátké reakční hry).
+   */
+  readonly untimedLimitMs?: number;
   readonly sealed?: {
     /** Tah hráče, jak je vidět v závěrečném pohledu (pro kontrolu proti odhalení). */
     moveOf(finalView: V, player: PlayerSlot): M | null;
