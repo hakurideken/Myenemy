@@ -7,12 +7,10 @@ import {
   type FormatKind,
   type MatchFormat,
 } from '../../core/match/planMatch';
-import { validateNickname } from '../../core/nickname';
 import { DIFFICULTIES, type Difficulty, type GameId } from '../../core/types';
 import { createRng } from '../../core/util/rng';
 import { GAME_INFOS } from '../../games/registry';
 import { translations } from '../../i18n';
-import { loadLocalOpponent, saveLocalOpponent } from '../../platform/profile';
 import type { App, Mount } from '../App';
 import { button } from '../components/common';
 import { radioGroup } from '../components/radioGroup';
@@ -26,19 +24,15 @@ import {
   plural,
   TYPE_LABEL,
 } from '../labels';
-import type { LocalMode } from '../MatchFlow';
 
 const FORMAT_KINDS: readonly FormatKind[] = ['rychlovka', 'velky-souboj', 'vlastni'];
 
 const t = translations(
   {
     player1: 'Hráč 1',
-    player2: 'Hráč 2',
     hostNote: (name: string) =>
       `Hraješ jako ${name} (hostitel). Soupeře pozveš kódem místnosti nebo odkazem.`,
     difficulty: 'Obtížnost AI',
-    opponentName: 'Jméno druhého hráče',
-    youAre: (name: string) => `Ty hraješ jako ${name} (hráč A).`,
     pickOrder: 'Klikej v pořadí, v jakém se mají hrát.',
     pickGroup: 'Výběr her',
     picked: (count: number, of: number) => `Vybráno ${count} z ${of}.`,
@@ -54,8 +48,6 @@ const t = translations(
     format: 'Formát zápasu',
     unavailable: 'Zatím nejsou k dispozici žádné delší hry.',
     ai: (label: string) => `AI · ${label}`,
-    secondPlayer: (error: string) => `Druhý hráč: ${error}`,
-    sameNames: 'Hráči musí mít různá jména.',
     title: 'Příprava souboje',
     back: 'Zpět',
     createRoom: 'Vytvořit místnost',
@@ -63,12 +55,9 @@ const t = translations(
   },
   {
     player1: 'Player 1',
-    player2: 'Player 2',
     hostNote: (name: string) =>
       `You play as ${name} (host). Invite your opponent with the room code or a link.`,
     difficulty: 'AI difficulty',
-    opponentName: 'Second player’s name',
-    youAre: (name: string) => `You play as ${name} (player A).`,
     pickOrder: 'Click the games in the order they should be played.',
     pickGroup: 'Game selection',
     picked: (count: number, of: number) => `Selected ${count} of ${of}.`,
@@ -84,8 +73,6 @@ const t = translations(
     format: 'Match format',
     unavailable: 'No longer games are available yet.',
     ai: (label: string) => `AI · ${label}`,
-    secondPlayer: (error: string) => `Second player: ${error}`,
-    sameNames: 'The players must have different names.',
     title: 'Get ready',
     back: 'Back',
     createRoom: 'Create room',
@@ -93,7 +80,7 @@ const t = translations(
   },
 );
 
-export type SetupMode = LocalMode | 'online';
+export type SetupMode = 'pve' | 'online';
 
 export function setupScreen(app: App, mode: SetupMode): Mount {
   return (root) => {
@@ -107,38 +94,22 @@ export function setupScreen(app: App, mode: SetupMode): Mount {
     const error = h('p', { class: 'field-error', 'aria-live': 'polite' });
 
     // --- soupeř ---
-    const opponentInput = h('input', {
-      id: 'opponent',
-      type: 'text',
-      maxlength: 40,
-      spellcheck: 'false',
-      autocomplete: 'off',
-      value: loadLocalOpponent() ?? t.player2,
-    });
     const opponentSection =
       mode === 'online'
         ? h('p', { class: 'note' }, t.hostNote(nickname))
-        : mode === 'pve'
-          ? radioGroup(
-              t.difficulty,
-              'difficulty',
-              DIFFICULTIES.map((d) => ({
-                value: d,
-                label: DIFFICULTY_LABEL[d],
-                hint: DIFFICULTY_HINT[d],
-              })),
-              difficulty,
-              (value) => {
-                difficulty = value;
-              },
-            )
-          : h(
-              'div',
-              { class: 'form' },
-              h('label', { for: 'opponent', class: 'field-label' }, t.opponentName),
-              opponentInput,
-              h('p', { class: 'field-hint' }, t.youAre(nickname)),
-            );
+        : radioGroup(
+            t.difficulty,
+            'difficulty',
+            DIFFICULTIES.map((d) => ({
+              value: d,
+              label: DIFFICULTY_LABEL[d],
+              hint: DIFFICULTY_HINT[d],
+            })),
+            difficulty,
+            (value) => {
+              difficulty = value;
+            },
+          );
 
     // --- vlastní výběr ---
     const pickCounter = h('p', { class: 'pick-counter', 'aria-live': 'polite' });
@@ -247,22 +218,7 @@ export function setupScreen(app: App, mode: SetupMode): Mount {
     function submit(event: SubmitEvent): void {
       event.preventDefault();
       setText(error, '');
-      let opponentName = t.ai(DIFFICULTY_LABEL[difficulty]);
-      if (mode === 'local') {
-        const result = validateNickname(opponentInput.value);
-        if (!result.ok) {
-          setText(error, t.secondPlayer(result.error));
-          opponentInput.focus();
-          return;
-        }
-        if (result.value.toLocaleLowerCase('cs') === nickname.toLocaleLowerCase('cs')) {
-          setText(error, t.sameNames);
-          opponentInput.focus();
-          return;
-        }
-        opponentName = result.value;
-        saveLocalOpponent(result.value);
-      }
+      const opponentName = t.ai(DIFFICULTY_LABEL[difficulty]);
       const format: MatchFormat =
         kind === 'vlastni'
           ? { kind, bestOf, picks: pickRandom || picks.length === 0 ? 'random' : [...picks] }

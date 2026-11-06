@@ -13,10 +13,8 @@ const t = translations(
   {
     title: 'Online souboj',
     notConfigured: 'Online hra není na tomhle webu nastavená.',
-    notConfiguredNote:
-      'Chybí připojení k serveru (Supabase). Mezitím si můžeš zahrát proti AI nebo ve dvou na jednom zařízení.',
+    notConfiguredNote: 'Chybí připojení k serveru (Supabase). Mezitím si můžeš zahrát proti AI.',
     vsAi: 'Proti AI',
-    twoPlayers: 'Dva hráči',
     backToMenu: 'Zpět do menu',
     badCode: 'Kód má 5 znaků – písmena a číslice (bez 0, O, 1 a I).',
     createTitle: 'Založit místnost',
@@ -55,9 +53,8 @@ const t = translations(
     title: 'Online duel',
     notConfigured: 'Online play is not set up on this site.',
     notConfiguredNote:
-      'The server connection (Supabase) is missing. Meanwhile you can play against the AI or with two players on one device.',
+      'The server connection (Supabase) is missing. Meanwhile you can play against the AI.',
     vsAi: 'Against AI',
-    twoPlayers: 'Two players',
     backToMenu: 'Back to menu',
     badCode: 'The code has 5 characters – letters and digits (no 0, O, 1 or I).',
     createTitle: 'Create a room',
@@ -117,7 +114,6 @@ export function onlineMenuScreen(app: App, available: boolean): Mount {
             button(t.vsAi, () => app.goSetup('pve'), 'btn btn-primary', {
               'data-autofocus': true,
             }),
-            button(t.twoPlayers, () => app.goSetup('local'), 'btn'),
           ),
         ),
         button(t.backToMenu, () => app.goMenu(), 'btn btn-ghost'),

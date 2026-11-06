@@ -43,8 +43,8 @@ interface RoundResultOptions {
   readonly mode: GameMode;
   readonly names: PerPlayer<string>;
   readonly score: Readonly<PerPlayer<number>>;
-  /** Hráč na tomto zařízení (PvE, online); null = lokálně dva hráči. */
-  readonly me: PlayerSlot | null;
+  /** Hráč na tomto zařízení. */
+  readonly me: PlayerSlot;
   readonly sfx: Sfx;
   readonly onContinue: () => void;
 }
@@ -63,7 +63,7 @@ function finalBoard(o: RoundResultOptions): { el: HTMLElement; destroy: () => vo
     root,
     mode: o.mode,
     names: o.names,
-    localPlayers: o.me === null ? ['A', 'B'] : [o.me],
+    localPlayers: [o.me],
     submit: () => undefined,
     submitSecret: () => undefined,
     clock: systemClock,
@@ -108,7 +108,7 @@ export function roundResultScreen(o: RoundResultOptions): Mount {
       title = report.byCoin ? t.coin(names[report.winner]) : t.wins(names[report.winner]);
       subtitle = report.byCoin ? t.coinSub(MAX_DRAW_REPLAYS) : o.game.name;
       tone = `result--${report.winner.toLowerCase()}`;
-      sound = o.me !== null && report.winner !== o.me ? 'lose' : 'win';
+      sound = report.winner !== o.me ? 'lose' : 'win';
       next = report.matchWinner ? t.matchResult : t.next;
     }
     const board = finalBoard(o);

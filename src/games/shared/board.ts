@@ -6,7 +6,6 @@ import { h, svg } from '../../ui/dom';
 const t = translations(
   {
     mark: { A: 'křížek', B: 'kolečko' },
-    turnLocal: (name: string) => `Na tahu: ${name}`,
     yourTurn: 'Jsi na tahu',
     thinking: (name: string) => `${name} přemýšlí…`,
     turnRemote: (name: string) => `Na tahu je ${name}`,
@@ -15,7 +14,6 @@ const t = translations(
   },
   {
     mark: { A: 'cross', B: 'circle' },
-    turnLocal: (name: string) => `${name}'s turn`,
     yourTurn: 'Your turn',
     thinking: (name: string) => `${name} is thinking…`,
     turnRemote: (name: string) => `${name}'s turn`,
@@ -39,14 +37,13 @@ export function playerMark(player: PlayerSlot): SVGSVGElement {
 
 export const MARK_LABEL: Record<PlayerSlot, string> = t.mark;
 
-/** Kdo je na tahu – podle režimu (lokálně jménem, PvE/online z pohledu hráče). */
+/** Kdo je na tahu – z pohledu hráče (PvE i online). */
 export function turnMessage(
   ctx: ViewContext<unknown>,
   turn: PlayerSlot,
   frame: RenderFrame,
 ): string {
   const name = ctx.names[turn];
-  if (ctx.localPlayers.length > 1) return t.turnLocal(name);
   if (frame.canAct.includes(turn)) return t.yourTurn;
   return ctx.mode === 'pve' ? t.thinking(name) : t.turnRemote(name);
 }

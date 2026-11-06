@@ -361,7 +361,6 @@ export class OnlineSession {
       clock: this.o.clock,
       prefs: mount.prefs,
       sfx: mount.sfx,
-      handoff: () => Promise.resolve(),
       showTurnTimer: (deadline, total) => mount.showTurnTimer(deadline, total),
     };
 

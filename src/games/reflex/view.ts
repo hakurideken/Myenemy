@@ -50,17 +50,9 @@ const t = translations(
   },
 );
 
-/** Klávesy cílů: sólo 1–4, lokálně A = Q W E R, B = U I O P. */
-const SPLIT_KEYS: Record<PlayerSlot, readonly string[]> = {
-  A: ['KeyQ', 'KeyW', 'KeyE', 'KeyR'],
-  B: ['KeyU', 'KeyI', 'KeyO', 'KeyP'],
-};
+/** Klávesy cílů 1–4 (i na numerické klávesnici). */
 const SOLO_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
 const NUMPAD_KEYS = ['Numpad1', 'Numpad2', 'Numpad3', 'Numpad4'];
-const KEY_LABEL: Record<PlayerSlot, readonly string[]> = {
-  A: ['Q', 'W', 'E', 'R'],
-  B: ['U', 'I', 'O', 'P'],
-};
 
 export function shapeIcon(target: Target): SVGSVGElement {
   const attrs = { class: `shape shape--${target.color}` };
@@ -95,7 +87,6 @@ interface Lane {
 }
 
 export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexView> {
-  const split = ctx.localPlayers.length > 1;
   const timers: TimerHandle[] = [];
   let started = false;
   let shown = false;
@@ -105,7 +96,7 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
   let outcome: Outcome | null = null;
 
   const live = h('p', { class: 'sr-only', 'aria-live': 'assertive' });
-  const arena = h('div', { class: `rf ${split ? 'rf--split' : 'rf--solo'}`, tabindex: '-1' });
+  const arena = h('div', { class: 'rf rf--solo', tabindex: '-1' });
 
   const lanes: Lane[] = ctx.localPlayers.map((player) => {
     const prompt = h('p', { class: 'rf-prompt' }, t.getReady);
@@ -131,7 +122,7 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
     return { player, el, prompt, result, buttons, local: null };
   });
 
-  const opponent = split ? null : otherPlayer(ctx.localPlayers[0] ?? 'A');
+  const opponent = otherPlayer(ctx.localPlayers[0] ?? 'A');
   const opponentStatus = h('span', { class: 'qd-opponent-status' }, t.opponentWaiting);
   const opponentEl = opponent
     ? h(
@@ -159,9 +150,8 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
   function onKey(event: KeyboardEvent): void {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
     for (const lane of lanes) {
-      const keys = split ? SPLIT_KEYS[lane.player] : SOLO_KEYS;
-      let index = keys.indexOf(event.code);
-      if (index < 0 && !split) index = NUMPAD_KEYS.indexOf(event.code);
+      let index = SOLO_KEYS.indexOf(event.code);
+      if (index < 0) index = NUMPAD_KEYS.indexOf(event.code);
       if (index >= 0) {
         event.preventDefault();
         tap(lane.player, index);
@@ -230,10 +220,7 @@ export function createReflexView(ctx: ViewContext<ReflexMove>): GameView<ReflexV
         const target = latest?.targets[i];
         if (target && button.dataset.shape !== `${target.color}-${target.shape}`) {
           button.dataset.shape = `${target.color}-${target.shape}`;
-          button.replaceChildren(
-            shapeIcon(target),
-            h('kbd', null, split ? (KEY_LABEL[lane.player][i] ?? '') : String(i + 1)),
-          );
+          button.replaceChildren(shapeIcon(target), h('kbd', null, String(i + 1)));
           button.setAttribute('aria-label', targetLabel(target));
         }
         button.disabled = outcome !== null || lane.local !== null || !canAct.includes(lane.player);

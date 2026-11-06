@@ -3,7 +3,7 @@ import type { PerPlayer, PlayerSlot } from '../types';
 import type { Rng } from '../util/rng';
 
 /**
- * Rozdávající pro PvE a hru na jednom zařízení: zná celý balíček (zamíchaný z herní
+ * Rozdávající pro PvE: zná celý balíček (zamíchaný z herní
  * náhody), hráčům ale prozradí jen karty, na které mají nárok.
  */
 export class LocalDealer implements CardDealer {

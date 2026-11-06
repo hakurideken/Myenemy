@@ -41,7 +41,6 @@ const t = translations<Labels>(
     length: { quick: 'Rychlá (do 1 min)', long: 'Delší (2–5 min)' },
     mode: {
       pve: 'Proti AI',
-      local: 'Dva hráči na jednom zařízení',
       online: 'Online souboj',
     },
     format: {
@@ -94,7 +93,7 @@ const t = translations<Labels>(
       chance: 'Risk and reading the opponent',
     },
     length: { quick: 'Quick (under 1 min)', long: 'Longer (2–5 min)' },
-    mode: { pve: 'Vs. AI', local: 'Two players, one device', online: 'Online duel' },
+    mode: { pve: 'Vs. AI', online: 'Online duel' },
     format: {
       rychlovka: {
         name: 'Quickfire',

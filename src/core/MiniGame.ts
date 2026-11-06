@@ -77,7 +77,7 @@ export interface ViewContext<M> {
   readonly root: HTMLElement;
   readonly mode: GameMode;
   readonly names: PerPlayer<string>;
-  /** Hráči, kteří hrají na tomto zařízení (PvE: ['A'], lokálně: ['A','B']). */
+  /** Hráč, který hraje na tomto zařízení (vždy jeden). */
   readonly localPlayers: readonly PlayerSlot[];
   submit(player: PlayerSlot, move: M): void;
   /** Hry se skrytou informací: hráč potvrdil svá tajná data (rozmístění lodí, kód). */
@@ -88,7 +88,7 @@ export interface ViewContext<M> {
 }
 
 export interface RenderFrame {
-  /** Čí pohled se vykresluje (v lokální hře se mění po předání zařízení). */
+  /** Čí pohled se vykresluje. */
   readonly perspective: PlayerSlot;
   /** Lokální hráči, kteří právě smí zadat tah. */
   readonly canAct: readonly PlayerSlot[];
@@ -183,14 +183,6 @@ export interface GameView<V> {
   destroy(): void;
 }
 
-/**
- * Jak se hra hraje lokálně na jednom zařízení:
- * split   – každý hráč má svou polovinu obrazovky / své klávesy (reakční hry),
- * shared  – společná deska bez tajných informací,
- * hotseat – tajná volba, mezi tahy obrazovka „Předej zařízení“.
- */
-export type LocalLayout = 'split' | 'shared' | 'hotseat';
-
 /** Co hráč viděl po veřejném tahu `index` (hry v mlze). */
 export interface Sighting {
   readonly index: number;
@@ -269,7 +261,6 @@ export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
   readonly cognitive: CognitiveProfile;
   readonly rules: readonly string[];
   controls(mode: GameMode): readonly string[];
-  readonly localLayout: LocalLayout;
   /** Limit na tah (neaktivita → automatický tah). null = hra si časování řídí sama. */
   readonly moveTimeoutMs: number | null;
   /** Limit na tah podle fáze hry (např. delší na rozmístění lodí); přebíjí moveTimeoutMs. */
@@ -280,8 +271,6 @@ export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
   readonly cards?: CardRules<S, M, V>;
   /** Hra v mlze – viz FogRules. */
   readonly fog?: FogRules<M, V, unknown>;
-  /** Hotseat: jak dlouho nechat hráče vidět výsledek jeho tahu, než se zařízení předá. */
-  readonly handoffDelayMs?: number;
   /** Jak dlouho nechat vidět konec hry, než přijde výsledek kola. */
   readonly revealMs: number;
   /**
@@ -343,7 +332,6 @@ export interface RoundContext {
   readonly clock: Clock;
   readonly prefs: Prefs;
   readonly sfx: Sfx;
-  handoff(to: PlayerSlot): Promise<void>;
   showTurnTimer(deadline: number | null, totalMs: number): void;
   /** Online: napojení na síť. */
   readonly bridge?: RunnerBridge;

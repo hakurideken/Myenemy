@@ -59,10 +59,9 @@ const t = translations(
     menu: 'Do menu',
     unavailableTitle: 'Online server je nedostupný',
     unavailableText:
-      'Nepodařilo se spojit se serverem do 5 sekund – může být dočasně mimo provoz nebo uspaný. Zkus to za chvíli znovu, nebo si zahraj proti AI či ve dvou na jednom zařízení.',
+      'Nepodařilo se spojit se serverem do 5 sekund – může být dočasně mimo provoz nebo uspaný. Zkus to za chvíli znovu, nebo si zahraj proti AI.',
     retry: 'Zkusit znovu',
     vsAi: 'Proti AI',
-    twoPlayers: 'Dva hráči',
     leaveTitle: 'Odejít ze zápasu?',
     leaveText: 'Soupeř vyhraje kontumací.',
     leave: 'Odejít',
@@ -98,10 +97,9 @@ const t = translations(
     menu: 'Menu',
     unavailableTitle: 'The online server is unavailable',
     unavailableText:
-      'Could not reach the server within 5 seconds – it may be temporarily down or asleep. Try again in a moment, or play against the AI or with two players on one device.',
+      'Could not reach the server within 5 seconds – it may be temporarily down or asleep. Try again in a moment, or play against the AI.',
     retry: 'Try again',
     vsAi: 'Against AI',
-    twoPlayers: 'Two players',
     leaveTitle: 'Leave the match?',
     leaveText: 'Your opponent wins by forfeit.',
     leave: 'Leave',
@@ -242,7 +240,6 @@ export class OnlineFlow {
       messageScreen(t.unavailableTitle, t.unavailableText, [
         { label: t.retry, onClick: retry, primary: true },
         { label: t.vsAi, onClick: () => this.exitTo(() => this.app.goSetup('pve')) },
-        { label: t.twoPlayers, onClick: () => this.exitTo(() => this.app.goSetup('local')) },
         { label: t.menu, onClick: () => this.exit() },
       ]),
     );

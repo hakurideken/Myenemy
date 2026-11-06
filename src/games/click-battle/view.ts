@@ -15,7 +15,6 @@ import {
 const t = translations(
   {
     getReady: 'Připrav se…',
-    splitHint: (key: string) => `Klávesa ${key} nebo klepej sem`,
     soloHint: 'Mezerník, Enter nebo klepej kamkoli',
     opponentWaiting: 'čeká na start',
     opponentClicking: 'kliká…',
@@ -32,7 +31,6 @@ const t = translations(
   },
   {
     getReady: 'Get ready…',
-    splitHint: (key: string) => `Mash ${key} or tap here`,
     soloHint: 'Mash Space, Enter or tap anywhere',
     opponentWaiting: 'waiting for the start',
     opponentClicking: 'clicking…',
@@ -49,7 +47,6 @@ const t = translations(
   },
 );
 
-const SPLIT_KEYS: Partial<Record<string, PlayerSlot>> = { KeyA: 'A', KeyL: 'B' };
 const SOLO_KEYS = new Set(['Space', 'Enter']);
 /** Rychlejší „kliknutí“ jsou zákmity / autoklikr – nepočítají se. */
 const MIN_GAP_MS = 25;
@@ -67,7 +64,6 @@ interface Lane {
 }
 
 export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView> {
-  const split = ctx.localPlayers.length > 1;
   const timers: TimerHandle[] = [];
   let phase: Phase = 'waiting';
   let countdown = 3;
@@ -76,12 +72,11 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
   let outcome: Outcome | null = null;
 
   const live = h('p', { class: 'sr-only', 'aria-live': 'assertive' });
-  const arena = h('div', { class: `cb ${split ? 'cb--split' : 'cb--solo'}`, tabindex: '-1' });
+  const arena = h('div', { class: 'cb cb--solo', tabindex: '-1' });
 
   const lanes: Lane[] = ctx.localPlayers.map((player) => {
     const big = h('span', { class: 'cb-big' }, '3');
     const status = h('span', { class: 'cb-status' }, t.getReady);
-    const hint = split ? t.splitHint(player === 'A' ? 'A' : 'L') : t.soloHint;
     const el = h(
       'div',
       {
@@ -95,12 +90,12 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
       big,
       status,
       h('span', { class: 'cb-bar', 'aria-hidden': 'true' }),
-      h('span', { class: 'cb-hint' }, hint),
+      h('span', { class: 'cb-hint' }, t.soloHint),
     );
     return { player, el, big, status, presses: 0, lastPress: -Infinity, submitted: false };
   });
 
-  const opponent = split ? null : otherPlayer(ctx.localPlayers[0] ?? 'A');
+  const opponent = otherPlayer(ctx.localPlayers[0] ?? 'A');
   const opponentStatus = h('span', { class: 'qd-opponent-status' }, t.opponentWaiting);
   const opponentEl = opponent
     ? h(
@@ -131,11 +126,7 @@ export function createClickView(ctx: ViewContext<ClickMove>): GameView<ClickView
 
   function onKey(event: KeyboardEvent): void {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
-    const player = split
-      ? SPLIT_KEYS[event.code]
-      : SOLO_KEYS.has(event.code)
-        ? ctx.localPlayers[0]
-        : undefined;
+    const player = SOLO_KEYS.has(event.code) ? ctx.localPlayers[0] : undefined;
     if (!player) return;
     event.preventDefault();
     press(player);

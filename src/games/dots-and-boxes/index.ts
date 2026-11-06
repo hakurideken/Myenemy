@@ -20,7 +20,6 @@ const t = translations(
       'Vyhrává, kdo má po zaplnění mřížky víc políček; 8:8 je remíza.',
       'Na tah máš 45 s, pak se táhne automaticky.',
     ],
-    localControls: 'Hráči se u zařízení střídají – mřížka je společná.',
     keys: 'Klik / klepnutí na čáru mezi tečkami, nebo Tab a Enter.',
   },
   {
@@ -31,7 +30,6 @@ const t = translations(
       'When the grid is full, whoever has more boxes wins; 8:8 is a draw.',
       'You have 45 s per move, then a move is played automatically.',
     ],
-    localControls: 'Players take turns at the device – the grid is shared.',
     keys: 'Click / tap a line between dots, or use Tab and Enter.',
   },
 );
@@ -43,8 +41,7 @@ export const dotsAndBoxes = defineGame<DotsState, DotsMove, DotsView>({
   length: 'long',
   cognitive: { primary: 'strategy', secondary: 'logic' },
   rules: t.rules,
-  controls: (mode) => (mode === 'local' ? [t.localControls, t.keys] : [t.keys]),
-  localLayout: 'shared',
+  controls: () => [t.keys],
   moveTimeoutMs: 45_000,
   revealMs: 1800,
   logic: dotsLogic,

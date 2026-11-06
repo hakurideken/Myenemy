@@ -14,15 +14,13 @@ import { matchIntroScreen } from './screens/matchIntro';
 import { matchResultScreen } from './screens/matchResult';
 import { roundResultScreen } from './screens/roundResult';
 
-export type LocalMode = 'pve' | 'local';
-
 const t = translations(
   { title: 'Opustit zápas?', message: 'Výsledek se nikam nezapočítá.', confirm: 'Opustit' },
   { title: 'Leave the match?', message: 'The result will not count anywhere.', confirm: 'Leave' },
 );
 
 export interface MatchSetup {
-  readonly mode: LocalMode;
+  readonly mode: 'pve';
   readonly format: MatchFormat;
   readonly names: PerPlayer<string>;
   readonly difficulty: Difficulty;
@@ -53,14 +51,12 @@ export class MatchFlow {
   }
 
   /** Hráč u tohoto zařízení – kvůli zvuku výhry/prohry. Lokálně hrají oba. */
-  private get me(): PlayerSlot | null {
-    return this.setup.mode === 'pve' ? 'A' : null;
+  private get me(): PlayerSlot {
+    return 'A';
   }
 
   private get seats(): PerPlayer<SeatConfig> {
-    return this.setup.mode === 'pve'
-      ? { A: { kind: 'human' }, B: { kind: 'ai', difficulty: this.setup.difficulty } }
-      : { A: { kind: 'human' }, B: { kind: 'human' } };
+    return { A: { kind: 'human' }, B: { kind: 'ai', difficulty: this.setup.difficulty } };
   }
 
   private showGameIntro(): void {
@@ -102,7 +98,6 @@ export class MatchFlow {
             clock: systemClock,
             prefs: this.app.prefs(),
             sfx: this.app.sfx,
-            handoff: (to) => parts.handoff(to),
             showTurnTimer: (deadline, total) => parts.showTurnTimer(deadline, total),
           });
           runner.onEnd((result) => this.onRoundEnd(current, result));

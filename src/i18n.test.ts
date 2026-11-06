@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const CZECH = /[áčďéěíňóřšťúůýž]/i;
 /** Vlastní jména, která zůstávají i v angličtině (typ karet, název hry). */
 const stripNames = (text: string): string => text.replaceAll('Mariáš', '').replaceAll('Prší', '');
-const MODES = ['pve', 'local', 'online'] as const;
+const MODES = ['pve', 'online'] as const;
 
 /** Načte moduly znovu, jako by stránka startovala s uloženým jazykem. */
 async function loadWith(stored: string | null): Promise<void> {

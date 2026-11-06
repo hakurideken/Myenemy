@@ -19,7 +19,6 @@ const t = translations(
     timeout: 'Nestihl',
     slower: 'Pomalejší',
     getReady: 'Připrav se…',
-    splitHint: (key: string) => `Klávesa ${key} nebo klepni sem`,
     soloHint: 'Mezerník, Enter nebo klepni kamkoli',
     opponentWaiting: 'čeká na signál',
     opponentAiming: 'míří…',
@@ -39,7 +38,6 @@ const t = translations(
     timeout: 'Too late',
     slower: 'Slower',
     getReady: 'Get ready…',
-    splitHint: (key: string) => `Press ${key} or tap here`,
     soloHint: 'Space, Enter or tap anywhere',
     opponentWaiting: 'waiting for the signal',
     opponentAiming: 'aiming…',
@@ -54,7 +52,6 @@ const t = translations(
   },
 );
 
-const SPLIT_KEYS: Partial<Record<string, PlayerSlot>> = { KeyA: 'A', KeyL: 'B' };
 const SOLO_KEYS = new Set(['Space', 'Enter']);
 
 interface Lane {
@@ -91,7 +88,6 @@ function finalStatus(
 }
 
 export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<QuickDrawView> {
-  const split = ctx.localPlayers.length > 1;
   const timers: TimerHandle[] = [];
   let started = false;
   let signalShown = false;
@@ -101,12 +97,11 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
   let outcome: Outcome | null = null;
 
   const live = h('p', { class: 'sr-only', 'aria-live': 'assertive' });
-  const arena = h('div', { class: `qd ${split ? 'qd--split' : 'qd--solo'}`, tabindex: '-1' });
+  const arena = h('div', { class: 'qd qd--solo', tabindex: '-1' });
 
   const lanes: Lane[] = ctx.localPlayers.map((player) => {
     const status = h('span', { class: 'qd-status' }, t.getReady);
     const time = h('span', { class: 'qd-time' });
-    const hint = split ? t.splitHint(player === 'A' ? 'A' : 'L') : t.soloHint;
     const el = h(
       'div',
       {
@@ -120,12 +115,12 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
       h('span', { class: 'qd-burst' }, burstIcon()),
       status,
       time,
-      h('span', { class: 'qd-hint' }, hint),
+      h('span', { class: 'qd-hint' }, t.soloHint),
     );
     return { player, el, status, time };
   });
 
-  const opponent = split ? null : otherPlayer(ctx.localPlayers[0] ?? 'A');
+  const opponent = otherPlayer(ctx.localPlayers[0] ?? 'A');
   const opponentStatus = h('span', { class: 'qd-opponent-status' }, t.opponentWaiting);
   const opponentEl = opponent
     ? h(
@@ -150,11 +145,7 @@ export function createQuickDrawView(ctx: ViewContext<QuickDrawMove>): GameView<Q
 
   function onKey(event: KeyboardEvent): void {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
-    const player = split
-      ? SPLIT_KEYS[event.code]
-      : SOLO_KEYS.has(event.code)
-        ? ctx.localPlayers[0]
-        : undefined;
+    const player = SOLO_KEYS.has(event.code) ? ctx.localPlayers[0] : undefined;
     if (!player) return;
     event.preventDefault();
     press(player);

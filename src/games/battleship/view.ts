@@ -509,7 +509,7 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
     const shooter = view.lastShooter;
     const shot: Shot | undefined = shooter ? view.shots[shooter].at(-1) : undefined;
     if (!shooter || !shot) return '';
-    const who = ctx.localPlayers.length > 1 || shooter !== me() ? ctx.names[shooter] : t.you;
+    const who = shooter !== me() ? ctx.names[shooter] : t.you;
     const where = cellName(shot.cell);
     if (shot.result === 'miss') return t.miss(who, where);
     if (shot.result === 'hit') return t.hit(who, where);
@@ -574,8 +574,7 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
     );
     targetFleet.render(sunkShips);
 
-    const local = ctx.localPlayers.length > 1;
-    setText(own.title, local ? t.seaOf(ctx.names[mine]) : t.yourSea);
+    setText(own.title, t.yourSea);
     setText(target.title, f.finished ? t.seaOf(ctx.names[opp]) : t.firingAt(ctx.names[opp]));
 
     let text: string;
@@ -620,7 +619,7 @@ export function createBattleshipView(ctx: ViewContext<BattleshipMove>): GameView
       placementPanel.hidden = !isPlacing;
       target.el.hidden = isPlacing;
       if (isPlacing) {
-        setText(own.title, ctx.localPlayers.length > 1 ? t.seaOf(ctx.names[me()]) : t.yourSea);
+        setText(own.title, t.yourSea);
         renderPlacement();
       } else {
         renderBattle(view, f);

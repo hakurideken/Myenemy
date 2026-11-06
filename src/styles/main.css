@@ -972,45 +972,6 @@ legend {
   background: #ff8a8a;
 }
 
-/* ---------- Předání zařízení ---------- */
-
-.handoff {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 24px;
-  background: var(--bg);
-  text-align: center;
-}
-
-/* Overlay musí zakrýt hru hned od prvního snímku – animuje se jen jeho obsah. */
-.handoff > * {
-  animation: screen-in 200ms ease-out both;
-}
-
-.handoff--a {
-  background: linear-gradient(160deg, var(--a-deep), var(--bg) 70%);
-}
-
-.handoff--b {
-  background: linear-gradient(160deg, var(--b-deep), var(--bg) 70%);
-}
-
-.handoff-name {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(2.6rem, 11vw, 5rem);
-  font-weight: 400;
-  line-height: 1;
-  text-transform: uppercase;
-  overflow-wrap: anywhere;
-}
-
 /* ---------- Pravidla hry ---------- */
 
 .intro {
@@ -1286,22 +1247,6 @@ legend {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
-}
-
-.qd--split {
-  grid-template-columns: 1fr 1fr;
-}
-
-@media (orientation: portrait) and (pointer: coarse) {
-  .qd--split {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
-  }
-
-  /* Hráč A sedí naproti – jeho polovina je otočená. */
-  .qd--split .qd-lane--a {
-    transform: rotate(180deg);
-  }
 }
 
 .qd-lane {
@@ -2119,10 +2064,6 @@ legend {
   -webkit-user-select: none;
 }
 
-.cb--split {
-  grid-template-columns: 1fr 1fr;
-}
-
 .cb-lane {
   position: relative;
   display: flex;
@@ -2231,10 +2172,6 @@ legend {
   outline: none;
   user-select: none;
   -webkit-user-select: none;
-}
-
-.rf--split {
-  grid-template-columns: 1fr 1fr;
 }
 
 .rf-lane {
@@ -2360,19 +2297,6 @@ legend {
 .rf-lane.is-winner {
   border-color: var(--gold);
   box-shadow: inset 0 0 0 4px rgb(255 200 61 / 30%);
-}
-
-@media (orientation: portrait) and (pointer: coarse) {
-  .cb--split,
-  .rf--split {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
-  }
-
-  .cb--split .cb-lane--a,
-  .rf--split .rf-lane--a {
-    transform: rotate(180deg);
-  }
 }
 
 /* ---------- Lodě ---------- */

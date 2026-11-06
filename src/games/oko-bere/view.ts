@@ -179,8 +179,7 @@ export function createOkoView(ctx: ViewContext<OkoMove>): GameView<OkoView> {
       }
       const mineSlot = me();
       const opp = otherPlayer(mineSlot);
-      const local = ctx.localPlayers.length > 1;
-      setText(myName, local ? ctx.names[mineSlot] : t.you);
+      setText(myName, t.you);
       setText(theirName, ctx.names[opp]);
 
       const known = f.cards ?? new Map<number, number>();
@@ -210,7 +209,7 @@ export function createOkoView(ctx: ViewContext<OkoMove>): GameView<OkoView> {
       else if (f.finished) text = outcomeMessage(ctx, f.finished);
       else if (view.stood.A && view.stood.B) text = t.bothStand;
       else if (active) {
-        text = local ? t.choiceNamed(ctx.names[mineSlot]) : t.choice;
+        text = t.choice;
       } else if (view.stood[mineSlot]) {
         text =
           ctx.mode === 'pve' ? t.standThinking(ctx.names[opp]) : t.standWaiting(ctx.names[opp]);

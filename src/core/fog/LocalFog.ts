@@ -8,7 +8,7 @@ export function intersect(queries: readonly string[], exposed: readonly string[]
 }
 
 /**
- * Mlha pro PvE a hru na jednom zařízení: zná soukromé stavy obou hráčů (lidé i AI),
+ * Mlha pro PvE: zná soukromé stavy obou hráčů (lidé i AI),
  * každému ale prozradí jen to, co sám viděl. Všechno se počítá hned.
  */
 export class LocalFog implements FogKeeper {

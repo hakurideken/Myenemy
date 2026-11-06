@@ -20,7 +20,7 @@ export const AI_THINK_MAX_MS = 1500;
 
 /**
  * Spojuje čistou logiku hry, vykreslení a „sedadla“ hráčů (člověk / AI / síť).
- * Stejný běh pro PvE, lokální i online režim.
+ * Stejný běh pro PvE i online režim.
  */
 export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   readonly info: GameInfo;
@@ -31,10 +31,6 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   private canAct: PlayerSlot[] = [];
   private finished: Outcome | null = null;
   private destroyed = false;
-  /** Hotseat: komu bylo zařízení naposledy předáno. */
-  private holder: PlayerSlot | null = null;
-  private handoffPending = false;
-  private handoffTimer: TimerHandle | null = null;
   private endTimer: TimerHandle | null = null;
   private readonly endListeners: ((result: RoundEnd) => void)[] = [];
   private readonly aiTimers = new Map<PlayerSlot, TimerHandle>();
@@ -208,7 +204,6 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
     this.destroyed = true;
     this.clearAllTimers();
     if (this.endTimer !== null) this.ctx?.clock.clearTimeout(this.endTimer);
-    if (this.handoffTimer !== null) this.ctx?.clock.clearTimeout(this.handoffTimer);
     this.ctx?.showTurnTimer(null, 0);
     this.offDealer?.();
     this.offFog?.();
@@ -365,13 +360,6 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
     }
 
     const humans = toMove.filter((p) => ctx.seats[p].kind === 'human');
-    if (ctx.mode === 'local' && this.game.localLayout === 'hotseat') {
-      this.stepHotseat(humans);
-      return;
-    }
-    if (ctx.mode === 'local' && this.game.localLayout === 'shared' && humans[0]) {
-      this.perspective = humans[0];
-    }
     this.canAct = humans;
     this.render();
     this.armMoveTimers(humans);
@@ -427,45 +415,6 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
       if (move !== null && this.applyMove(p, move, false, true, true)) return true;
     }
     return false;
-  }
-
-  private stepHotseat(humans: readonly PlayerSlot[]): void {
-    // Současný tah: kdo zařízení právě drží, hraje první (o jedno předání míň).
-    const next = this.holder !== null && humans.includes(this.holder) ? this.holder : humans[0];
-    if (next === undefined) {
-      this.canAct = [];
-      this.render();
-      return;
-    }
-    if (this.holder === next) {
-      this.perspective = next;
-      this.canAct = [next];
-      this.render();
-      this.armMoveTimers([next]);
-      return;
-    }
-    if (this.handoffPending) return;
-    this.handoffPending = true;
-    this.canAct = [];
-    const ctx = this.context;
-    const handoff = (): void => {
-      this.handoffTimer = null;
-      if (this.destroyed || this.finished) return;
-      void ctx.handoff(next).then(() => {
-        this.handoffPending = false;
-        if (this.destroyed || this.finished) return;
-        this.holder = next;
-        this.step();
-      });
-    };
-    // Dosavadní držitel ještě chvíli vidí výsledek svého tahu (např. zásah / pudl).
-    const delay = this.holder !== null ? (this.game.handoffDelayMs ?? 0) : 0;
-    if (delay > 0) {
-      this.render();
-      this.handoffTimer = ctx.clock.setTimeout(handoff, delay);
-    } else {
-      handoff();
-    }
   }
 
   private finish(outcome: Outcome): void {

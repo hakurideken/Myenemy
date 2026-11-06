@@ -32,7 +32,6 @@ const t = translations(
       'Rozmístění: vyber loď a klikni na pole (R otočí), nebo zvol Náhodně.',
       'Střelba: klik na pole soupeřova moře, nebo šipky a Enter.',
     ],
-    handoff: 'Před každým tahem se zařízení předá – soupeř se nedívá na tvoje lodě.',
     summary: (a: string, sunkA: number, b: string, sunkB: number, total: number) =>
       `Potopené lodě – ${a}: ${sunkA}/${total}, ${b}: ${sunkB}/${total}`,
   },
@@ -49,8 +48,6 @@ const t = translations(
       'Placement: pick a ship and click a cell (R rotates), or choose Random.',
       "Firing: click a cell in the opponent's sea, or use the arrow keys and Enter.",
     ],
-    handoff:
-      "The device is handed over before every turn – the opponent doesn't look at your ships.",
     summary: (a: string, sunkA: number, b: string, sunkB: number, total: number) =>
       `Ships sunk – ${a}: ${sunkA}/${total}, ${b}: ${sunkB}/${total}`,
   },
@@ -63,11 +60,9 @@ export const battleship = defineGame<BattleshipState, BattleshipMove, Battleship
   length: 'long',
   cognitive: { primary: 'logic', secondary: 'chance' },
   rules: t.rules,
-  controls: (mode) => (mode === 'local' ? [t.handoff, ...t.keys] : t.keys),
-  localLayout: 'hotseat',
+  controls: () => t.keys,
   moveTimeoutMs: SHOT_TIMEOUT_MS,
   moveTimeout: (view) => (view.phase === 'placing' ? PLACEMENT_TIMEOUT_MS : SHOT_TIMEOUT_MS),
-  handoffDelayMs: 1500,
   revealMs: 2500,
   showFinalBoard: true,
   hidden: battleshipHidden,

@@ -41,5 +41,5 @@ export interface CognitiveProfile {
   readonly secondary: CognitiveGroup | null;
 }
 export type GameLength = 'quick' | 'long';
-export type GameMode = 'pve' | 'local' | 'online';
+export type GameMode = 'pve' | 'online';
 export type GameId = string;

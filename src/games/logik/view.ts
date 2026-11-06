@@ -49,10 +49,8 @@ const t = translations(
     firstGuess: 'sestav svůj první tip.',
     thinking: (name: string) => `${name} přemýšlí…`,
     waitingForGuess: (name: string) => `Čekám na tip: ${name}…`,
-    guessesCode: (guesser: string, owner: string) => `${guesser} hádá kód: ${owner}`,
     yourAttempts: 'Tvoje pokusy',
     attemptsOf: (name: string) => `Pokusy: ${name}`,
-    secretCodeLabel: 'Tajný kód: ',
     yourCodeLabel: 'Tvůj kód: ',
     yourCode: (code: string) => `Tvůj kód: ${code}`,
     noCodeYet: 'Kód zatím není zvolený',
@@ -87,10 +85,8 @@ const t = translations(
     firstGuess: 'build your first guess.',
     thinking: (name: string) => `${name} is thinking…`,
     waitingForGuess: (name: string) => `Waiting for a guess from ${name}…`,
-    guessesCode: (guesser: string, owner: string) => `${guesser} guesses the code of ${owner}`,
     yourAttempts: 'Your attempts',
     attemptsOf: (name: string) => `Attempts: ${name}`,
-    secretCodeLabel: 'Secret code: ',
     yourCodeLabel: 'Your code: ',
     yourCode: (code: string) => `Your code: ${code}`,
     noCodeYet: 'No code set yet',
@@ -343,7 +339,6 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
   function statusText(view: LogikView, f: RenderFrame): string {
     const mine = me();
     const opp = otherPlayer(mine);
-    const local = ctx.localPlayers.length > 1;
     if (f.finished) {
       const parts = (['A', 'B'] as const)
         .filter((p) => cracked(view.guesses[p].at(-1)))
@@ -358,9 +353,7 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
     if (mode === 'guess') {
       const last = view.guesses[mine].at(-1);
       const text = last?.feedback ? t.lastGuess(feedbackText(last.feedback)) : t.firstGuess;
-      return local
-        ? `${ctx.names[mine]}: ${text}`
-        : `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+      return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
     }
     return ctx.mode === 'pve' ? t.thinking(ctx.names[opp]) : t.waitingForGuess(ctx.names[opp]);
   }
@@ -394,15 +387,11 @@ export function createLogikView(ctx: ViewContext<LogikMove>): GameView<LogikView
       boards.hidden = !started && editing() === 'secret';
       renderRows(myRows, view.guesses[mine], 'mine');
       renderRows(theirRows, view.guesses[opp], 'theirs');
-      const local = ctx.localPlayers.length > 1;
-      setText(myTitle, local ? t.guessesCode(ctx.names[mine], ctx.names[opp]) : t.yourAttempts);
-      setText(
-        theirTitle,
-        local ? t.guessesCode(ctx.names[opp], ctx.names[mine]) : t.attemptsOf(ctx.names[opp]),
-      );
+      setText(myTitle, t.yourAttempts);
+      setText(theirTitle, t.attemptsOf(ctx.names[opp]));
       const secret = mySecret();
       secretCode.replaceChildren(
-        h('span', null, local ? t.secretCodeLabel : t.yourCodeLabel),
+        h('span', null, t.yourCodeLabel),
         ...(secret ? secret.map((c) => pegIcon(c)) : [h('span', null, '—')]),
       );
       secretCode.setAttribute('aria-label', secret ? t.yourCode(codeText(secret)) : t.noCodeYet);

@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { battleship, PLACEMENT_TIMEOUT_MS } from '../games/battleship';
-import { cellOf, isValidFleet, type BattleshipView, type Fleet } from '../games/battleship/logic';
-import { logik } from '../games/logik';
-import type { LogikView } from '../games/logik/logic';
+import { isValidFleet, type BattleshipView, type Fleet } from '../games/battleship/logic';
 import { GameRunner } from './GameRunner';
 import {
   AIMemory,
@@ -12,7 +10,6 @@ import {
   type RoundContext,
   type ViewContext,
 } from './MiniGame';
-import type { PlayerSlot } from './types';
 import { ManualClock } from './util/clock';
 import { createRng } from './util/rng';
 
@@ -59,7 +56,6 @@ function context(clock: ManualClock, overrides: Partial<RoundContext> = {}): Rou
     clock,
     prefs: { reducedMotion: true },
     sfx: { play: () => undefined, vibrate: () => undefined },
-    handoff: () => Promise.resolve(),
     showTurnTimer: () => undefined,
     ...overrides,
   };
@@ -194,84 +190,7 @@ describe('GameRunner – skrytá informace (PvE)', () => {
   });
 });
 
-describe('GameRunner – skrytá informace (lokálně a online)', () => {
-  it('hotseat: oba rozmístí, výsledek výstřelu je chvíli vidět, pak se předává', async () => {
-    const { module, stub } = stubbed(battleship);
-    const handoffs: PlayerSlot[] = [];
-    const runner = new GameRunner(module);
-    runner.init(
-      context(clock, {
-        mode: 'local',
-        seats: { A: { kind: 'human' }, B: { kind: 'human' } },
-        handoff: (to) => {
-          handoffs.push(to);
-          return Promise.resolve();
-        },
-      }),
-    );
-    runner.start();
-    await flush();
-    expect(handoffs).toEqual(['A']);
-    stub.ctx?.submitSecret('A', FLEET);
-    clock.advance(battleship.handoffDelayMs ?? 0);
-    await flush();
-    expect(handoffs).toEqual(['A', 'B']);
-    // B nevidí A-ho flotilu.
-    expect(last(stub).frame).toMatchObject({ perspective: 'B', secret: null });
-    stub.ctx?.submitSecret('B', FLEET);
-    clock.advance(battleship.handoffDelayMs ?? 0);
-    await flush();
-    expect(handoffs).toEqual(['A', 'B', 'A']);
-
-    stub.ctx?.submit('A', { kind: 'shot', cell: cellOf(0, 0) }); // zásah – A hraje dál
-    await flush();
-    expect(handoffs).toHaveLength(3);
-    expect(last(stub).frame.canAct).toEqual(['A']);
-    stub.ctx?.submit('A', { kind: 'shot', cell: cellOf(7, 7) }); // vedle
-    expect(last(stub).frame).toMatchObject({ perspective: 'A', canAct: [] });
-    expect(bsView(stub).shots.A.at(-1)?.result).toBe('miss');
-    clock.advance(battleship.handoffDelayMs ?? 0);
-    await flush();
-    expect(handoffs).toEqual(['A', 'B', 'A', 'B']);
-  });
-
-  it('hotseat Logik: kdo drží zařízení a je na tahu, hraje bez předávání', async () => {
-    const { module, stub } = stubbed(logik);
-    const handoffs: PlayerSlot[] = [];
-    const runner = new GameRunner(module);
-    runner.init(
-      context(clock, {
-        mode: 'local',
-        seats: { A: { kind: 'human' }, B: { kind: 'human' } },
-        handoff: (to) => {
-          handoffs.push(to);
-          return Promise.resolve();
-        },
-      }),
-    );
-    runner.start();
-    await flush();
-    stub.ctx?.submitSecret('A', [0, 1, 2, 3]);
-    clock.advance(2000);
-    await flush();
-    stub.ctx?.submitSecret('B', [4, 4, 5, 5]);
-    await flush();
-    // B drží zařízení a v 1. kole je na tahu – tipuje hned, bez předání.
-    expect(handoffs).toEqual(['A', 'B']);
-    expect(last(stub).frame).toMatchObject({ perspective: 'B', canAct: ['B'] });
-    stub.ctx?.submit('B', { kind: 'guess', code: [2, 2, 2, 2] });
-    clock.advance(2000);
-    await flush();
-    expect(handoffs).toEqual(['A', 'B', 'A']);
-    stub.ctx?.submit('A', { kind: 'guess', code: [1, 1, 1, 1] });
-    // Odpovědi doplněné automaticky, A v dalším kole tipuje hned.
-    const view = last(stub).view as LogikView;
-    expect(view.guesses.A[0]?.feedback).toEqual(['none', 'none', 'none', 'none']);
-    expect(view.guesses.B[0]?.feedback).toEqual(['none', 'none', 'exact', 'none']);
-    expect(last(stub).frame).toMatchObject({ perspective: 'A', canAct: ['A'] });
-    expect(handoffs).toEqual(['A', 'B', 'A']);
-  });
-
+describe('GameRunner – skrytá informace online', () => {
   it('online: hra pokračuje, až je závazek tajných dat odeslaný', async () => {
     const { module, stub } = stubbed(battleship);
     let release: () => void = () => undefined;

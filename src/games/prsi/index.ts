@@ -24,7 +24,6 @@ const t = translations(
       'Soupeř vidí jen počet tvých karet. Online se balíček míchá šifrovaně u obou (mental poker).',
     ],
     keys: 'Klik na kartu ji zahraje · L = líznout · S = stojím (eso) · barvu svrškem 1–4.',
-    handoff: 'Před každým tahem se zařízení předá – soupeř nevidí tvoje karty.',
     emptied: (name: string) => `${name} se zbavil(a) všech karet.`,
     afterMoves: (moves: number, nameA: string, a: number, nameB: string, b: number) =>
       `Po ${moves} tazích – ${nameA}: ${a} karet, ${nameB}: ${b} karet.`,
@@ -39,7 +38,6 @@ const t = translations(
       'Your opponent only sees how many cards you have. Online, both players shuffle the deck with encryption (mental poker).',
     ],
     keys: 'Click a card to play it · L = draw · S = stand (ace) · Ober suit 1–4.',
-    handoff: 'Pass the device before each move – your opponent can’t see your cards.',
     emptied: (name) => `${name} got rid of all cards.`,
     afterMoves: (moves, nameA, a, nameB, b) =>
       `After ${moves} moves – ${nameA}: ${a} ${a === 1 ? 'card' : 'cards'}, ${nameB}: ${b} ${b === 1 ? 'card' : 'cards'}.`,
@@ -53,10 +51,8 @@ export const prsi = defineGame<PrsiState, PrsiMove, PrsiView>({
   length: 'long',
   cognitive: { primary: 'chance', secondary: 'strategy' },
   rules: t.rules,
-  controls: (mode) => (mode === 'local' ? [t.handoff, t.keys] : [t.keys]),
-  localLayout: 'hotseat',
+  controls: () => [t.keys],
   moveTimeoutMs: 45_000,
-  handoffDelayMs: 1200,
   revealMs: 2500,
   cards: prsiCards,
   logic: prsiLogic,

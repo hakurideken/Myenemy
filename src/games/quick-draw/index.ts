@@ -21,10 +21,6 @@ const t = translations(
       'Výstřel před signálem (nebo dřív než 100 ms po něm) znamená prohru kola.',
       'Remíza: oba vystřelí předčasně, oba to nestihnou do 2 s, nebo mají stejný čas.',
     ],
-    controlsLocal: [
-      'Hráč A: klávesa A nebo klepnutí na svou (levou / horní) polovinu.',
-      'Hráč B: klávesa L nebo klepnutí na svou (pravou / dolní) polovinu.',
-    ],
     controlsSolo: ['Mezerník, Enter, klik nebo klepnutí kamkoli do arény.'],
   },
   {
@@ -34,10 +30,6 @@ const t = translations(
       'Whoever fires first after the signal wins.',
       'Firing before the signal (or less than 100 ms after it) loses the round.',
       'Draw: both fire too early, both miss the 2 s window, or both have the same time.',
-    ],
-    controlsLocal: [
-      'Player A: key A or tap your own (left / top) half.',
-      'Player B: key L or tap your own (right / bottom) half.',
     ],
     controlsSolo: ['Space, Enter, click or tap anywhere in the arena.'],
   },
@@ -50,8 +42,7 @@ export const quickDraw = defineGame<QuickDrawState, QuickDrawMove, QuickDrawView
   length: 'quick',
   cognitive: { primary: 'speed', secondary: null },
   rules: t.rules,
-  controls: (mode) => (mode === 'local' ? t.controlsLocal : t.controlsSolo),
-  localLayout: 'split',
+  controls: () => t.controlsSolo,
   moveTimeoutMs: null,
   revealMs: 1800,
   logic: quickDrawLogic,

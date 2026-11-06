@@ -26,7 +26,6 @@ const t = translations(
       'Online se balíček míchá šifrovaně u obou hráčů (mental poker) – karty nezná ani hostitel.',
     ],
     keys: 'Líznout: L nebo 1 · Stát: S nebo 2 (nebo tlačítka).',
-    handoff: 'Před každým rozhodnutím se zařízení předá – soupeř nevidí tvoje karty.',
     oko: 'oko',
   },
   {
@@ -39,7 +38,6 @@ const t = translations(
       'Online, both players shuffle the deck with encryption (mental poker) – not even the host knows the cards.',
     ],
     keys: 'Draw: L or 1 · Stand: S or 2 (or the buttons).',
-    handoff: 'Pass the device before each decision – your opponent can’t see your cards.',
     oko: 'two aces',
   },
 );
@@ -54,10 +52,8 @@ export const okoBere = defineGame<OkoState, OkoMove, OkoView>({
   length: 'quick',
   cognitive: { primary: 'chance', secondary: null },
   rules: t.rules,
-  controls: (mode) => (mode === 'local' ? [t.handoff, t.keys] : [t.keys]),
-  localLayout: 'hotseat',
+  controls: () => [t.keys],
   moveTimeoutMs: 30_000,
-  handoffDelayMs: 1200,
   revealMs: 3500,
   cards: okoCards,
   logic: okoLogic,

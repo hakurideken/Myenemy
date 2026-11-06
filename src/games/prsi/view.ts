@@ -256,8 +256,7 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
   function eventText(view: PrsiView): string {
     const last = view.last;
     if (!last) return '';
-    const who =
-      ctx.localPlayers.length === 1 && last.player === me() ? t.you : ctx.names[last.player];
+    const who = last.player === me() ? t.you : ctx.names[last.player];
     switch (last.kind) {
       case 'play':
         return `${who}: ${cardName(last.card)}${last.suit !== null ? t.suitChosen(suitName(last.suit)) : ''}`;
@@ -277,8 +276,7 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
       if (perspectiveChanged) renderedHand = '';
       const mineSlot = me();
       const opp = otherPlayer(mineSlot);
-      const local = ctx.localPlayers.length > 1;
-      setText(myName, local ? ctx.names[mineSlot] : t.yourCards);
+      setText(myName, t.yourCards);
       setText(theirName, ctx.names[opp]);
       const count = view.hands[opp].length;
       setText(theirCount, t.cardCount(count));
@@ -315,7 +313,7 @@ export function createPrsiView(ctx: ViewContext<PrsiMove>): GameView<PrsiView> {
       if (f.cards === null) text = t.shuffling;
       else if (top === undefined) text = t.firstCard;
       else if (f.finished) text = outcomeMessage(ctx, f.finished);
-      else if (myTurn()) text = local ? t.turnNamed(ctx.names[mineSlot]) : t.yourTurn;
+      else if (myTurn()) text = t.yourTurn;
       else text = ctx.mode === 'pve' ? t.thinking(ctx.names[opp]) : t.theirTurn(ctx.names[opp]);
       setText(status, text);
     },

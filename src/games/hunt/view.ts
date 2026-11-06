@@ -29,7 +29,6 @@ const t = translations(
     terrain: { '.': 'tráva', T: 'strom', B: 'keř' },
     half: (half: number, round: number) => `${half + 1}. poločas · kolo ${round}/${ROUNDS}`,
     youAre: (role: string) => `Jsi ${role}`,
-    playerIs: (name: string, role: string) => `${name}: ${role}`,
     stay: 'Zůstat na místě',
     startHalf: 'Začít 2. poločas',
     legend: 'Tmavá pole nevidíš · stopa = liška tudy šla · slabě = kde byl soupeř naposledy',
@@ -68,7 +67,6 @@ const t = translations(
     half: (half: number, round: number) =>
       `${half === 0 ? '1st' : '2nd'} half · round ${round}/${ROUNDS}`,
     youAre: (role: string) => `You are the ${role}`,
-    playerIs: (name: string, role: string) => `${name}: ${role}`,
     stay: 'Stay put',
     startHalf: 'Start the 2nd half',
     legend:
@@ -429,12 +427,8 @@ export function createHuntView(ctx: ViewContext<HuntMove>): GameView<HuntView> {
       latest = view;
       frame = f;
       const mine = me();
-      const local = ctx.localPlayers.length > 1;
       const roleText = ROLE_NAME[roleOf(view, mine)];
-      setText(
-        info,
-        `${t.half(view.half, view.round)} · ${local ? t.playerIs(ctx.names[mine], roleText) : t.youAre(roleText)}`,
-      );
+      setText(info, `${t.half(view.half, view.round)} · ${t.youAre(roleText)}`);
       const review = view.phase === 'break' || f.finished !== null;
       if (review) {
         const segment = view.phase === 'break' ? 0 : view.half;

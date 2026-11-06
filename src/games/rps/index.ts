@@ -23,7 +23,6 @@ const t = translations(
       'Na volbu máš 15 s, pak se zvolí náhodně.',
     ],
     keyHelp: 'Klávesy 1 = kámen, 2 = nůžky, 3 = papír, nebo klik / klepnutí.',
-    localTurns: 'Hráči volí postupně, mezi volbami si předají zařízení.',
   },
   {
     name: 'Rock-Paper-Scissors',
@@ -34,7 +33,6 @@ const t = translations(
       'You have 15 s to choose, then a random choice is made for you.',
     ],
     keyHelp: 'Keys 1 = rock, 2 = scissors, 3 = paper, or click / tap.',
-    localTurns: 'Players choose one after another, passing the device between picks.',
   },
 );
 
@@ -45,8 +43,7 @@ export const rps = defineGame<RpsState, RpsMove, RpsView>({
   length: 'quick',
   cognitive: { primary: 'chance', secondary: null },
   rules: t.rules,
-  controls: (mode) => (mode === 'local' ? [t.localTurns, t.keyHelp] : [t.keyHelp]),
-  localLayout: 'hotseat',
+  controls: () => [t.keyHelp],
   moveTimeoutMs: 15_000,
   revealMs: RPS_SHAKE_MS + 1900,
   logic: rpsLogic,

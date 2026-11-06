@@ -14,7 +14,7 @@ import {
   type RoundContext,
   type ViewContext,
 } from './MiniGame';
-import { otherPlayer, type PerPlayer, type PlayerSlot } from './types';
+import { type PerPlayer, type PlayerSlot } from './types';
 import { ManualClock } from './util/clock';
 import { createRng } from './util/rng';
 
@@ -55,7 +55,6 @@ function context(clock: ManualClock, overrides: Partial<RoundContext> = {}): Rou
     clock,
     prefs: { reducedMotion: true },
     sfx: { play: () => undefined, vibrate: () => undefined },
-    handoff: () => Promise.resolve(),
     showTurnTimer: () => undefined,
     ...overrides,
   };
@@ -111,27 +110,6 @@ describe('GameRunner – karty', () => {
     stub.ctx?.submit('A', { kind: 'play', pos, card: (real + 1) % 32, suit: null });
     expect(stub.renders).toHaveLength(before);
     expect(console.warn).toHaveBeenCalled();
-  });
-
-  it('hotseat: po předání vidí hráč jen svou ruku', async () => {
-    const { module, stub } = stubbed(prsi);
-    const runner = new GameRunner(module);
-    runner.init(
-      context(clock, {
-        mode: 'local',
-        seats: { A: { kind: 'human' }, B: { kind: 'human' } },
-        starter: 'B',
-      }),
-    );
-    runner.start();
-    await flush();
-    const { view, frame } = last(stub);
-    const v = view as PrsiView;
-    // Kdo je na tahu, závisí na úvodní kartě (eso / sedma) – ověřit podle pohledu.
-    const me = frame.perspective;
-    expect(frame.canAct).toEqual([me]);
-    expect(v.hands[me].every((p) => frame.cards?.has(p))).toBe(true);
-    expect(v.hands[otherPlayer(me)].some((p) => frame.cards?.has(p))).toBe(false);
   });
 
   it('dokud se balíček míchá, nikdo netáhne a karty jsou null', async () => {

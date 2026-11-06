@@ -75,7 +75,6 @@ const pick = defineGame<
   length: 'quick',
   rules: ['test'],
   controls: () => ['test'],
-  localLayout: 'shared',
   moveTimeoutMs: 1000,
   revealMs: 100,
   cognitive: { primary: 'strategy', secondary: null },

@@ -26,7 +26,6 @@ const t = translations(
     wins: (name: string) => `vyhrává ${name}`,
     shake: 'Kámen… nůžky… papír!',
     reveal: 'Odhalení!',
-    pickNamed: (name: string) => `${name}, vyber zbraň`,
     pick: 'Vyber zbraň',
     chosen: (choice: string) => `Vybráno: ${choice}.`,
     revealing: 'Odhalujeme…',
@@ -40,7 +39,6 @@ const t = translations(
     wins: (name: string) => `${name} wins`,
     shake: 'Rock… paper… scissors!',
     reveal: 'Reveal!',
-    pickNamed: (name: string) => `${name}, pick your weapon`,
     pick: 'Pick your weapon',
     chosen: (choice: string) => `Chosen: ${choice}.`,
     revealing: 'Revealing…',
@@ -190,14 +188,7 @@ export function createRpsView(ctx: ViewContext<RpsMove>): GameView<RpsView> {
       latest = view;
       frame = f;
       const active = canChoose();
-      setText(
-        prompt,
-        f.finished
-          ? t.reveal
-          : ctx.mode === 'local'
-            ? t.pickNamed(ctx.names[f.perspective])
-            : t.pick,
-      );
+      setText(prompt, f.finished ? t.reveal : t.pick);
       const mine = myChoice();
       const opponentReady = view.opponentReady || f.committed.includes(otherPlayer(f.perspective));
       for (const button of buttons) {

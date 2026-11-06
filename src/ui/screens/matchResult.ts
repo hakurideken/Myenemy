@@ -45,8 +45,8 @@ interface MatchResultOptions {
   readonly winner: PlayerSlot;
   readonly score: Readonly<PerPlayer<number>>;
   readonly history: readonly RoundRecord[];
-  /** Hráč na tomto zařízení (PvE, online); null = lokálně dva hráči. */
-  readonly me: PlayerSlot | null;
+  /** Hráč na tomto zařízení. */
+  readonly me: PlayerSlot;
   readonly sfx: Sfx;
   readonly onRematch: () => void;
   readonly onMenu: () => void;
@@ -66,7 +66,7 @@ function describeRecord(record: RoundRecord, names: PerPlayer<string>): string {
 
 function rematchControls(o: MatchResultOptions): HTMLElement[] {
   const online = o.online;
-  if (!online || o.me === null) {
+  if (!online) {
     return [button(t.playAgain, o.onRematch, 'btn btn-primary btn-lg', { 'data-autofocus': true })];
   }
   if (!online.canRematch) {
@@ -131,6 +131,6 @@ export function matchResultScreen(o: MatchResultOptions): Mount {
         ),
       ),
     );
-    o.sfx.play(o.me !== null && winner !== o.me ? 'lose' : 'win');
+    o.sfx.play(winner !== o.me ? 'lose' : 'win');
   };
 }

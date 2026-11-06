@@ -6,7 +6,7 @@ import { COGNITIVE_GROUPS, DIFFICULTIES, type Difficulty, type PlayerSlot } from
 import { createRng, type Rng } from '../core/util/rng';
 import { GAME_INFOS, GAMES, getGame } from './registry';
 
-const MODES = ['pve', 'local', 'online'] as const;
+const MODES = ['pve', 'online'] as const;
 
 /** Simulace hry bez runneru: tajná data (skrytá informace), rozdávající (karty), mlha. */
 interface Sim {

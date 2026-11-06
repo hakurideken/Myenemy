@@ -1,7 +1,7 @@
 # Myenemy
 
-Webová hra – souboj 1v1 v sadě miniher. Hraje se proti AI, ve dvou na jednom zařízení
-nebo online s kódem místnosti. Žádné účty ani databáze, jen přezdívka uložená v prohlížeči.
+Webová hra – souboj 1v1 v sadě miniher. Hraje se proti AI nebo online s kódem místnosti
+(hra ve dvou na jednom zařízení byla zrušena). Žádné účty ani databáze, jen přezdívka uložená v prohlížeči.
 
 ## Stav vývoje
 
@@ -87,7 +87,7 @@ npm install
 npm run dev
 ```
 
-Hra poběží na <http://localhost:5173>. PvE i hra ve dvou fungují bez jakékoli konfigurace.
+Hra poběží na <http://localhost:5173>. Hra proti AI funguje bez jakékoli konfigurace.
 
 | Příkaz                 | Co dělá                                          |
 | ---------------------- | ------------------------------------------------ |
@@ -144,7 +144,7 @@ Hra poběží na <http://localhost:5173>. PvE i hra ve dvou fungují bez jakéko
 - **Jiná verze:** dva hráči s jiným buildem se nespojí – oba uvidí „Soupeř má jinou verzi hry –
   obnovte stránku“.
 - **Výpadek serveru:** když se server do 5 s neozve (výpadek, uspaný projekt), hra to řekne
-  a nabídne PvE nebo hru ve dvou.
+  a nabídne hru proti AI.
 
 ### Nastavení Supabase (krok za krokem)
 
@@ -210,7 +210,7 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
    - Výpadek: v konzoli prohlížeče `__duo.transports[1].setConnected(false)` – po 5 s banner
      s odpočtem, po dalších 15 s výhra kontumací.
    - Nedostupný server: `__duo.hub.available = false` a pak vytvoř místnost – do 5 s hláška
-     s nabídkou PvE / hry ve dvou.
+     s nabídkou hry proti AI.
 3. **Se Supabase:** nastav `.env.local` podle návodu výše, otevři hru ve dvou prohlížečích
    (nebo v normálním a anonymním okně). Vyzkoušej kód i odkaz `?room=`, třetí okno
    („Místnost je plná“), odchod přes ✕ (soupeř vyhraje kontumací) a odvetu.
@@ -231,17 +231,15 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
    - **Sirky:** „Vzít 1/2/3“; při najetí se sirky, které bys vzal, nadzvednou. Trik: nech
      soupeři počet, který dává zbytek 1 po dělení čtyřmi.
    - **Tečky a čtverečky:** klikej na čáry mezi tečkami; kdo uzavře políčko, hraje znovu.
-3. **Dva hráči:** Klikací souboj a Postřeh mají půlenou obrazovku (A: klávesa A / Q W E R,
-   B: klávesa L / U I O P), deskové hry mají společnou desku.
-4. **Velký souboj** je teď dostupný (Čtyři v řadě a Tečky a čtverečky).
-5. Online (`?duo` nebo Supabase): všechny nové hry fungují i po síti – hostitel posílá stav,
+3. **Velký souboj** je teď dostupný (Čtyři v řadě a Tečky a čtverečky).
+4. Online (`?duo` nebo Supabase): všechny nové hry fungují i po síti – hostitel posílá stav,
    reakční hry posílají lokálně změřený výsledek.
 
 ## Jak otestovat fázi 4 – skrytá informace (Lodě, Logik)
 
 1. `npm test` – pravidla obou her, AI (těžká v Lodích střílí podle mapy pravděpodobnosti,
    v Logiku prolomí každý kód nejvýš na 7 pokusů), automatické odpovědi z tajných dat,
-   předávání zařízení a online závazky: poctivá hra, lež hosta i hostitele v odpovědích,
+   a online závazky: poctivá hra, lež hosta i hostitele v odpovědích,
    hostitel, který pozmění odpověď hosta, hostitel bez závazku a host, který nezvolí kód.
 2. **Proti AI → Vlastní výběr → best of 1 → Vybrat hry → Lodě:**
    - Rozmístění: vyber loď v paletě, klikni do moře (náhled zežloutne, nepovolené místo
@@ -253,10 +251,7 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
 3. **Logik souboj:** zvol tajný kód (klávesy 1–6 nebo klik na barvy, Backspace maže, Enter
    potvrdí), pak tipuj. Odpověď: zlatá tečka = barva i místo, kroužek = jen barva. Barvy mají
    i vlastní symbol. Vyhrává, kdo prolomí kód na méně pokusů.
-4. **Dva hráči:** obě hry jdou přes „Předej zařízení“ – každý vidí jen své lodě / svůj kód.
-   Po výstřelu vedle zůstane výsledek 1,5 s vidět, pak se zařízení předá. V Logiku tipuje
-   první ten, kdo zařízení právě drží (jedno předání na kolo).
-5. **Online (`?duo` nebo Supabase):** obě strany zadají lodě / kód, hra začne až po obou.
+4. **Online (`?duo` nebo Supabase):** obě strany zadají lodě / kód, hra začne až po obou.
    Na konci se kódy odhalí a ověří – výsledek musí být u obou stejný, v konzoli bez varování.
 
 ## Jak otestovat fázi 4 – karetní hry (Oko bere, Prší, Pexeso)
@@ -275,16 +270,14 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
      provede samo. Když dojde balíček, otočí se odhazovací.
    - **Pexeso duel:** 15 dvojic (30 kartiček). Otoč dvě kartičky; dvojice = bereš a hraješ znovu. Karty z posledního
      tahu zůstanou vidět, dokud někdo neotočí další.
-3. **Dva hráči:** Oko bere a Prší přes „Předej zařízení“ (každý vidí jen svou ruku), Pexeso
-   na společné desce.
-4. **Online (`?duo` nebo Supabase):** na začátku kola se chvíli míchá („Míchám balíček…“).
+3. **Online (`?duo` nebo Supabase):** na začátku kola se chvíli míchá („Míchám balíček…“).
    Každá strana vidí jen svou ruku, soupeř jen počet karet. V Oko bere je vidět jen
    „rozhodnuto“, ne jak. Výsledek musí být u obou stejný, v konzoli bez chyb.
 
 ## Jak otestovat fázi 5 – UI, přístupnost, nasazení
 
 1. **Nasazení:** podle návodu výše zapni Pages (a případně přidej proměnné Supabase),
-   pak push nebo **Run workflow**. Na nasazené adrese zkus PvE, hru ve dvou a online
+   pak push nebo **Run workflow**. Na nasazené adrese zkus PvE a online
    (dvě okna / dva prohlížeče, odkaz `?room=` musí vést na `/Myenemy/?room=…`).
 2. **Klávesnice:** celou hru jde ovládat bez myši – Tab mezi prvky (viditelný zlatý rámeček),
    Enter/mezerník, zkratky her podle úvodní nápovědy. Po přechodu na novou obrazovku je
@@ -292,15 +285,13 @@ Lokálně si produkční build vyzkoušíš přes `npm run build` a `npm run pre
 3. **Opuštění zápasu (✕):** místo systémového okna se ukáže vlastní dialog. Výchozí je
    „Zůstat“, Escape nebo klik mimo dialog ho zavře, Tab neuteče ven a hra pod ním nereaguje
    na klávesy.
-4. **Předávání zařízení:** při hře ve dvou (Lodě, Logik, Prší, Oko bere, KNP) nejde hru pod
-   překryvem ovládat ani Tabem – čtečka obrazovky čte jen výzvu k předání.
-5. **Nastavení → Omezit animace:** vypne létání karet, otáčení a pulzování i bez
+4. **Nastavení → Omezit animace:** vypne létání karet, otáčení a pulzování i bez
    systémového nastavení. Když je „Omezit pohyb“ zapnuté v systému, přepínač je zapnutý
    a zamčený.
-6. **Čtečka obrazovky** (NVDA, VoiceOver): stav hry se ohlašuje (aria-live), karty a pole
+5. **Čtečka obrazovky** (NVDA, VoiceOver): stav hry se ohlašuje (aria-live), karty a pole
    mají české popisy („srdcová sedma“, „C5: zásah“), časovač upozorní jednou na posledních
    5 sekund.
-7. **Instalace:** v Chrome / Edge na nasazené adrese jde hru „nainstalovat“ (manifest).
+6. **Instalace:** v Chrome / Edge na nasazené adrese jde hru „nainstalovat“ (manifest).
 
 ## Úpravy po fázi 5
 
@@ -339,7 +330,7 @@ Zpět přes „Čeština“.
 **Lodě: odkrytá deska po konci hry.** Jakmile hra skončí, objeví se na soupeřově moři
 jeho lodě – zasažené části s ✕ a nezasažené šedě. Výsledek kola pak ukáže obě moře
 vedle sebe (Odkrytá deska), takže si oba hráči v klidu prohlédnou, kam stříleli a kde
-lodě opravdu byly. Lokálně a proti AI zná zařízení obě flotily hned. Online se flotila
+lodě opravdu byly. Proti AI zná zařízení obě flotily hned. Online se flotila
 soupeře ukáže až po jejím odhalení a ověření proti závazku a odpovědím během hry.
 Data, která ověřením neprojdou, se neukážou a zápas skončí jako nesoulad dat.
 
@@ -393,11 +384,11 @@ src/
 ```
 
 - **Herní logika je čistá funkce stavu** (`setup → toMove → legal → apply → outcome → view`).
-  Stejná logika běží v PvE, lokálně i online; `view(state, hráč)` vrací jen to, co hráč smí
+  Stejná logika běží v PvE i online; `view(state, hráč)` vrací jen to, co hráč smí
   vidět.
 - **GameRunner** implementuje rozhraní `MiniGame` ze zadání (`init/start/onInput/onEnd/destroy`)
-  a stará se o „přemýšlení“ AI (0,5–1,5 s), limit na tah (pak automatický tah), v lokálním
-  režimu o obrazovku „Předej zařízení“ a online u hostitele o posílání stavu soupeři.
+  a stará se o „přemýšlení“ AI (0,5–1,5 s), limit na tah (pak automatický tah) a online
+  u hostitele o posílání stavu soupeři.
 - **RemoteRunner** u online hosta logiku nespouští – jen vykresluje stav od hostitele
   (validovaný schématem pohledu) a posílá vstupy.
 - **MatchController** nezná konkrétní hry: řeší best of N, remízová kola, los a kontumace.

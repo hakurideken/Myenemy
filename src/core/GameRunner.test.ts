@@ -73,7 +73,6 @@ function raceGame(
     length: 'quick',
     rules: ['test'],
     controls: () => [],
-    localLayout: 'shared',
     moveTimeoutMs: 10_000,
     revealMs: 500,
     cognitive: { primary: 'strategy', secondary: null },
@@ -105,7 +104,6 @@ function pickGame(
     length: 'quick',
     rules: ['test'],
     controls: () => [],
-    localLayout: 'hotseat',
     moveTimeoutMs: 10_000,
     revealMs: 500,
     cognitive: { primary: 'strategy', secondary: null },
@@ -147,13 +145,10 @@ function context(clock: ManualClock, overrides: Partial<RoundContext> = {}): Rou
     clock,
     prefs: { reducedMotion: true },
     sfx: { play: () => undefined, vibrate: () => undefined },
-    handoff: () => Promise.resolve(),
     showTurnTimer: () => undefined,
     ...overrides,
   };
 }
-
-const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 let clock: ManualClock;
 beforeEach(() => {
@@ -237,9 +232,7 @@ describe('GameRunner – PvE', () => {
     const observe = vi.fn();
     const runner = new GameRunner(raceGame(h.createView, { aiObserve: observe }));
     const ended: RoundEnd[] = [];
-    runner.init(
-      context(clock, { seats: { A: { kind: 'human' }, B: { kind: 'human' } }, mode: 'local' }),
-    );
+    runner.init(context(clock, { seats: { A: { kind: 'human' }, B: { kind: 'human' } } }));
     runner.onEnd((r) => ended.push(r));
     runner.start();
     runner.onInput('A', { step: 2 });
@@ -301,63 +294,5 @@ describe('GameRunner – PvE', () => {
     runner.start();
     clock.advance(AI_THINK_MAX_MS);
     expect(calls).toBe(2);
-  });
-});
-
-describe('GameRunner – lokální hotseat', () => {
-  it('před každou tajnou volbou předá zařízení a druhý hráč mezitím nemůže hrát', async () => {
-    const h = harness<PickView, PickMove>();
-    const handoffs: PlayerSlot[] = [];
-    const runner = new GameRunner(pickGame(h.createView));
-    runner.init(
-      context(clock, {
-        mode: 'local',
-        seats: { A: { kind: 'human' }, B: { kind: 'human' } },
-        starter: 'B',
-        handoff: (to) => {
-          handoffs.push(to);
-          return Promise.resolve();
-        },
-      }),
-    );
-    runner.start();
-    expect(handoffs).toEqual(['B']);
-    await flush();
-    expect(h.renders.at(-1)?.frame).toMatchObject({ perspective: 'B', canAct: ['B'] });
-
-    h.viewCtx?.submit('A', { n: 9 });
-    expect(h.renders.at(-1)?.view.mine).toBeNull();
-
-    h.viewCtx?.submit('B', { n: 3 });
-    expect(handoffs).toEqual(['B', 'A']);
-    await flush();
-    const last = h.renders.at(-1);
-    expect(last?.frame).toMatchObject({ perspective: 'A', canAct: ['A'] });
-    expect(last?.view.mine).toBeNull();
-
-    h.viewCtx?.submit('A', { n: 5 });
-    expect(h.renders.at(-1)?.frame.finished).toEqual(win('A'));
-  });
-
-  it('lhůta na tah běží až po předání zařízení', async () => {
-    const h = harness<PickView, PickMove>();
-    let release: () => void = () => undefined;
-    const runner = new GameRunner(pickGame(h.createView));
-    runner.init(
-      context(clock, {
-        mode: 'local',
-        seats: { A: { kind: 'human' }, B: { kind: 'human' } },
-        handoff: () => new Promise<void>((resolve) => (release = resolve)),
-      }),
-    );
-    runner.start();
-    clock.advance(30_000);
-    expect(h.renders).toHaveLength(0);
-    release();
-    await flush();
-    clock.advance(9_999);
-    expect(h.renders.at(-1)?.view.mine).toBeNull();
-    clock.advance(1);
-    expect(h.renders.length).toBeGreaterThan(0);
   });
 });
