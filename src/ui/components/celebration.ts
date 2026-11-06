@@ -38,6 +38,13 @@ interface FigureParts {
   readonly extra?: SVGElement[];
 }
 
+/** Dvě oči kolem středu hlavy [x, y]. */
+function eyes(x: number, y: number): SVGCircleElement[] {
+  return [-2.4, 2.4].map((dx) =>
+    svg('circle', { class: 'pd-eye', cx: String(x + dx), cy: String(y), r: '1.1' }),
+  );
+}
+
 /** Panďulák s nohama v [0, 0]; paže a nohy se otáčí kolem kloubu (počátek skupiny). */
 function figure(cls: string, parts: FigureParts = {}): SVGGElement {
   return g(
@@ -53,7 +60,8 @@ function figure(cls: string, parts: FigureParts = {}): SVGGElement {
       parts.armL ?? g({ class: 'pd-arm pd-arm--l' }, line(0, 0, 0, 15)),
       parts.armR ?? g({ class: 'pd-arm pd-arm--r' }, line(0, 0, 0, 15)),
     ),
-    parts.head ?? svg('circle', { class: 'pd-head', cx: '0', cy: '-42', r: '7' }),
+    parts.head ??
+      g(null, svg('circle', { class: 'pd-head', cx: '0', cy: '-42', r: '7' }), ...eyes(0, -43.6)),
     ...(parts.extra ?? []),
   );
 }
@@ -141,7 +149,7 @@ export function victoryScene(winner: PlayerSlot): SVGSVGElement {
   );
 }
 
-/** Uplakaný panďulák: hlava skloněná, ruce u obličeje, slzy kapou. */
+/** Uplakaný panďulák: hlava skloněná, ruce svěšené, slzy kapou. */
 function crier(x: number, delay: number): SVGGElement {
   const tears = [-1, 5].map((dx, i) =>
     vars(svg('circle', { class: 'pd-tear', cx: String(dx), cy: '-40', r: '1.4' }), {
@@ -155,12 +163,16 @@ function crier(x: number, delay: number): SVGGElement {
         head: g(
           { class: 'pd-sad' },
           svg('circle', { class: 'pd-head', cx: '2', cy: '-40', r: '7' }),
+          ...eyes(2, -41.6),
+          // Smutně zvednutá obočí.
+          line(-2, -45.5, 0.8, -44.4, 'pd-brow'),
+          line(6, -45.5, 3.2, -44.4, 'pd-brow'),
           svg('path', { class: 'pd-frown', d: 'M-1 -35a4 4 0 0 1 6 0' }),
           line(-1, -41, -1.5, -37, 'pd-streak'),
           line(5, -41, 5.5, -37, 'pd-streak'),
         ),
-        armL: g({ class: 'pd-arm pd-arm--cry-l' }, line(0, 0, 0, 9)),
-        armR: g({ class: 'pd-arm pd-arm--cry-r' }, line(0, 0, 0, 9)),
+        armL: g({ class: 'pd-arm pd-arm--cry-l' }, line(0, 0, 0, 14)),
+        armR: g({ class: 'pd-arm pd-arm--cry-r' }, line(0, 0, 0, 14)),
         extra: tears,
       }),
       { '--d': `${delay}s` },

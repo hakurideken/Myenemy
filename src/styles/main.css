@@ -1168,6 +1168,26 @@ legend {
   fill: var(--text);
 }
 
+.pd-eye {
+  fill: var(--text);
+}
+
+.pd--a .pd-eye {
+  fill: var(--a);
+}
+
+.pd--b .pd-eye {
+  fill: var(--b);
+}
+
+.pd--crier .pd-eye {
+  fill: var(--muted);
+}
+
+.pd-brow {
+  stroke-width: 1.1 !important;
+}
+
 .pd--a .pd-fist {
   fill: var(--a);
 }
@@ -1209,11 +1229,11 @@ legend {
 }
 
 .pd-arm--cry-l {
-  transform: rotate(160deg);
+  transform: rotate(10deg);
 }
 
 .pd-arm--cry-r {
-  transform: rotate(-160deg);
+  transform: rotate(-10deg);
 }
 
 /* Trofej */
