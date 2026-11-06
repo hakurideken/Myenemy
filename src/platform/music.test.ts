@@ -42,7 +42,6 @@ class FakeSource {
   loopEnd = 0;
   started: number[] | null = null;
   stopped = false;
-  onended: (() => void) | null = null;
   connect<T>(node: T): T {
     return node;
   }
@@ -124,7 +123,7 @@ describe('hudba', () => {
     expect(source?.loopEnd).toBeCloseTo(0.5);
   });
 
-  it('konec zápasu: výherní skladba, po dohrání zase podklad; opakované volání ji nerestartuje', async () => {
+  it('konec zápasu: výherní skladba hraje dokola do odchodu; aktualizace ji nerestartuje', async () => {
     const m = setup();
     m.music.unlock();
     await flush();
@@ -132,20 +131,17 @@ describe('hudba', () => {
     await flush();
     expect(m.now()).toBe('victory');
     const victory = m.sources.at(-1);
-    expect(victory?.loop).toBe(false);
+    expect(victory?.loop).toBe(true);
     m.music.play('victory'); // aktualizace obrazovky odvety
     await flush();
     expect(m.sources.at(-1)).toBe(victory);
-    victory?.onended?.();
+    m.music.play('theme'); // odchod do menu / odveta
     await flush();
     expect(m.now()).toBe('theme');
-    m.music.play('victory');
-    await flush();
-    expect(m.now()).toBe('theme'); // pořád stejná obrazovka – fanfára se neopakuje
-    m.music.play('theme');
     m.music.play('defeat');
     await flush();
     expect(m.now()).toBe('defeat');
+    expect(m.sources.at(-1)?.loop).toBe(true);
     expect(MUSIC_FILES.defeat).toBe('try-again-player-1.mp3');
   });
 

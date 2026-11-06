@@ -395,14 +395,14 @@ padá v barvě střelce, skóre nahoře) a výsledek kola je u obou stejný.
 | Soubor                   | Kdy hraje                                      |
 | ------------------------ | ---------------------------------------------- |
 | `friendly-rivalry.mp3`   | pořád dokola – menu, hry i výsledky kol        |
-| `victory-fanfare.mp3`    | na konci zápasu, když vyhraješ (jednou, 1:32)  |
-| `try-again-player-1.mp3` | na konci zápasu, když prohraješ (jednou, 0:26) |
+| `victory-fanfare.mp3`    | na konci zápasu, když vyhraješ (dokola, 1:32)  |
+| `try-again-player-1.mp3` | na konci zápasu, když prohraješ (dokola, 0:26) |
 
-- Po dohrání výherní / prohrané skladby se vrátí podklad; remíza kola na hudbu nemá vliv.
-  Při odchodu z výsledku zápasu (odveta, menu) hned zase hraje podklad.
+- Výherní / prohraná skladba hraje dokola, dokud hráč neopustí výsledek zápasu (odveta,
+  menu) – pak hned zase podklad. Remíza kola na hudbu nemá vliv.
 - Přehrává se přes Web Audio (`src/platform/music.ts`): podklad se dekóduje celý a smyčka
   vynechá ticho, které MP3 přidává na začátek a konec – navazuje bez mezery. Skladby na
-  konec zápasu se stahují až ve chvíli, kdy jsou potřeba, a po dohrání se z paměti uvolní.
+  konec zápasu se stahují až ve chvíli, kdy jsou potřeba, a po odchodu z výsledku se z paměti uvolní.
 - Prohlížeč pustí zvuk až po první interakci – hudba začne po prvním kliknutí nebo klávese.
   Ve skryté záložce se zvuk pozastaví. V režimu `?duo` hraje hudba jen v levé polovině.
 - **Nastavení:** „Hudba“ (zapnout / vypnout) a „Hlasitost hudby“ zvlášť od „Zvuků“
@@ -417,7 +417,7 @@ menu zase podklad.
 **Animace konce zápasu** (`src/ui/components/celebration.ts`, SVG + CSS, bez obrázků):
 
 - **Výhra:** ohňostroj (8 výbuchů v barvách hry) a panďulák v barvě vítěze přinese
-  korunu, vyskočí, nasadí ji na zlatou trofej a zamává. Asi 7 s, jednou; koruna zůstane.
+  korunu, vyskočí, nasadí ji na zlatou trofej (asi 7 s) a pak mává dokola, dokud hráč obrazovku neopustí.
 - **Prohra:** vybledlá trofej, tři panďuláci brečí (třesou se, kapou slzy) a dva
   v barvě soupeře chodí sem a tam, zastaví se a ukážou prostředníček – dokola.
 - „Omezit animace“ (nastavení i systém) ukáže rovnou konečný obrázek bez pohybu.

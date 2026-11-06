@@ -1291,7 +1291,10 @@ legend {
 }
 
 .pd--bearer .pd-arm--r {
-  animation: cel-bearer-arm-r 6s ease-in-out 1s both;
+  /* Po nasazení koruny mává dokola, dokud hráč obrazovku neopustí. */
+  animation:
+    cel-bearer-arm-r 6s ease-in-out 1s both,
+    cel-wave 1.2s ease-in-out 7s infinite;
 }
 
 .pd--bearer .pd-leg--l,
@@ -1469,6 +1472,17 @@ html.reduce-motion .celebration * {
 
   50% {
     transform: rotate(-22deg);
+  }
+}
+
+@keyframes cel-wave {
+  0%,
+  100% {
+    transform: rotate(-150deg);
+  }
+
+  50% {
+    transform: rotate(-115deg);
   }
 }
 

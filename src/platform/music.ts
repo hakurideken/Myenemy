@@ -39,7 +39,7 @@ export interface MusicDeps {
 }
 
 export interface Music {
-  /** Co má hrát (opakované volání stejné skladby nic nedělá – ani po jejím dohrání). */
+  /** Co má hrát dokola (opakované volání stejné skladby ji nerestartuje). */
   play(track: MusicTrack): void;
   /** Po změně nastavení (vypnutí, hlasitost). */
   refresh(): void;
@@ -54,9 +54,7 @@ interface Playing {
 }
 
 export function createMusic(deps: MusicDeps): Music {
-  /** Co si naposledy vyžádala obrazovka. */
-  let requested: MusicTrack = 'theme';
-  /** Co má opravdu hrát (po dohrání fanfáry zase podklad). */
+  /** Co si vyžádala obrazovka – hraje dokola, dokud se obrazovka nezmění. */
   let target: MusicTrack = 'theme';
   let playing: Playing | null = null;
   let unlocked = false;
@@ -86,7 +84,6 @@ export function createMusic(deps: MusicDeps): Music {
     playing = null;
     const ac = deps.context();
     const now = ac.currentTime;
-    current.source.onended = null;
     current.gain.gain.cancelScheduledValues(now);
     current.gain.gain.setValueAtTime(current.gain.gain.value, now);
     current.gain.gain.linearRampToValueAtTime(0, now + FADE_OUT_S);
@@ -109,24 +106,11 @@ export function createMusic(deps: MusicDeps): Music {
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(volume(), now + FADE_IN_S);
     source.connect(gain).connect(ac.destination);
-    if (track === 'theme') {
-      source.loop = true;
-      source.loopStart = from;
-      source.loopEnd = end;
-      source.start(now, from);
-    } else {
-      source.start(now, from, end - from);
-      source.onended = () => {
-        if (playing?.source !== source) return;
-        playing = null;
-        buffers.delete(track);
-        // Po dohrání výsledkové skladby se vrátí podklad (obrazovka ale zůstává).
-        if (target === track) {
-          target = 'theme';
-          sync();
-        }
-      };
-    }
+    // Všechny skladby dokola: podklad v menu a hrách, výhra / prohra do odchodu z výsledku.
+    source.loop = true;
+    source.loopStart = from;
+    source.loopEnd = end;
+    source.start(now, from);
     playing = { track, source, gain };
   }
 
@@ -154,8 +138,7 @@ export function createMusic(deps: MusicDeps): Music {
 
   return {
     play(track) {
-      if (track === requested) return;
-      requested = track;
+      if (track === target) return;
       target = track;
       sync();
     },
