@@ -390,6 +390,30 @@ na kachny, zkus minout (zaměřovač se na chvíli zašedí, „Nabíjím…“)
 Online (`?duo` nebo dva prohlížeče): zásah v jedné polovině se hned ukáže v druhé (kachna
 padá v barvě střelce, skóre nahoře) a výsledek kola je u obou stejný.
 
+**Hudba.** Vlastní skladby v `public/music/` (MP3, celkem asi 5,6 MB):
+
+| Soubor                   | Kdy hraje                                      |
+| ------------------------ | ---------------------------------------------- |
+| `friendly-rivalry.mp3`   | pořád dokola – menu, hry i výsledky kol        |
+| `victory-fanfare.mp3`    | na konci zápasu, když vyhraješ (jednou, 1:32)  |
+| `try-again-player-1.mp3` | na konci zápasu, když prohraješ (jednou, 0:26) |
+
+- Po dohrání výherní / prohrané skladby se vrátí podklad; remíza kola na hudbu nemá vliv.
+  Při odchodu z výsledku zápasu (odveta, menu) hned zase hraje podklad.
+- Přehrává se přes Web Audio (`src/platform/music.ts`): podklad se dekóduje celý a smyčka
+  vynechá ticho, které MP3 přidává na začátek a konec – navazuje bez mezery. Skladby na
+  konec zápasu se stahují až ve chvíli, kdy jsou potřeba, a po dohrání se z paměti uvolní.
+- Prohlížeč pustí zvuk až po první interakci – hudba začne po prvním kliknutí nebo klávese.
+  Ve skryté záložce se zvuk pozastaví. V režimu `?duo` hraje hudba jen v levé polovině.
+- **Nastavení:** „Hudba“ (zapnout / vypnout) a „Hlasitost hudby“ zvlášť od „Zvuků“
+  (efekty). Volba se pamatuje v prohlížeči, starší uložená nastavení mají hudbu zapnutou
+  na 50 %.
+
+**Jak otestovat:** po přezdívce / prvním kliknutí hraje v menu podklad. V Nastavení
+vypni Hudbu (zvuky efektů zůstanou) a posuvníkem změň hlasitost. Dohraj zápas proti AI
+(třeba best of 1, KNP) – při výhře zazní fanfára, při prohře „Try Again“, po návratu do
+menu zase podklad.
+
 ## Architektura
 
 ```

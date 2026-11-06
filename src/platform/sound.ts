@@ -1,4 +1,5 @@
 import type { Sfx, SfxName } from '../core/MiniGame';
+import { audioContext } from './audio';
 import { canVibrate, type Settings } from './settings';
 
 /** [frekvence Hz, začátek s, délka s, tvar vlny] – zvuky se syntetizují, žádné cizí nahrávky. */
@@ -27,14 +28,6 @@ const PATTERNS: Record<SfxName, readonly Note[]> = {
 };
 
 export function createSfx(getSettings: () => Settings): Sfx {
-  let audio: AudioContext | null = null;
-
-  function context(): AudioContext {
-    audio ??= new AudioContext();
-    if (audio.state === 'suspended') void audio.resume();
-    return audio;
-  }
-
   function tone(ac: AudioContext, [freq, offset, duration, type]: Note): void {
     const start = ac.currentTime + offset;
     const osc = ac.createOscillator();
@@ -52,7 +45,7 @@ export function createSfx(getSettings: () => Settings): Sfx {
     play(name) {
       if (!getSettings().sound) return;
       try {
-        const ac = context();
+        const ac = audioContext();
         for (const note of PATTERNS[name]) tone(ac, note);
       } catch {
         /* zvuk není k dispozici – hra funguje dál bez něj */

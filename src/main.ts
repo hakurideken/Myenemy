@@ -2,6 +2,7 @@ import './styles/main.css';
 import { InMemoryHub, type InMemoryTransport } from './net/InMemoryTransport';
 import { roomFromSearch } from './net/room';
 import { lang } from './i18n';
+import { pauseAudioWhenHidden } from './platform/audio';
 import { App } from './ui/App';
 import { h } from './ui/dom';
 
@@ -10,6 +11,7 @@ if (!root) throw new Error('Chybí kořenový element #app');
 
 const params = new URLSearchParams(window.location.search);
 document.documentElement.lang = lang();
+pauseAudioWhenHidden();
 
 if (import.meta.env.DEV && params.has('duo')) {
   // Vývoj: dva hráči vedle sebe v jedné záložce, spojení přes InMemoryTransport (bez internetu).
@@ -27,7 +29,12 @@ if (import.meta.env.DEV && params.has('duo')) {
   root.classList.add('duo');
   root.append(left, right);
   new App(left, { transport, nickname: 'Hostitel' }).boot();
-  new App(right, { transport, nickname: 'Soupeř', suggestRoom: () => hub.lastRoom }).boot();
+  new App(right, {
+    transport,
+    nickname: 'Soupeř',
+    suggestRoom: () => hub.lastRoom,
+    music: false,
+  }).boot();
 } else {
   const pendingRoom = roomFromSearch(window.location.search);
   if (params.has('room')) {

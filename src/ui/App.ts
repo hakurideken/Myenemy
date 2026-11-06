@@ -6,6 +6,7 @@ import { readSupabaseConfig, supabaseTransportFactory } from '../net/config';
 import type { TransportFactory } from '../net/Transport';
 import { loadNickname, saveNickname } from '../platform/profile';
 import { applyMotionPreference, prefersReducedMotion, SettingsStore } from '../platform/settings';
+import { createAppMusic, type Music, type MusicTrack } from '../platform/music';
 import { createSfx } from '../platform/sound';
 import type { Banner } from './components/banner';
 import { confirmDialog, type ConfirmOptions } from './components/modal';
@@ -30,11 +31,20 @@ export interface AppOptions {
   readonly pendingRoom?: string | null;
   /** Návrh kódu pro připojení (vývojový režim). */
   readonly suggestRoom?: () => string | null;
+  /** false = bez hudby (vývojový režim dvou hráčů – hrála by dvakrát přes sebe). */
+  readonly music?: boolean;
 }
+
+const SILENT_MUSIC: Music = {
+  play: () => undefined,
+  refresh: () => undefined,
+  unlock: () => undefined,
+};
 
 export class App {
   readonly settings = new SettingsStore();
   readonly sfx: Sfx = createSfx(() => this.settings.current);
+  readonly music: Music;
   private readonly memories = new Map<GameId, AIMemory>();
   private readonly screenRoot = h('div', { class: 'app-screen' });
   private readonly bannerRoot = h('div', { class: 'app-banner' });
@@ -51,6 +61,8 @@ export class App {
     private readonly options: AppOptions = {},
   ) {
     root.append(this.bannerRoot, this.screenRoot);
+    this.music =
+      options.music === false ? SILENT_MUSIC : createAppMusic(() => this.settings.current);
     applyMotionPreference(this.settings.current.reducedMotion);
     this.persistNickname = options.nickname === undefined;
     this.nicknameValue = options.nickname ?? loadNickname();
@@ -76,8 +88,15 @@ export class App {
     else this.goNickname();
   }
 
-  /** animate: false = jen aktualizace téže obrazovky (bez úvodní animace, ať nebliká). */
-  show(mount: Mount, { animate = true }: { animate?: boolean } = {}): void {
+  /**
+   * animate: false = jen aktualizace téže obrazovky (bez úvodní animace, ať nebliká).
+   * music: co má hrát – všude podkladová hudba, na konci zápasu výhra / prohra.
+   */
+  show(
+    mount: Mount,
+    { animate = true, music = 'theme' }: { animate?: boolean; music?: MusicTrack } = {},
+  ): void {
+    this.music.play(music);
     this.cleanup?.();
     this.cleanup = null;
     this.screenRoot.classList.toggle('is-static', !animate);

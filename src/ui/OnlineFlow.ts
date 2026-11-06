@@ -384,7 +384,7 @@ export class OnlineFlow {
         break;
       case 'match-result':
         this.app.setBanner(null);
-        show(
+        this.app.show(
           matchResultScreen({
             names,
             winner: phase.winner,
@@ -402,6 +402,8 @@ export class OnlineFlow {
               canRematch: phase.canRematch,
             },
           }),
+          // Stejná skladba při aktualizaci odvety nezačne znovu (Music.play je idempotentní).
+          { animate: fresh, music: phase.winner === s.me ? 'victory' : 'defeat' },
         );
         break;
       case 'closed':

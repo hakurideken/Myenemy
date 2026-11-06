@@ -140,6 +140,7 @@ export class MatchFlow {
         onRematch: () => this.app.startMatch(this.setup),
         onMenu: () => this.app.goMenu(),
       }),
+      { music: winner === this.me ? 'victory' : 'defeat' },
     );
   }
 

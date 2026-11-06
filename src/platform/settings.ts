@@ -8,11 +8,20 @@ const settingsSchema = z.object({
   vibration: z.boolean(),
   /** Omezit animace i bez systémového nastavení (starší uložená nastavení ho nemají). */
   reducedMotion: z.boolean().default(false),
+  /** Hudba zvlášť od efektů (starší uložená nastavení ji nemají – výchozí zapnutá). */
+  music: z.boolean().default(true),
+  musicVolume: z.number().min(0).max(1).default(0.5),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
 
-const DEFAULTS: Settings = { sound: true, vibration: true, reducedMotion: false };
+const DEFAULTS: Settings = {
+  sound: true,
+  vibration: true,
+  reducedMotion: false,
+  music: true,
+  musicVolume: 0.5,
+};
 
 export class SettingsStore {
   private value: Settings;

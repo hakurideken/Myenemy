@@ -29,6 +29,8 @@ describe('nastavení', () => {
       sound: true,
       vibration: true,
       reducedMotion: false,
+      music: true,
+      musicVolume: 0.5,
     });
   });
 
@@ -41,12 +43,23 @@ describe('nastavení', () => {
       sound: false,
       vibration: true,
       reducedMotion: false,
+      music: true,
+      musicVolume: 0.5,
     });
   });
 
   it('změna se uloží a přežije nové načtení', () => {
     new SettingsStore().update({ reducedMotion: true });
     expect(new SettingsStore().current.reducedMotion).toBe(true);
+  });
+
+  it('hudba se vypíná a ztlumuje zvlášť od efektů', () => {
+    new SettingsStore().update({ music: false, musicVolume: 0.2 });
+    expect(new SettingsStore().current).toMatchObject({
+      sound: true,
+      music: false,
+      musicVolume: 0.2,
+    });
   });
 
   it('nesmysl v úložišti = výchozí hodnoty', () => {
