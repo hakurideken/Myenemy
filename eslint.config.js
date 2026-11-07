@@ -45,7 +45,7 @@ export default defineConfig(
             {
               group: ['@supabase/*'],
               message:
-                'Supabase jen v net/SupabaseTransport.ts – herní kód používá rozhraní Transport.',
+                'Supabase jen v net/SupabaseTransport.ts a net/accountClient.ts – zbytek používá rozhraní Transport a Account.',
             },
           ],
         },
@@ -53,7 +53,7 @@ export default defineConfig(
     },
   },
   {
-    files: ['src/net/SupabaseTransport.ts'],
+    files: ['src/net/SupabaseTransport.ts', 'src/net/accountClient.ts'],
     rules: { 'no-restricted-imports': 'off' },
   },
   {

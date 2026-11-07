@@ -98,3 +98,59 @@ export function confirmDialog(host: HTMLElement, o: ConfirmOptions): Promise<boo
     cancel.focus();
   });
 }
+
+export interface DialogOptions {
+  readonly title: string;
+  /** Obsah pod nadpisem (text, tlačítka…). */
+  readonly body: readonly Node[];
+  readonly actions: readonly HTMLButtonElement[];
+}
+
+export interface OpenDialog {
+  readonly el: HTMLElement;
+  close(): void;
+}
+
+/**
+ * Obecný dialog (přihlášení, účet): past na fokus, Escape a klik mimo zavírají,
+ * zbytek aplikace je mezitím neaktivní. Fokus na první tlačítko akcí.
+ */
+export function openDialog(host: HTMLElement, o: DialogOptions): OpenDialog {
+  const titleId = uid('dialog-title');
+  const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const dialog = h(
+    'div',
+    { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId },
+    h('h2', { id: titleId, class: 'dialog-title' }, o.title),
+    ...o.body,
+    h('div', { class: 'dialog-actions dialog-actions--stack' }, ...o.actions),
+  );
+  const backdrop = h('div', { class: 'dialog-backdrop' }, dialog);
+  const restore = makeInert(host, backdrop);
+  let open = true;
+
+  const close = (): void => {
+    if (!open) return;
+    open = false;
+    document.removeEventListener('keydown', onKey, true);
+    restore();
+    backdrop.remove();
+    if (previous?.isConnected) previous.focus();
+  };
+  function onKey(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+      return;
+    }
+    trapFocus(dialog, event);
+    event.stopPropagation();
+  }
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop) close();
+  });
+  document.addEventListener('keydown', onKey, true);
+  host.append(backdrop);
+  (o.actions[0] ?? dialog).focus();
+  return { el: dialog, close };
+}

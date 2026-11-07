@@ -47,6 +47,7 @@ export class MatchFlow {
         onStart: () => this.showGameIntro(),
         onBack: () => this.app.goMenu(),
       }),
+      { chrome: false },
     );
   }
 
@@ -71,6 +72,7 @@ export class MatchFlow {
         onStart: () => this.playRound(),
         onLeave: () => this.leave(),
       }),
+      { chrome: false },
     );
   }
 
@@ -105,6 +107,7 @@ export class MatchFlow {
           return () => runner.destroy();
         },
       }),
+      { chrome: false },
     );
   }
 
@@ -123,6 +126,7 @@ export class MatchFlow {
         sfx: this.app.sfx,
         onContinue: () => (this.controller.isOver ? this.showMatchResult() : this.showGameIntro()),
       }),
+      { chrome: false },
     );
   }
 

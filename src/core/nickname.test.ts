@@ -66,6 +66,8 @@ describe('validateNickname', () => {
       'Pavel' + from(0x00b2), // horní index
       'J' + from(0x0251) + 'n' + from(0x0251), // latinské alfa místo a
       from(0x0131) + 'van', // turecké ı bez tečky
+      from(0xa64e, 0xa64f), // staroslověnská azbuka mimo rozsah, který hlídá i server
+      from(0x03f6, 0x03b1), // řecký matematický symbol
     ]) {
       expect(validateNickname(bad).ok, bad).toBe(false);
     }

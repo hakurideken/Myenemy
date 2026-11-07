@@ -1,7 +1,7 @@
 # Myenemy
 
 Webová hra – souboj 1v1 v sadě miniher. Hraje se proti AI nebo online s kódem místnosti
-(hra ve dvou na jednom zařízení byla zrušena). Žádné účty ani databáze, jen přezdívka uložená v prohlížeči.
+(hra ve dvou na jednom zařízení byla zrušena). Účet není potřeba – stačí přezdívka v prohlížeči; přihlášení (Google, Discord) je jen pro kamarády a vzájemné výsledky.
 
 ## Stav vývoje
 
@@ -167,6 +167,56 @@ Hra poběží na <http://localhost:5173>. Hra proti AI funguje bez jakékoli kon
    kódem“.
 6. Projekt ve free plánu se po týdnu bez provozu uspí – hra pak ukáže „Online server je
    nedostupný“. V dashboardu Supabase ho obnovíš tlačítkem **Restore**.
+
+### Účty: přihlášení přes Google a Discord (krok za krokem)
+
+Hrát jde dál bez účtu (host). Účet je jen pro kamarády a vzájemné výsledky. Hráč má
+přezdívku a čtyřmístný kód (`Pepa#0042`) – přezdívky se můžou opakovat, dvojice ne.
+Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
+(najdeš ji i přímo v Supabase u každého poskytovatele).
+
+1. **Databáze:** Supabase → **SQL Editor** → vlož celý soubor
+   `supabase/migrations/20261107120000_accounts.sql` → **Run**. Vytvoří tabulku profilů
+   (s RLS), funkce pro přezdívku s kódem, export dat a smazání účtu. Spustit znovu je
+   bezpečné. Na konci souboru je kontrolní dotaz – má vrátit 0 řádků.
+2. **Adresy:** **Authentication → URL Configuration**
+   - Site URL: `https://hakurideken.github.io/Myenemy/`
+   - Redirect URLs: `https://hakurideken.github.io/Myenemy/`, `http://localhost:5173/`
+     a `http://localhost:4173/Myenemy/` (náhled buildu).
+   - **Přesně tyto adresy, bez hvězdiček (`*`) a jiných zástupných znaků** – jinak by šlo
+     podstrčit přesměrování na cizí web a ukrást přihlášení.
+3. **Google:** [console.cloud.google.com](https://console.cloud.google.com) → nový projekt →
+   **APIs & Services → OAuth consent screen** (External, název hry, e-mail) →
+   **Credentials → Create credentials → OAuth client ID** (Web application), do
+   **Authorized redirect URIs** callback adresu Supabase. Client ID a Client Secret vlož do
+   Supabase → **Authentication → Sign In / Providers → Google** a zapni.
+4. **Discord:** [discord.com/developers/applications](https://discord.com/developers/applications)
+   → **New Application** → **OAuth2** → **Redirects**: callback adresa Supabase. Client ID
+   a Client Secret vlož do Supabase → **Providers → Discord** a zapni.
+5. **Ostatní způsoby přihlášení vypnout:** v **Providers** vypni **Email** a **Phone**
+   a v **Authentication → Sign In / Providers** i **Anonymous sign-ins** – hra je nenabízí
+   a jinak by šlo zakládat účty přímo přes API (spam, obsazování přezdívek).
+6. Tajné klíče (Client Secret) patří jen do Supabase – do repozitáře ani do `.env` ne.
+   Web používá jen stávající veřejné `VITE_SUPABASE_URL` a `VITE_SUPABASE_ANON_KEY`.
+
+**Bezpečnost účtů** (kontrola agentem `security-reviewer`):
+
+- Klient smí z databáze jen číst svůj profil; zápisy jdou přes funkce, které kontrolují
+  přezdívku stejně přísně jako klient (jedna abeceda, žádné neviditelné znaky, NFKC).
+- Přezdívku jde měnit nejvýš jednou za 10 minut; kód zůstává, pokud je volný.
+- Nové tabulky v `public` nejsou automaticky přístupné klientům (výchozí práva odebraná).
+- Přihlášení je PKCE (žádné tokeny v adrese), uložené v `localStorage`. Pozor: všechny
+  GitHub Pages projekty účtu `hakurideken` sdílí jeden původ – jiná stránka na
+  `hakurideken.github.io` by k přihlášení dosáhla. Do přesunu na vlastní doménu tam
+  nedávej jiné weby.
+- Zásady soukromí ve hře (vpravo nahoře → Přihlásit → Ochrana soukromí); účet od 15 let.
+
+**Jak otestovat:** vpravo nahoře **Přihlásit → Přihlásit přes Google / Discord**, po návratu
+zvol přezdívku – v liště se ukáže `Přezdívka#1234`. Okno účtu: změna přezdívky (kód zůstane,
+pokud je volný; další změna až za 10 minut), stažení dat (JSON), odhlášení, smazání účtu
+(zmizí i řádek v **Table Editor → profiles**).
+Lišta vpravo nahoře (jazyk, nastavení, účet) je vidět všude kromě rozehraného zápasu
+a online místnosti.
 
 ## Nasazení na GitHub Pages
 

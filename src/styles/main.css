@@ -1,4 +1,5 @@
 :root {
+  --topbar-h: 52px;
   color-scheme: dark;
   --bg: #0e0b14;
   --bg-raise: #17121f;
@@ -575,15 +576,6 @@ legend {
   font-size: 0.95rem;
 }
 
-.menu-row {
-  display: flex;
-  gap: 12px;
-}
-
-.menu-row .btn {
-  flex: 1;
-}
-
 .menu-games {
   margin: 0;
   color: var(--muted);
@@ -917,6 +909,114 @@ legend {
 .noscript {
   padding: 32px 16px;
   text-align: center;
+}
+
+/* ---------- Lišta vpravo nahoře (jazyk, nastavení, účet) ---------- */
+
+.app-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  height: var(--topbar-h);
+  padding: 8px 12px 0;
+}
+
+.app-topbar[hidden] {
+  display: none;
+}
+
+/* S lištou se obrazovka vejde na výšku i s ní. */
+.app-topbar:not([hidden]) ~ .app-screen {
+  min-height: calc(100dvh - var(--topbar-h));
+}
+
+.topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  min-width: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.topbar-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+
+.topbar-btn:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.topbar-btn[hidden] {
+  display: none;
+}
+
+.topbar-account.is-signed-in {
+  border-color: var(--gold);
+}
+
+.topbar-account-text {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-small {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.dialog-actions--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.btn-provider {
+  justify-content: center;
+}
+
+.btn-provider--google {
+  border-color: #fff;
+  background: #fff;
+  color: #1f1f1f;
+}
+
+.btn-provider--discord {
+  border-color: #5865f2;
+  background: #5865f2;
+  color: #fff;
+}
+
+.account-handle {
+  margin: 0 0 8px;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  overflow-wrap: anywhere;
+}
+
+.privacy-section h2 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}
+
+.privacy-section p {
+  margin: 0;
+  color: var(--muted);
 }
 
 /* ---------- Potvrzovací dialog ---------- */

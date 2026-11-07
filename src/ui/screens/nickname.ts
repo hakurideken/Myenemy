@@ -3,23 +3,30 @@ import type { App, Mount } from '../App';
 import { button, logo } from '../components/common';
 import { h, setText } from '../dom';
 import { translations } from '../../i18n';
+import { accountErrorText } from './account';
 
 const t = translations(
   {
     title: 'Kdo jsi, bojovníku?',
-    lead: 'Přezdívka se uloží jen v tomhle prohlížeči. Žádný účet ani registrace.',
+    lead: 'Přezdívka se uloží jen v tomhle prohlížeči. Účet není potřeba.',
     label: 'Přezdívka',
     hint: (min: number, max: number) => `${min}–${max} znaků, diakritika je v pořádku.`,
     submit: 'Do arény',
     back: 'Zpět do menu',
+    accountLead:
+      'Přezdívka se uloží k tvému účtu. Dostaneš k ní kód (#1234), podle kterého tě najdou kamarádi.',
+    saving: 'Ukládám…',
   },
   {
     title: 'Who are you, warrior?',
-    lead: 'Your nickname is saved only in this browser. No account, no sign-up.',
+    lead: 'Your nickname is saved only in this browser. No account needed.',
     label: 'Nickname',
     hint: (min: number, max: number) => `${min}–${max} characters, accents are fine.`,
     submit: 'Enter the arena',
     back: 'Back to menu',
+    accountLead:
+      'Your nickname is saved to your account. You get a code with it (#1234) so friends can find you.',
+    saving: 'Saving…',
   },
 );
 
@@ -38,6 +45,9 @@ export function nicknameScreen(app: App): Mount {
     });
     const error = h('p', { id: 'nickname-error', class: 'field-error', 'aria-live': 'polite' });
 
+    const signedIn = app.account.state.kind === 'signed-in';
+    const submitButton = h('button', { type: 'submit', class: 'btn btn-primary btn-lg' }, t.submit);
+
     const submit = (event: SubmitEvent): void => {
       event.preventDefault();
       const result = validateNickname(input.value);
@@ -47,8 +57,26 @@ export function nicknameScreen(app: App): Mount {
         input.focus();
         return;
       }
-      app.setNickname(result.value);
-      app.continueAfterNickname();
+      if (!signedIn) {
+        app.setNickname(result.value);
+        app.continueAfterNickname();
+        return;
+      }
+      // Přihlášený: přezdívka k účtu (server přidělí #kód), pak teprve dál.
+      submitButton.disabled = true;
+      setText(submitButton, t.saving);
+      app.account.setNickname(result.value).then(
+        (profile) => {
+          app.setNickname(profile.nickname);
+          app.continueAfterNickname();
+        },
+        (err: unknown) => {
+          submitButton.disabled = false;
+          setText(submitButton, t.submit);
+          setText(error, accountErrorText(err));
+          input.focus();
+        },
+      );
     };
 
     root.append(
@@ -57,7 +85,7 @@ export function nicknameScreen(app: App): Mount {
         { class: 'screen screen--narrow screen--center' },
         logo(true),
         h('h1', { class: 'screen-title', tabindex: '-1' }, t.title),
-        h('p', { class: 'lead' }, t.lead),
+        h('p', { class: 'lead' }, signedIn ? t.accountLead : t.lead),
         h(
           'form',
           { class: 'card form', novalidate: true, onsubmit: submit },
@@ -65,7 +93,7 @@ export function nicknameScreen(app: App): Mount {
           input,
           h('p', { id: 'nickname-hint', class: 'field-hint' }, t.hint(NICKNAME_MIN, NICKNAME_MAX)),
           error,
-          h('button', { type: 'submit', class: 'btn btn-primary btn-lg' }, t.submit),
+          submitButton,
           app.nickname ? button(t.back, () => app.goMenu(), 'btn btn-ghost') : null,
         ),
       ),

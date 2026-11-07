@@ -13,8 +13,10 @@ const LETTER = /\p{L}/u;
 const SCRIPTS = [
   // Latinka jen základní a se středoevropskou diakritikou (bez ɑ, ı a podobných dvojníků).
   /^[A-Za-zÀ-ÖØ-öø-İĲ-ķĹ-ňŊ-ž]$/u,
-  /\p{Script=Cyrillic}/u,
-  /\p{Script=Greek}/u,
+  // Azbuka a řečtina jen v rozsazích písmen – stejně jako kontrola na serveru
+  // (supabase/migrations/…_accounts.sql, nickname_is_valid).
+  /^[Ѐ-ҁҊ-ԯ]$/u,
+  /^[ΆΈ-ΊΌΎ-ΡΣ-Ͽἀ-ᾼῂ-ῌῐ-Ίῠ-Ῥῲ-ῼ]$/u,
 ];
 
 import { translations } from '../i18n';

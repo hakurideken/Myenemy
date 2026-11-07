@@ -1,7 +1,7 @@
 import type { App, Mount } from '../App';
 import { button, logo } from '../components/common';
 import { h } from '../dom';
-import { lang, translations } from '../../i18n';
+import { translations } from '../../i18n';
 
 const t = translations(
   {
@@ -13,7 +13,6 @@ const t = translations(
     online: 'Online 1v1',
     onlineSub: 'Založ místnost nebo se připoj kódem',
     onlineOff: 'Na tomhle webu zatím nenastaveno',
-    settings: 'Nastavení',
     nickname: 'Změnit přezdívku',
     games: 'Sada miniher pro dva – souboj 1v1.',
   },
@@ -26,7 +25,6 @@ const t = translations(
     online: 'Online 1v1',
     onlineSub: 'Create a room or join with a code',
     onlineOff: 'Not set up on this site yet',
-    settings: 'Settings',
     nickname: 'Change nickname',
     games: 'A set of minigames for two – a 1v1 duel.',
   },
@@ -68,19 +66,7 @@ export function menuScreen(app: App): Mount {
           menuButton(t.online, app.onlineAvailable ? t.onlineSub : t.onlineOff, () =>
             app.goOnline(),
           ),
-          h(
-            'div',
-            { class: 'menu-row' },
-            button(t.settings, () => app.goSettings(), 'btn btn-ghost'),
-            button(t.nickname, () => app.goNickname(), 'btn btn-ghost'),
-          ),
-          // Přepínač jazyka hned v menu – v jazyce, na který se přepne.
-          button(
-            lang() === 'en' ? 'Čeština' : 'English',
-            () => app.switchLanguage(lang() === 'en' ? 'cs' : 'en'),
-            'btn btn-ghost menu-lang',
-            { lang: lang() === 'en' ? 'cs' : 'en' },
-          ),
+          button(t.nickname, () => app.goNickname(), 'btn btn-ghost'),
         ),
         h('p', { class: 'menu-games' }, t.games),
       ),

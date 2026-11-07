@@ -28,12 +28,13 @@ if (import.meta.env.DEV && params.has('duo')) {
   const right = h('div', { class: 'duo-pane', 'aria-label': 'Hráč 2' });
   root.classList.add('duo');
   root.append(left, right);
-  new App(left, { transport, nickname: 'Hostitel' }).boot();
+  new App(left, { transport, nickname: 'Hostitel', account: false }).boot();
   new App(right, {
     transport,
     nickname: 'Soupeř',
     suggestRoom: () => hub.lastRoom,
     music: false,
+    account: false,
   }).boot();
 } else {
   const pendingRoom = roomFromSearch(window.location.search);
