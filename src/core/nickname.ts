@@ -12,11 +12,11 @@ const LETTER = /\p{L}/u;
  */
 const SCRIPTS = [
   // Latinka jen základní a se středoevropskou diakritikou (bez ɑ, ı a podobných dvojníků).
-  /^[A-Za-zÀ-ÖØ-öø-İĲ-ķĹ-ňŊ-ž]$/u,
+  /^[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u0130\u0132-\u0137\u0139-\u0148\u014A-\u017E]$/u,
   // Azbuka a řečtina jen v rozsazích písmen – stejně jako kontrola na serveru
   // (supabase/migrations/…_accounts.sql, nickname_is_valid).
-  /^[Ѐ-ҁҊ-ԯ]$/u,
-  /^[ΆΈ-ΊΌΎ-ΡΣ-Ͽἀ-ᾼῂ-ῌῐ-Ίῠ-Ῥῲ-ῼ]$/u,
+  /^[\u0400-\u0481\u048A-\u052F]$/u,
+  /^[\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03FF\u1F00-\u1FBC\u1FC2-\u1FCC\u1FD0-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FFC]$/u,
 ];
 
 import { translations } from '../i18n';
