@@ -3,6 +3,7 @@ import type { GameId } from '../core/types';
 import { battleship } from './battleship';
 import { clickBattle } from './click-battle';
 import { connectFour } from './connect-four';
+import { digitFlash } from './digit-flash';
 import { dotsAndBoxes } from './dots-and-boxes';
 import { duckHunt } from './duck-hunt';
 import { hunt } from './hunt';
@@ -14,6 +15,8 @@ import { prsi } from './prsi';
 import { quickDraw } from './quick-draw';
 import { reflex } from './reflex';
 import { rps } from './rps';
+import { sequence } from './sequence';
+import { spotChange } from './spot-change';
 import { ticTacToe } from './tic-tac-toe';
 
 /**
@@ -36,6 +39,9 @@ export const GAMES: readonly AnyMiniGameModule[] = [
   okoBere,
   prsi,
   pexeso,
+  sequence,
+  spotChange,
+  digitFlash,
 ];
 
 export const GAME_INFOS: readonly GameInfo[] = GAMES.map(({ id, name, type, length }) => ({

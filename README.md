@@ -32,6 +32,9 @@ Webová hra – souboj 1v1 v sadě miniher. Hraje se proti AI nebo online s kód
 | Prší              | karetní           | delší  | hotovo |
 | Oko bere          | karetní           | rychlá | hotovo |
 | Pexeso duel       | karetní           | delší  | hotovo |
+| Sekvence          | paměťová          | delší  | hotovo |
+| Co se změnilo     | paměťová          | rychlá | hotovo |
+| Čísla na mžik     | paměťová          | rychlá | hotovo |
 
 ## Kognitivní skupiny
 
@@ -55,6 +58,9 @@ skupin v `src/ui/labels.ts` (`COGNITIVE_LABEL`).
 | Postřeh           | Rychlost a postřeh    | –                     |
 | Kachní hon        | Rychlost a postřeh    | –                     |
 | Pexeso duel       | Paměť                 | Rychlost a postřeh    |
+| Sekvence          | Paměť                 | –                     |
+| Co se změnilo     | Paměť                 | Rychlost a postřeh    |
+| Čísla na mžik     | Paměť                 | –                     |
 | Logik souboj      | Logika a dedukce      | Paměť                 |
 | Lodě              | Logika a dedukce      | Odhad a čtení soupeře |
 | Sirky             | Logika a dedukce      | Strategie a plánování |
@@ -510,6 +516,27 @@ menu zase podklad.
 
 **Jak otestovat:** dohraj zápas proti AI (best of 1, KNP) – jednou vyhraj, jednou prohraj.
 Pak zapni Nastavení → Omezit animace a zkontroluj klidové obrázky.
+
+**Paměťové hry (Sekvence, Co se změnilo, Čísla na mžik).** Oba hráči dostanou ze
+společného seedu stejné zadání, každý hraje svým tempem a výsledek pošle až na konci
+jedním tahem – online zapečetěným (commit-reveal), takže soupeř nic nevidí dřív, než
+dohraje sám. Posílají se samotné odpovědi (stisky, políčka, číslice) a logika z nich
+výsledek spočítá znovu; na důvěře je jen změřený čas (a upravený klient by mohl zadání
+přečíst z paměti – stejné omezení jako u reakčních her).
+
+- **Sekvence:** 4 pole (barva + tvar + tón, klávesy 1–4). Řada roste o jednu položku
+  (3 → 17), po chybě nebo 6 s bez stisku konec. Víc kol vyhrává, při shodě rychlejší zadávání.
+- **Co se změnilo:** 7 kol na desce 4 × 4 s obrázky z Pexesa (5 → 10 obrázků, kratší čas
+  na zapamatování). Jedna změna: zmizí, přibude, nebo se vymění. Klik na místo změny (8 s).
+- **Čísla na mžik:** 7 kol, číslo o 4 až 10 číslicích blikne (0,7 s + 0,26 s na číslici),
+  pak se píše (0–9, Backspace, Enter nebo klávesnice na obrazovce). Bod za každou číslici
+  na správném místě, nejvýš 49.
+- Oprava v Pexesu: obrázek měsíce měl dva oblouky se stejnou dráhou (nulová plocha)
+  a nevykreslil se – teď je to srpek.
+
+**Jak otestovat:** Proti AI → Vlastní výběr → best of 1 → Vybrat hry → Sekvence / Co se
+změnilo / Čísla na mžik. Online stejně (`?duo` nebo dva prohlížeče) – soupeřův výsledek se
+ukáže až po dohrání obou.
 
 ## Architektura
 

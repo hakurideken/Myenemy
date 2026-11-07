@@ -3266,6 +3266,205 @@ html.reduce-motion .celebration * {
   font-size: clamp(1rem, 4vw, 1.4rem);
 }
 
+/* ---------- Paměťové hry: Sekvence, Co se změnilo, Čísla na mžik ---------- */
+
+.sq-status {
+  min-height: 1.6em;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.sq-board {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: min(100%, 360px);
+  margin: 0 auto;
+}
+
+.sq-pad {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 18%;
+  border: 3px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raise);
+  cursor: pointer;
+  opacity: 0.55;
+  touch-action: manipulation;
+  transition:
+    opacity 80ms ease-out,
+    transform 80ms ease-out;
+}
+
+.sq-pad svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sq-pad kbd {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.sq-board.is-input .sq-pad {
+  opacity: 0.85;
+}
+
+.sq-pad.is-lit {
+  border-color: #fff;
+  opacity: 1;
+  transform: scale(1.06);
+  box-shadow: 0 0 24px rgb(255 255 255 / 35%);
+}
+
+.sq-pad--red.is-lit {
+  background: rgb(255 92 82 / 30%);
+}
+
+.sq-pad--blue.is-lit {
+  background: rgb(59 188 255 / 30%);
+}
+
+.sq-pad--green.is-lit {
+  background: rgb(74 222 128 / 30%);
+}
+
+.sq-pad--yellow.is-lit {
+  background: rgb(255 200 61 / 30%);
+}
+
+.sq-board.is-done .sq-pad {
+  opacity: 0.35;
+}
+
+.sq-hint {
+  text-align: center;
+}
+
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: min(100%, 420px);
+  margin: 0 auto;
+}
+
+.sc-cell {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raise);
+  touch-action: manipulation;
+}
+
+.sc-cell .pex-picture {
+  width: 70%;
+  height: 70%;
+}
+
+.sc-grid.is-question .sc-cell {
+  cursor: pointer;
+}
+
+.sc-grid.is-question .sc-cell:hover {
+  border-color: var(--gold);
+}
+
+.sc-cell.is-right {
+  border-color: #4ade80;
+  box-shadow: inset 0 0 0 3px rgb(74 222 128 / 45%);
+}
+
+.sc-cell.is-target {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 3px rgb(255 200 61 / 45%);
+}
+
+.sc-cell.is-wrong {
+  border-color: var(--danger);
+}
+
+.df-display {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: 12px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.df-display.is-flash {
+  border-color: var(--gold);
+}
+
+.df-digit {
+  display: grid;
+  place-items: center;
+  width: 2.2ch;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 7vw, 2.6rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.df-digit.is-empty {
+  color: var(--muted);
+}
+
+.df-digit.is-right {
+  color: #4ade80;
+}
+
+.df-digit.is-wrong {
+  color: var(--danger);
+}
+
+.df-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: min(100%, 320px);
+  margin: 0 auto;
+}
+
+.df-key {
+  min-height: 52px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.3rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.df-key:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.df-key--ok {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #1a1020;
+}
+
 /* ---------- Lodě ---------- */
 
 .bs {

@@ -73,7 +73,8 @@ const PICTURES: readonly (readonly Shape[])[] = [
       stroke: true,
     },
   ],
-  [{ d: 'M5-13A13 13 0 1 0 5 13A10 10 0 1 1 5-13Z' }],
+  // Srpek: vnější oblouk vlevo, vnitřní mělčí oblouk zpět (oba oblouky různé – jinak nulová plocha).
+  [{ d: 'M6-12A13 13 0 1 0 6 12A14 14 0 0 1 6-12Z' }],
   [{ d: 'M0-14L4-4L14-4L6 2L9 13L0 6L-9 13L-6 2L-14-4L-4-4Z' }],
   [{ d: 'M0 12C-17 1-11-14 0-6C11-14 17 1 0 12Z' }],
   [{ d: 'M-11 11C-13-6 0-14 12-12C13 1 3 13-11 11Z' }, { d: 'M-11 11L6-5', stroke: true }],

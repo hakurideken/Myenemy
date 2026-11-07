@@ -21,6 +21,10 @@ const PATTERNS: Record<SfxName, readonly Note[]> = {
     [392, 0, 0.16, 'sawtooth'],
     [262, 0.15, 0.3, 'sawtooth'],
   ],
+  pad0: [[330, 0, 0.32, 'triangle']],
+  pad1: [[392, 0, 0.32, 'triangle']],
+  pad2: [[494, 0, 0.32, 'triangle']],
+  pad3: [[587, 0, 0.32, 'triangle']],
   draw: [
     [440, 0, 0.12, 'triangle'],
     [440, 0.16, 0.12, 'triangle'],

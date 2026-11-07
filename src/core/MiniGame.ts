@@ -66,7 +66,18 @@ export interface Prefs {
   readonly reducedMotion: boolean;
 }
 
-export type SfxName = 'signal' | 'click' | 'win' | 'lose' | 'draw' | 'tick';
+export type SfxName =
+  | 'signal'
+  | 'click'
+  | 'win'
+  | 'lose'
+  | 'draw'
+  | 'tick'
+  /** Tóny čtyř polí v Sekvenci. */
+  | 'pad0'
+  | 'pad1'
+  | 'pad2'
+  | 'pad3';
 
 export interface Sfx {
   play(name: SfxName): void;
