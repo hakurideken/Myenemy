@@ -179,6 +179,8 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
    `supabase/migrations/20261107120000_accounts.sql` → **Run**. Vytvoří tabulku profilů
    (s RLS), funkce pro přezdívku s kódem, export dat a smazání účtu. Spustit znovu je
    bezpečné. Na konci souboru je kontrolní dotaz – má vrátit 0 řádků.
+   Potom stejně spusť `supabase/migrations/20261108120000_friends.sql` (kamarádi, žádosti,
+   vzájemné výsledky). Pořadí je důležité – druhý soubor potřebuje tabulku profilů.
 2. **Adresy:** **Authentication → URL Configuration**
    - Site URL: `https://hakurideken.github.io/Myenemy/`
    - Redirect URLs: `https://hakurideken.github.io/Myenemy/`, `http://localhost:5173/`
@@ -190,6 +192,13 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
    **Credentials → Create credentials → OAuth client ID** (Web application), do
    **Authorized redirect URIs** callback adresu Supabase. Client ID a Client Secret vlož do
    Supabase → **Authentication → Sign In / Providers → Google** a zapni.
+   - **Branding** (nutné pro zveřejnění, **Audience → Publish app**): App name `Myenemy`,
+     User support email, App home page `https://hakurideken.github.io/Myenemy/`,
+     Privacy policy `https://hakurideken.github.io/Myenemy/privacy.html`. Logo nenahrávej
+     (vyžadovalo by ověření Googlem). **Authorized domains:** `hakurideken.github.io`
+     a `<tvuj-projekt>.supabase.co`. Developer contact: tvůj e-mail.
+   - Stránka `public/privacy.html` se generuje z textů obrazovky „Ochrana soukromí“
+     (`src/ui/screens/account.ts`); test `privacy.test.ts` hlídá, že jsou stejné.
 4. **Discord:** [discord.com/developers/applications](https://discord.com/developers/applications)
    → **New Application** → **OAuth2** → **Redirects**: callback adresa Supabase. Client ID
    a Client Secret vlož do Supabase → **Providers → Discord** a zapni.
@@ -210,6 +219,32 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
   `hakurideken.github.io` by k přihlášení dosáhla. Do přesunu na vlastní doménu tam
   nedávej jiné weby.
 - Zásady soukromí ve hře (vpravo nahoře → Přihlásit → Ochrana soukromí); účet od 15 let.
+
+**Kamarádi a vzájemné výsledky** (vpravo nahoře účet → **Kamarádi**):
+
+- Kamaráda přidáš celým jménem s kódem (`Pepa#0042`) – hledat jen podle přezdívky nejde.
+  Druhý žádost přijme nebo odmítne; když si pošlete žádost navzájem, jste rovnou přátelé.
+  Nejvýš 20 pokusů o žádost za den a 50 nevyřízených žádostí. Po odmítnutí (nebo odebrání
+  z kamarádů) se stejnému hráči 30 dní nová žádost nedoručí (odesílatel vidí „odesláno“). Odesílatel
+  vidí u žádosti jen jméno z doby odeslání, ne identifikátor účtu.
+- Čekající žádost ukáže červená tečka na tlačítku účtu (obnoví se při návratu do menu).
+- Skóre `Ty 5 : 3` se počítá jen z online zápasů, kde jsou oba přihlášení a jsou kamarádi.
+  Po konci zápasu každý nahlásí výsledek pod klíčem zápasu – HMAC seedu zápasu klíčem
+  odvozeným z párování (ECDH, `deriveReportKey`). Herní zprávy jsou jen podepsané, ne
+  šifrované, takže seed vidí každý, kdo zná kód místnosti – klíč zápasu ale ne.
+  Započte se, až se obě hlášení shodnou (jeden vyhrál, druhý prohrál); nesoulad dat se
+  nehlásí, nepotvrzené hlášení se smaže asi po 2 dnech. Limity: 100 hlášení na hráče
+  a 50 započtených zápasů na dvojici za den.
+- Odebráním kamaráda se smaže i vaše skóre. Smazání účtu smaže všechno.
+- Omezení: bez rozhodčího serveru může poražený hlášení neposlat (zápas se nezapočte)
+  a dva domluvení kamarádi si můžou skóre vymyslet. Pro skóre mezi dvěma lidmi to nevadí,
+  pro budoucí statistiky nebo žebříčky by `friend_matches` nestačily.
+- Volitelně: pravidelný úklid přes pg_cron (návod na konci SQL souboru).
+
+**Jak otestovat kamarády:** dva účty (třeba Google v jednom prohlížeči a Discord ve druhém) →
+první pošle žádost na `Jméno#kód` druhého → druhý vidí tečku a v **Kamarádi** žádost
+přijme → online zápas mezi nimi → po výsledku zápasu se u obou změní skóre (stačí znovu
+otevřít Kamarádi).
 
 **Jak otestovat:** vpravo nahoře **Přihlásit → Přihlásit přes Google / Discord**, po návratu
 zvol přezdívku – v liště se ukáže `Přezdívka#1234`. Okno účtu: změna přezdívky (kód zůstane,

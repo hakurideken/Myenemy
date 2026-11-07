@@ -114,6 +114,8 @@ export class OnlineFlow {
   private transport: Transport | null = null;
   private hostRoom: HostRoom | null = null;
   private session: OnlineSession | null = null;
+  /** Zápas, jehož výsledek už šel do databáze (kamarádi) – jen jednou. */
+  private reportedMatch: string | null = null;
   /** Kontrolní kód spojení pro lobby. */
   private check: string | null = null;
   private disposed = false;
@@ -268,6 +270,7 @@ export class OnlineFlow {
       names,
       format: pairing.format,
       clock: systemClock,
+      reportKey: pairing.reportKey,
     });
     this.session = session;
     session.onConnection((state) => {
@@ -308,6 +311,18 @@ export class OnlineFlow {
       default:
         return phase.name;
     }
+  }
+
+  /**
+   * Výsledek pro skóre mezi kamarády: nahlásí ho oba hráči, započítá se jen shoda.
+   * Nesoulad dat (cheat) se nehlásí; host bez účtu nic neposílá.
+   */
+  private reportResult(matchKey: string | null, won: boolean, reason: string): void {
+    if (!matchKey || reason === 'cheat' || this.reportedMatch === matchKey) return;
+    this.reportedMatch = matchKey;
+    this.app.account
+      .reportMatch(matchKey, won)
+      .catch((err: unknown) => console.warn('[účet] výsledek zápasu se nenahlásil', err));
   }
 
   private render(s: OnlineSession, phase: OnlinePhase): void {
@@ -384,6 +399,7 @@ export class OnlineFlow {
         break;
       case 'match-result':
         this.app.setBanner(null);
+        this.reportResult(phase.matchKey, phase.winner === s.me, phase.reason);
         this.app.show(
           matchResultScreen({
             names,

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Myenemy – ochrana soukromí / privacy</title>
+    <style>
+      body {
+        margin: 0 auto;
+        max-width: 720px;
+        padding: 24px 16px 48px;
+        background: #120e18;
+        color: #f6f1e9;
+        font:
+          16px/1.55 system-ui,
+          sans-serif;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      h2 {
+        margin-bottom: 4px;
+        font-size: 1.1rem;
+      }
+      p {
+        margin-top: 0;
+        color: #d9d1e6;
+      }
+      a {
+        color: #ffc83d;
+      }
+      hr {
+        margin: 32px 0;
+        border: 0;
+        border-top: 1px solid #3d3150;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Vygenerováno z textů v src/ui/screens/account.ts – test hlídá, že sedí. -->
+    <p><a href="./">← Myenemy</a> · <a href="#en">English</a></p>
+    <h1>Ochrana soukromí</h1>
+    <section>
+      <h2>Bez účtu (host)</h2>
+      <p>
+        Přezdívka a nastavení zůstávají jen v tomhle prohlížeči. Online hra posílá herní zprávy přes
+        Supabase Realtime. Jsou podepsané (nikdo je nemůže podvrhnout), ale nejsou šifrované – kdo
+        zná kód místnosti, může je číst. Nikde se neukládají.
+      </p>
+    </section>
+    <section>
+      <h2>Co ukládáme s účtem</h2>
+      <p>
+        Přihlašuješ se přes Google nebo Discord. Od poskytovatele dostaneme identifikátor účtu,
+        e-mail a údaje z profilu, které předá (jméno, odkaz na obrázek, u Discordu uživatelské
+        jméno). K tomu tvou přezdívku s kódem, data vytvoření a změn a časy přihlášení. Supabase u
+        přihlášení eviduje i technické záznamy (IP adresa a prohlížeč) kvůli bezpečnosti. Dál seznam
+        kamarádů a žádosti o přátelství (čekají, dokud na ně někdo neodpoví; odmítnutí nebo odebrání
+        z kamarádů si pamatujeme 30 dní, aby stejný hráč nemohl žádosti opakovat). Po každém online
+        zápasu přihlášeného hráče se uloží hlášení výsledku pod náhodným klíčem zápasu: když ho
+        soupeř-kamarád shodně potvrdí, započte se do vašeho skóre (kdo vyhrál a kdy), jinak se asi
+        po 2 dnech smaže. Kamarádi vidí jen tvé jméno s kódem, vaše vzájemné skóre a interní
+        identifikátor účtu (kvůli odebrání z kamarádů); kdo ti poslal žádost, u ní vidí jen jméno z
+        doby odeslání. Odebráním kamaráda se smaže i vaše vzájemné skóre.
+      </p>
+    </section>
+    <section>
+      <h2>Proč a na jakém základě</h2>
+      <p>
+        Jen kvůli přihlášení, kamarádům a vzájemným výsledkům – tedy kvůli službě, o kterou si
+        řekneš založením účtu (plnění smlouvy, čl. 6 odst. 1 písm. b GDPR). Žádná reklama,
+        profilování ani sledovací cookies; v prohlížeči se ukládá jen přihlášení (localStorage).
+      </p>
+    </section>
+    <section>
+      <h2>Kdo data zpracovává</h2>
+      <p>
+        Databáze a přihlášení běží u Supabase v datacentru v EU (Irsko). Přihlášení ověřuje Google
+        nebo Discord podle tvé volby – ti můžou data zpracovávat i mimo EU podle svých pravidel.
+      </p>
+    </section>
+    <section>
+      <h2>Jak dlouho a tvoje práva</h2>
+      <p>
+        Data držíme, dokud máš účet. V okně účtu si je můžeš stáhnout („Stáhnout moje data“) a celý
+        účet smazat („Smazat účet“) – profil i přihlášení zmizí okamžitě, bezpečnostní záznamy o
+        přihlášení maže Supabase podle své doby uchování. Máš i právo na opravu a právo podat
+        stížnost u Úřadu pro ochranu osobních údajů (uoou.cz).
+      </p>
+    </section>
+    <section>
+      <h2>Věk</h2>
+      <p>Účet si může založit jen hráč od 15 let. Mladší hrají jako host.</p>
+    </section>
+    <section>
+      <h2>Kontakt</h2>
+      <p>
+        Provozovatel hry: autor projektu Myenemy. Dotazy a žádosti: přes GitHub
+        (hakurideken/Myenemy).
+      </p>
+    </section>
+    <hr />
+    <div lang="en">
+      <h1 id="en">Privacy</h1>
+      <section>
+        <h2>Without an account (guest)</h2>
+        <p>
+          Your nickname and settings stay in this browser only. Online play sends game messages
+          through Supabase Realtime. They are signed (nobody can forge them) but not encrypted –
+          anyone who knows the room code can read them. Nothing is stored.
+        </p>
+      </section>
+      <section>
+        <h2>What we store with an account</h2>
+        <p>
+          You sign in with Google or Discord. From the provider we receive the account identifier,
+          e-mail and the profile details it passes on (name, picture link, Discord username). Plus
+          your nickname with its code, creation and change dates and sign-in times. Supabase also
+          keeps technical sign-in records (IP address and browser) for security. Also your friends
+          list and friend requests (kept until someone answers; a decline or removal from friends is
+          remembered for 30 days so the same player cannot keep repeating requests). After every
+          online match of a signed-in player, a result report is stored under a random match key: if
+          the opponent – a friend – confirms it, it counts towards your score (who won and when),
+          otherwise it is deleted after about 2 days. Friends only see your name with its code, your
+          head-to-head score and an internal account identifier (used to remove a friend); someone
+          you sent a request to only sees the name from when it was sent. Removing a friend deletes
+          your head-to-head score too.
+        </p>
+      </section>
+      <section>
+        <h2>Why and on what basis</h2>
+        <p>
+          Only for sign-in, friends and head-to-head results – the service you ask for by creating
+          an account (performance of a contract, Art. 6(1)(b) GDPR). No ads, profiling or tracking
+          cookies; the browser stores only your sign-in (localStorage).
+        </p>
+      </section>
+      <section>
+        <h2>Who processes the data</h2>
+        <p>
+          The database and sign-in run at Supabase in an EU data centre (Ireland). Sign-in is
+          verified by Google or Discord, whichever you choose – they may process data outside the EU
+          under their own terms.
+        </p>
+      </section>
+      <section>
+        <h2>How long and your rights</h2>
+        <p>
+          We keep the data while you have an account. In the account window you can download it
+          (“Download my data”) and delete the whole account (“Delete account”) – the profile and
+          sign-in disappear immediately; Supabase deletes security sign-in records after its
+          retention period. You also have the right to rectification and to lodge a complaint with
+          your data protection authority.
+        </p>
+      </section>
+      <section>
+        <h2>Age</h2>
+        <p>You must be at least 15 to create an account. Younger players play as guests.</p>
+      </section>
+      <section>
+        <h2>Contact</h2>
+        <p>
+          Operator: the author of the Myenemy project. Questions and requests: via GitHub
+          (hakurideken/Myenemy).
+        </p>
+      </section>
+    </div>
+  </body>
+</html>

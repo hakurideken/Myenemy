@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   createKeyPair,
+  deriveReportKey,
   deriveSessionKey,
   fromBase64Url,
+  matchReportKey,
   signText,
   toBase64Url,
   verifyText,
@@ -44,5 +46,30 @@ describe('autentizace zpráv (ECDH + HMAC)', () => {
     await expect(deriveSessionKey(own, 'nesmysl', 'ABCDE')).rejects.toThrow();
     const key = await deriveSessionKey(own, (await createKeyPair()).publicKey, 'ABCDE');
     expect(await verifyText(key, 'x', '!!!')).toBe(false);
+  });
+
+  it('klíč zápasu pro kamarády: oba hráči stejný, pozorovatel ze seedu ho nespočítá', async () => {
+    const host = await createKeyPair();
+    const guest = await createKeyPair();
+    const eve = await createKeyPair();
+    const seed = 'a'.repeat(32);
+    const hostKey = await matchReportKey(
+      await deriveReportKey(host, guest.publicKey, 'ABCDE'),
+      seed,
+    );
+    const guestKey = await matchReportKey(
+      await deriveReportKey(guest, host.publicKey, 'ABCDE'),
+      seed,
+    );
+    const eveKey = await matchReportKey(await deriveReportKey(eve, host.publicKey, 'ABCDE'), seed);
+    expect(hostKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(guestKey).toBe(hostKey);
+    expect(eveKey).not.toBe(hostKey);
+    // Jiný zápas (seed) = jiný klíč.
+    const next = await matchReportKey(
+      await deriveReportKey(host, guest.publicKey, 'ABCDE'),
+      'b'.repeat(32),
+    );
+    expect(next).not.toBe(hostKey);
   });
 });

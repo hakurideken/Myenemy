@@ -22,6 +22,7 @@ import { h } from './dom';
 import { MatchFlow, type MatchSetup } from './MatchFlow';
 import { OnlineFlow } from './OnlineFlow';
 import { privacyScreen } from './screens/account';
+import { friendsScreen } from './screens/friends';
 import { menuScreen } from './screens/menu';
 import { nicknameScreen } from './screens/nickname';
 import { onlineMenuScreen } from './screens/online';
@@ -60,6 +61,8 @@ export class App {
   private readonly topBar: TopBar;
   /** Jsme na obrazovce přezdívky (po přihlášení s hotovým profilem se jde dál). */
   private onNickname = false;
+  /** Kdy se naposledy obnovily žádosti o přátelství (tečka na účtu). */
+  private requestsCheckedAt = 0;
   private readonly memories = new Map<GameId, AIMemory>();
   private readonly screenRoot = h('div', { class: 'app-screen' });
   private readonly bannerRoot = h('div', { class: 'app-banner' });
@@ -199,6 +202,11 @@ export class App {
     this.onNickname = true;
   }
 
+  goFriends(): void {
+    this.leaveOnline();
+    this.show(friendsScreen(this));
+  }
+
   goPrivacy(): void {
     this.leaveOnline();
     this.show(privacyScreen(this));
@@ -227,6 +235,12 @@ export class App {
       return;
     }
     this.show(menuScreen(this));
+    // Nové žádosti o přátelství – při návratu do menu, nejvýš jednou za 30 s.
+    const now = Date.now();
+    if (this.account.state.kind === 'signed-in' && now - this.requestsCheckedAt > 30_000) {
+      this.requestsCheckedAt = now;
+      this.account.friendRequests().catch(() => undefined);
+    }
   }
 
   goSetup(mode: SetupMode): void {

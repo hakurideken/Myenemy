@@ -9,10 +9,16 @@ import {
   type Profile,
 } from './account';
 import type { SupabaseConfig } from './config';
+import {
+  friendRequestsSchema,
+  friendsSchema,
+  reportResultSchema,
+  sendRequestResultSchema,
+} from './friends';
 
 /**
  * Skutečné spojení se Supabase: přihlášení přes Supabase Auth (PKCE – kód z adresy se
- * vymění za přihlášení, žádné tokeny v URL) a dvě volání databáze přes REST.
+ * vymění za přihlášení, žádné tokeny v URL) a volání databáze přes REST.
  * Do databáze klient smí jen číst svůj profil; zapisuje se funkcemi (viz supabase/migrations).
  */
 export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBackend {
@@ -50,6 +56,7 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
       if (body?.code === '22023') throw new AccountError('invalid');
       if (body?.code === '23505') throw new AccountError('full');
       if (body?.code === 'MYE01') throw new AccountError('too-soon');
+      if (body?.code === 'MYE04') throw new AccountError('limit');
       throw new AccountError('network');
     }
     const text = await response.text();
@@ -57,6 +64,8 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
   }
 
   const profiles = z.array(profileSchema).max(1);
+  const rpc = (name: string, args: Record<string, unknown> = {}): Promise<unknown> =>
+    rest(`rpc/${name}`, { method: 'POST', body: JSON.stringify(args) });
 
   return {
     async init() {
@@ -114,6 +123,31 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
       await rest('rpc/delete_my_account', { method: 'POST', body: '{}' });
       // Účet na serveru už není – zbývá zapomenout přihlášení v prohlížeči.
       await auth.signOut({ scope: 'local' }).catch(() => undefined);
+    },
+    async friends() {
+      return friendsSchema.parse(await rpc('my_friends'));
+    },
+    async friendRequests() {
+      return friendRequestsSchema.parse(await rpc('my_friend_requests'));
+    },
+    async sendFriendRequest(profile) {
+      return sendRequestResultSchema.parse(
+        await rpc('send_friend_request', { p_nickname: profile.nickname, p_tag: profile.tag }),
+      );
+    },
+    async respondFriendRequest(requestId, accept) {
+      await rpc('respond_friend_request', { p_request: requestId, p_accept: accept });
+    },
+    async cancelFriendRequest(requestId) {
+      await rpc('cancel_friend_request', { p_request: requestId });
+    },
+    async removeFriend(userId) {
+      await rpc('remove_friend', { p_friend: userId });
+    },
+    async reportMatch(matchKey, won) {
+      return reportResultSchema.parse(
+        await rpc('report_match', { p_match_key: matchKey, p_won: won }),
+      );
     },
   };
 }

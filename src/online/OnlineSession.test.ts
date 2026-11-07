@@ -168,6 +168,7 @@ async function sessions(
     format,
     clock,
     games,
+    reportKey: p.hostPairing.reportKey,
   });
   const guest = new OnlineSession({
     role: 'guest',
@@ -176,6 +177,7 @@ async function sessions(
     format: p.guestPairing.format,
     clock,
     games: options.guestGames ?? games,
+    reportKey: p.guestPairing.reportKey,
   });
   if (options.mountHost !== false) autoMount(host);
   if (options.mountGuest !== false) autoMount(guest);
@@ -315,6 +317,11 @@ describe('online zápas – průběh', () => {
     host.continueAfterRound();
     guest.continueAfterRound();
     expect([phaseOf(host), phaseOf(guest)]).toEqual(['match-result', 'match-result']);
+    // Klíč zápasu pro hlášení kamarádům: u obou stejný (odvozený z párování).
+    const keyOf = (x: OnlineSession): string | null =>
+      x.phase.name === 'match-result' ? x.phase.matchKey : null;
+    expect(keyOf(host)).toMatch(/^[0-9a-f]{64}$/);
+    expect(keyOf(guest)).toBe(keyOf(host));
     host.requestRematch();
     await run(clock, 200);
     expect(phaseOf(host)).toBe('match-result');

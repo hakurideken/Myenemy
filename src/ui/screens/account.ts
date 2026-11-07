@@ -9,6 +9,7 @@ import {
 import type { App, Mount } from '../App';
 import { button } from '../components/common';
 import { h, setText } from '../dom';
+import { plural } from '../labels';
 
 const t = translations(
   {
@@ -23,6 +24,10 @@ const t = translations(
     signedInAs: 'Tvoje jméno pro kamarády:',
     handleHint: 'Kamarádům dej celé jméno i s kódem za #.',
     noProfile: 'Přezdívka zatím chybí.',
+    friends: (n: number) =>
+      n > 0
+        ? `Kamarádi (${n} ${plural(n, 'nová žádost', 'nové žádosti', 'nových žádostí')})`
+        : 'Kamarádi',
     changeNickname: 'Změnit přezdívku',
     chooseNickname: 'Zvolit přezdívku',
     signOut: 'Odhlásit',
@@ -30,13 +35,14 @@ const t = translations(
     delete: 'Smazat účet',
     deleteTitle: 'Smazat účet?',
     deleteText:
-      'Účet, přezdívka a později i kamarádi a výsledky se smažou hned a nejdou obnovit. Hrát můžeš dál jako host.',
+      'Účet, přezdívka, kamarádi i výsledky se smažou hned a nejdou obnovit. Hrát můžeš dál jako host.',
     deleteConfirm: 'Smazat natrvalo',
     deleteKeep: 'Ponechat',
     errors: {
       invalid: 'Tahle přezdívka nejde použít.',
       full: 'Tahle přezdívka je obsazená se všemi kódy – zkus jinou.',
       'too-soon': 'Přezdívku jde měnit nejvýš jednou za 10 minut.',
+      limit: 'Příliš mnoho pokusů za krátkou dobu – zkus to zase zítra.',
       network: 'Spojení se nepovedlo. Zkus to znovu za chvíli.',
       'login-failed': 'Přihlášení se nepovedlo. Zkus to znovu.',
       'sign-out-failed':
@@ -47,15 +53,15 @@ const t = translations(
     sections: [
       {
         title: 'Bez účtu (host)',
-        text: 'Přezdívka a nastavení zůstávají jen v tomhle prohlížeči. Online hra posílá šifrované herní zprávy přes Supabase Realtime – nikde se neukládají.',
+        text: 'Přezdívka a nastavení zůstávají jen v tomhle prohlížeči. Online hra posílá herní zprávy přes Supabase Realtime. Jsou podepsané (nikdo je nemůže podvrhnout), ale nejsou šifrované – kdo zná kód místnosti, může je číst. Nikde se neukládají.',
       },
       {
         title: 'Co ukládáme s účtem',
-        text: 'Přihlašuješ se přes Google nebo Discord. Od poskytovatele dostaneme identifikátor účtu, e-mail a údaje z profilu, které předá (jméno, odkaz na obrázek, u Discordu uživatelské jméno). K tomu tvou přezdívku s kódem, data vytvoření a změn a časy přihlášení. Supabase u přihlášení eviduje i technické záznamy (IP adresa a prohlížeč) kvůli bezpečnosti. Později přibudou kamarádi a výsledky zápasů s nimi.',
+        text: 'Přihlašuješ se přes Google nebo Discord. Od poskytovatele dostaneme identifikátor účtu, e-mail a údaje z profilu, které předá (jméno, odkaz na obrázek, u Discordu uživatelské jméno). K tomu tvou přezdívku s kódem, data vytvoření a změn a časy přihlášení. Supabase u přihlášení eviduje i technické záznamy (IP adresa a prohlížeč) kvůli bezpečnosti. Dál seznam kamarádů a žádosti o přátelství (čekají, dokud na ně někdo neodpoví; odmítnutí nebo odebrání z kamarádů si pamatujeme 30 dní, aby stejný hráč nemohl žádosti opakovat). Po každém online zápasu přihlášeného hráče se uloží hlášení výsledku pod náhodným klíčem zápasu: když ho soupeř-kamarád shodně potvrdí, započte se do vašeho skóre (kdo vyhrál a kdy), jinak se asi po 2 dnech smaže. Kamarádi vidí jen tvé jméno s kódem, vaše vzájemné skóre a interní identifikátor účtu (kvůli odebrání z kamarádů); kdo ti poslal žádost, u ní vidí jen jméno z doby odeslání. Odebráním kamaráda se smaže i vaše vzájemné skóre.',
       },
       {
         title: 'Proč a na jakém základě',
-        text: 'Jen kvůli přihlášení, kamarádům a vzájemným výsledkům – tedy kvůli službě, o kterou si sám řekneš založením účtu. Žádná reklama, profilování ani sledovací cookies; v prohlížeči se ukládá jen přihlášení (localStorage).',
+        text: 'Jen kvůli přihlášení, kamarádům a vzájemným výsledkům – tedy kvůli službě, o kterou si řekneš založením účtu (plnění smlouvy, čl. 6 odst. 1 písm. b GDPR). Žádná reklama, profilování ani sledovací cookies; v prohlížeči se ukládá jen přihlášení (localStorage).',
       },
       {
         title: 'Kdo data zpracovává',
@@ -84,6 +90,7 @@ const t = translations(
     signedInAs: 'Your name for friends:',
     handleHint: 'Give your friends the full name including the code after #.',
     noProfile: 'No nickname yet.',
+    friends: (n: number) => (n > 0 ? `Friends (${n} new)` : 'Friends'),
     changeNickname: 'Change nickname',
     chooseNickname: 'Pick a nickname',
     signOut: 'Sign out',
@@ -91,13 +98,14 @@ const t = translations(
     delete: 'Delete account',
     deleteTitle: 'Delete account?',
     deleteText:
-      'Your account, nickname and later also friends and results are deleted right away and cannot be restored. You can keep playing as a guest.',
+      'Your account, nickname, friends and results are deleted right away and cannot be restored. You can keep playing as a guest.',
     deleteConfirm: 'Delete for good',
     deleteKeep: 'Keep',
     errors: {
       invalid: 'This nickname cannot be used.',
       full: 'This nickname is taken with every code – try another.',
       'too-soon': 'You can change your nickname at most once every 10 minutes.',
+      limit: 'Too many attempts in a short time – try again tomorrow.',
       network: 'Could not connect. Try again in a moment.',
       'login-failed': 'Sign-in failed. Please try again.',
       'sign-out-failed':
@@ -108,15 +116,15 @@ const t = translations(
     sections: [
       {
         title: 'Without an account (guest)',
-        text: 'Your nickname and settings stay in this browser only. Online play sends encrypted game messages through Supabase Realtime – nothing is stored.',
+        text: 'Your nickname and settings stay in this browser only. Online play sends game messages through Supabase Realtime. They are signed (nobody can forge them) but not encrypted – anyone who knows the room code can read them. Nothing is stored.',
       },
       {
         title: 'What we store with an account',
-        text: 'You sign in with Google or Discord. From the provider we receive the account identifier, e-mail and the profile details it passes on (name, picture link, Discord username). Plus your nickname with its code, creation and change dates and sign-in times. Supabase also keeps technical sign-in records (IP address and browser) for security. Later your friends and match results with them will be added.',
+        text: 'You sign in with Google or Discord. From the provider we receive the account identifier, e-mail and the profile details it passes on (name, picture link, Discord username). Plus your nickname with its code, creation and change dates and sign-in times. Supabase also keeps technical sign-in records (IP address and browser) for security. Also your friends list and friend requests (kept until someone answers; a decline or removal from friends is remembered for 30 days so the same player cannot keep repeating requests). After every online match of a signed-in player, a result report is stored under a random match key: if the opponent – a friend – confirms it, it counts towards your score (who won and when), otherwise it is deleted after about 2 days. Friends only see your name with its code, your head-to-head score and an internal account identifier (used to remove a friend); someone you sent a request to only sees the name from when it was sent. Removing a friend deletes your head-to-head score too.',
       },
       {
         title: 'Why and on what basis',
-        text: 'Only for sign-in, friends and head-to-head results – the service you ask for by creating an account. No ads, profiling or tracking cookies; the browser stores only your sign-in (localStorage).',
+        text: 'Only for sign-in, friends and head-to-head results – the service you ask for by creating an account (performance of a contract, Art. 6(1)(b) GDPR). No ads, profiling or tracking cookies; the browser stores only your sign-in (localStorage).',
       },
       {
         title: 'Who processes the data',
@@ -137,6 +145,11 @@ const t = translations(
     ],
   },
 );
+
+/** Texty zásad soukromí (stejné jsou i ve statické public/privacy.html pro Google). */
+export function privacySections(): readonly { title: string; text: string }[] {
+  return t.sections;
+}
 
 export function accountErrorText(err: unknown): string {
   return t.errors[err instanceof AccountError ? err.code : 'network'];
@@ -209,13 +222,25 @@ export function openAccountDialog(app: App): void {
         ]
       : [h('p', { class: 'dialog-text' }, t.noProfile), error],
     actions: [
+      ...(profile
+        ? [
+            button(
+              t.friends(state.incoming),
+              () => {
+                dialog.close();
+                app.goFriends();
+              },
+              'btn btn-primary',
+            ),
+          ]
+        : []),
       button(
         profile ? t.changeNickname : t.chooseNickname,
         () => {
           dialog.close();
           app.goNickname();
         },
-        'btn btn-primary',
+        profile ? 'btn' : 'btn btn-primary',
       ),
       button(t.signOut, () => {
         app.account.signOut().then(

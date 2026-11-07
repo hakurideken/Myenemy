@@ -3,6 +3,7 @@ import { formatHandle, type AccountState } from '../../net/account';
 import type { App } from '../App';
 import { openAccountDialog } from '../screens/account';
 import { h, setText } from '../dom';
+import { plural } from '../labels';
 import { gearIcon, userIcon } from './icons';
 
 const t = translations(
@@ -14,6 +15,8 @@ const t = translations(
     loading: 'Přihlašuji…',
     finish: 'Dokončit profil',
     account: (handle: string) => `Účet ${handle}`,
+    requests: (n: number) =>
+      `${n} ${plural(n, 'nová žádost', 'nové žádosti', 'nových žádostí')} o přátelství`,
   },
   {
     nav: 'Language, settings and account',
@@ -23,6 +26,7 @@ const t = translations(
     loading: 'Signing in…',
     finish: 'Finish profile',
     account: (handle: string) => `Account ${handle}`,
+    requests: (n: number) => (n === 1 ? '1 new friend request' : `${n} new friend requests`),
   },
 );
 
@@ -72,6 +76,7 @@ export function createTopBar(app: App): TopBar {
     gearIcon(),
   );
   const accountText = h('span', { class: 'topbar-account-text' });
+  const dot = h('span', { class: 'topbar-dot', 'aria-hidden': 'true', hidden: true });
   const accountButton = h(
     'button',
     {
@@ -81,6 +86,7 @@ export function createTopBar(app: App): TopBar {
     },
     userIcon(),
     accountText,
+    dot,
   );
   const el = h(
     'nav',
@@ -98,9 +104,12 @@ export function createTopBar(app: App): TopBar {
       accountButton.disabled = state.kind === 'loading';
       const label = accountLabel(state);
       setText(accountText, label);
+      const incoming = state.kind === 'signed-in' ? state.incoming : 0;
+      dot.hidden = incoming === 0;
+      const name = state.kind === 'signed-in' && state.profile ? t.account(label) : label;
       accountButton.setAttribute(
         'aria-label',
-        state.kind === 'signed-in' && state.profile ? t.account(label) : label,
+        incoming > 0 ? `${name}, ${t.requests(incoming)}` : name,
       );
       accountButton.classList.toggle('is-signed-in', state.kind === 'signed-in');
     },

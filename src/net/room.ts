@@ -4,6 +4,7 @@ import { randomHex } from '../core/util/commitReveal';
 import {
   commitPublicKey,
   createKeyPair,
+  deriveReportKey,
   deriveSessionKey,
   pairingCode,
   type SessionKeyPair,
@@ -71,6 +72,8 @@ export interface Pairing {
   readonly format: MatchFormat;
   /** Kontrolní kód – stejný u obou hráčů, pokud se mezi ně nikdo nevložil. */
   readonly check: string;
+  /** Klíč pro hlášení výsledků kamarádům (jen oba hráči, viz deriveReportKey). */
+  readonly reportKey: CryptoKey;
 }
 
 export type PairingFailure = 'unavailable' | 'full' | 'version' | 'no-host';
@@ -217,9 +220,11 @@ export class HostRoom {
     guest.paired = true;
     let key: CryptoKey;
     let check: string;
+    let reportKey: CryptoKey;
     try {
       key = await deriveSessionKey(this.keys, reveal.pub, room);
       check = await pairingCode(this.keys.publicKey, reveal.pub, room);
+      reportKey = await deriveReportKey(this.keys, reveal.pub, room);
     } catch {
       guest.paired = false;
       return;
@@ -237,6 +242,7 @@ export class HostRoom {
       opponent: { id: guest.id, nickname: guest.nickname },
       format,
       check,
+      reportKey,
     });
   }
 }
@@ -344,8 +350,9 @@ export async function joinRoom(o: RoomOptions): Promise<Pairing> {
         Promise.all([
           deriveSessionKey(keys, welcome.pub, room),
           pairingCode(keys.publicKey, welcome.pub, room),
+          deriveReportKey(keys, welcome.pub, room),
         ]).then(
-          ([key, check]) => {
+          ([key, check, reportKey]) => {
             const peer = new Peer({
               transport,
               clock,
@@ -360,6 +367,7 @@ export async function joinRoom(o: RoomOptions): Promise<Pairing> {
               opponent: { id: welcome.from, nickname: welcome.nickname },
               format: welcome.format,
               check,
+              reportKey,
             });
           },
           () => finish(new PairingError('no-host')),

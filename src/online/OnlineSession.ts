@@ -26,6 +26,7 @@ import type { Clock, TimerHandle } from '../core/util/clock';
 import { createRng, deriveRng, randomSeed } from '../core/util/rng';
 import { GAMES } from '../games/registry';
 import { DEFAULT_TIMING, type Peer, type PeerStatus } from '../net/Peer';
+import { matchReportKey } from '../net/crypto';
 import type { GameBody, SessionBody, StateBody } from '../net/protocol';
 import { Listeners } from '../net/Transport';
 import { CheatError, SealedExchange, SecretExchange, SeedExchange } from './exchanges';
@@ -129,6 +130,11 @@ export type OnlinePhase =
       readonly detail: string | null;
       readonly rematch: PerPlayer<boolean>;
       readonly canRematch: boolean;
+      /**
+       * Klíč zápasu pro hlášení výsledku kamarádům (HMAC seedu klíčem z párování – znají
+       * ho jen oba hráči). null = bez klíče nebo zápas skončil dřív, než začal.
+       */
+      readonly matchKey: string | null;
     }
   | { readonly name: 'closed'; readonly reason: CloseReason; readonly detail: string | null };
 
@@ -155,6 +161,8 @@ export interface OnlineSessionOptions {
   readonly games?: readonly AnyMiniGameModule[];
   /** Jak dlouho Peer čeká po ztrátě spojení (pro odpočet v UI). */
   readonly goneAfterMs?: number;
+  /** Klíč pro hlášení výsledků kamarádům (z párování); bez něj se nic nehlásí. */
+  readonly reportKey?: CryptoKey;
 }
 
 interface RoundState {
@@ -226,6 +234,7 @@ export class OnlineSession {
   private phaseValue: OnlinePhase = { name: 'seeding' };
   private matchNo = 0;
   private seed: string | null = null;
+  private matchKey: string | null = null;
   private controller: MatchController | null = null;
   private ownPlan: MatchPlan | null = null;
   private hostSlots: unknown = null;
@@ -445,6 +454,7 @@ export class OnlineSession {
     this.matchNo += 1;
     this.destroyRound();
     this.seed = null;
+    this.matchKey = null;
     this.controller = null;
     this.ownPlan = null;
     this.hostSlots = null;
@@ -475,6 +485,13 @@ export class OnlineSession {
 
   private onSeed(seed: string): void {
     this.seed = seed;
+    const match = this.matchNo;
+    const reportKey = this.o.reportKey;
+    if (reportKey) {
+      void matchReportKey(reportKey, seed).then((key) => {
+        if (this.matchNo === match) this.matchKey = key;
+      });
+    }
     let plan: MatchPlan;
     try {
       plan = planMatch(this.o.format, this.infos, deriveRng(seed, 'plan'));
@@ -1062,6 +1079,7 @@ export class OnlineSession {
       detail: this.detail,
       rematch: { ...this.rematch },
       canRematch: !this.closed && !this.opponentAway && c.endReason !== 'cheat',
+      matchKey: this.matchKey,
     });
   }
 

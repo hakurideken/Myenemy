@@ -33,12 +33,8 @@ export async function createKeyPair(): Promise<SessionKeyPair> {
   return { privateKey: pair.privateKey, publicKey: toBase64Url(new Uint8Array(raw)) };
 }
 
-/** Oba hráči spočítají stejný klíč; `context` (kód místnosti) ho váže na konkrétní místnost. */
-export async function deriveSessionKey(
-  own: SessionKeyPair,
-  peerPublicKey: string,
-  context: string,
-): Promise<CryptoKey> {
+/** Sdílené tajemství ECDH obou hráčů jako materiál pro HKDF. */
+async function sharedMaterial(own: SessionKeyPair, peerPublicKey: string): Promise<CryptoKey> {
   const peer = await crypto.subtle.importKey(
     'raw',
     fromBase64Url(peerPublicKey),
@@ -51,7 +47,16 @@ export async function deriveSessionKey(
     own.privateKey,
     256,
   );
-  const material = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
+  return crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
+}
+
+/** Oba hráči spočítají stejný klíč; `context` (kód místnosti) ho váže na konkrétní místnost. */
+export async function deriveSessionKey(
+  own: SessionKeyPair,
+  peerPublicKey: string,
+  context: string,
+): Promise<CryptoKey> {
+  const material = await sharedMaterial(own, peerPublicKey);
   return crypto.subtle.deriveKey(
     { name: 'HKDF', hash: 'SHA-256', salt: utf8(context), info: utf8('myenemy/session/v1') },
     material,
@@ -59,6 +64,32 @@ export async function deriveSessionKey(
     false,
     ['sign', 'verify'],
   );
+}
+
+/**
+ * Klíč pro hlášení výsledků kamarádům: ze stejného tajemství ECDH, jiná doména. Zprávy
+ * zápasu jsou jen podepsané (ne šifrované) – kdo zná kód místnosti, vidí i seed. Klíč
+ * zápasu proto vzniká z tohohle klíče, který mají jen oba hráči.
+ */
+export async function deriveReportKey(
+  own: SessionKeyPair,
+  peerPublicKey: string,
+  context: string,
+): Promise<CryptoKey> {
+  const material = await sharedMaterial(own, peerPublicKey);
+  return crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: utf8(context), info: utf8('myenemy/match-report/v1') },
+    material,
+    { name: 'HMAC', hash: 'SHA-256', length: 256 },
+    false,
+    ['sign'],
+  );
+}
+
+/** Klíč zápasu (hex) pro hlášení výsledku – HMAC seedu zápasu klíčem z deriveReportKey. */
+export async function matchReportKey(reportKey: CryptoKey, seed: string): Promise<string> {
+  const mac = await crypto.subtle.sign('HMAC', reportKey, utf8(`myenemy/match|${seed}`));
+  return Array.from(new Uint8Array(mac), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /** Otisk veřejného klíče pro závazek v hello (SHA-256, hex). */

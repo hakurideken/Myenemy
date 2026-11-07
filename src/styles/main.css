@@ -980,6 +980,87 @@ legend {
   flex: none;
 }
 
+.topbar-account {
+  position: relative;
+}
+
+.topbar-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--panel);
+  border-radius: 50%;
+  background: var(--a);
+}
+
+.topbar-dot[hidden] {
+  display: none;
+}
+
+/* Kamarádi */
+
+.friends-me-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.friends-me .account-handle {
+  margin: 0;
+}
+
+.friends-title {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.friend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.friend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.friend-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.friend-score {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.friend-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-small {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+}
+
 .dialog-actions--stack {
   flex-direction: column;
   align-items: stretch;

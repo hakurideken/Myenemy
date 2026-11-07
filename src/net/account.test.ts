@@ -34,6 +34,17 @@ function fakeBackend(options: { user?: string | null; profile?: Profile | null }
       return Promise.resolve(profile);
     }),
     exportData: () => Promise.resolve({ profile }),
+    friends: () => Promise.resolve([]),
+    friendRequests: vi.fn(() =>
+      Promise.resolve([
+        { id: '00000000-0000-4000-8000-000000000001', nickname: 'Ema', tag: 5, incoming: true },
+      ]),
+    ),
+    sendFriendRequest: () => Promise.resolve('sent' as const),
+    respondFriendRequest: () => Promise.resolve(),
+    cancelFriendRequest: () => Promise.resolve(),
+    removeFriend: () => Promise.resolve(),
+    reportMatch: () => Promise.resolve('pending' as const),
     deleteAccount,
   };
   return { backend, signOut, deleteAccount, emitUser: (id: string | null) => userHandler?.(id) };
@@ -103,8 +114,13 @@ describe('účet – průběh', () => {
     const { account, states } = setup(backend, { stored: true });
     account.start();
     await flush();
-    expect(states).toEqual(['loading', 'signed-in']);
-    expect(account.state).toEqual({ kind: 'signed-in', profile: { nickname: 'Pepa', tag: 7 } });
+    // Po profilu se načtou žádosti o přátelství – jedna čeká (tečka na účtu).
+    expect(states).toEqual(['loading', 'signed-in', 'signed-in']);
+    expect(account.state).toEqual({
+      kind: 'signed-in',
+      profile: { nickname: 'Pepa', tag: 7 },
+      incoming: 1,
+    });
   });
 
   it('první přihlášení (návrat od Googlu): bez profilu, po zvolení přezdívky má kód', async () => {
@@ -112,11 +128,11 @@ describe('účet – průběh', () => {
     const { account } = setup(backend, { search: '?code=xyz' });
     account.start();
     await flush();
-    expect(account.state).toEqual({ kind: 'signed-in', profile: null });
+    expect(account.state).toEqual({ kind: 'signed-in', profile: null, incoming: 0 });
     await expect(account.setNickname('zlé')).rejects.toMatchObject({ code: 'invalid' });
     const profile = await account.setNickname('Jana');
     expect(profile).toEqual({ nickname: 'Jana', tag: 42 });
-    expect(account.state).toEqual({ kind: 'signed-in', profile });
+    expect(account.state).toEqual({ kind: 'signed-in', profile, incoming: 0 });
   });
 
   it('nepovedené odhlášení na serveru: tady host, chyba se ohlásí', async () => {

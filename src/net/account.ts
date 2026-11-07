@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { SupabaseConfig } from './config';
+import type { Friend, FriendRequest, ReportResult, SendRequestResult } from './friends';
 
 /**
  * Účet hráče (přihlášení přes Google / Discord). Hrát jde i bez něj – účet je jen pro
@@ -33,11 +34,14 @@ export type AccountState =
   | { readonly kind: 'unavailable' }
   | { readonly kind: 'guest'; readonly error?: AccountErrorCode }
   | { readonly kind: 'loading' }
-  /** profile null = první přihlášení, ještě bez přezdívky. */
-  | { readonly kind: 'signed-in'; readonly profile: Profile | null };
+  /**
+   * profile null = první přihlášení, ještě bez přezdívky.
+   * incoming = počet žádostí o přátelství, které čekají na odpověď (tečka na účtu).
+   */
+  | { readonly kind: 'signed-in'; readonly profile: Profile | null; readonly incoming: number };
 
 export type AccountErrorCode =
-  'invalid' | 'full' | 'too-soon' | 'network' | 'login-failed' | 'sign-out-failed';
+  'invalid' | 'full' | 'too-soon' | 'limit' | 'network' | 'login-failed' | 'sign-out-failed';
 
 export class AccountError extends Error {
   override name = 'AccountError';
@@ -59,6 +63,14 @@ export interface AccountBackend {
   /** Všechna data účtu (GDPR – právo na přístup). */
   exportData(): Promise<unknown>;
   deleteAccount(): Promise<void>;
+  friends(): Promise<Friend[]>;
+  friendRequests(): Promise<FriendRequest[]>;
+  sendFriendRequest(profile: Profile): Promise<SendRequestResult>;
+  respondFriendRequest(requestId: string, accept: boolean): Promise<void>;
+  cancelFriendRequest(requestId: string): Promise<void>;
+  removeFriend(userId: string): Promise<void>;
+  /** Výsledek online zápasu; započítá se, až ho shodně nahlásí i soupeř (kamarád). */
+  reportMatch(matchKey: string, won: boolean): Promise<ReportResult>;
 }
 
 export interface Account {
@@ -71,6 +83,14 @@ export interface Account {
   setNickname(nickname: string): Promise<Profile>;
   exportData(): Promise<unknown>;
   deleteAccount(): Promise<void>;
+  friends(): Promise<Friend[]>;
+  /** Žádosti o přátelství; zároveň obnoví počet čekajících (tečka na účtu). */
+  friendRequests(): Promise<FriendRequest[]>;
+  sendFriendRequest(profile: Profile): Promise<SendRequestResult>;
+  respondFriendRequest(requestId: string, accept: boolean): Promise<void>;
+  cancelFriendRequest(requestId: string): Promise<void>;
+  removeFriend(userId: string): Promise<void>;
+  reportMatch(matchKey: string, won: boolean): Promise<ReportResult>;
 }
 
 /** Parametry, které po přihlášení přidá Supabase do adresy (kód pro výměnu, chyba). */
@@ -113,6 +133,13 @@ const UNAVAILABLE: Account = {
   setNickname: () => Promise.reject(new AccountError('network')),
   exportData: () => Promise.reject(new AccountError('network')),
   deleteAccount: () => Promise.reject(new AccountError('network')),
+  friends: () => Promise.resolve([]),
+  friendRequests: () => Promise.resolve([]),
+  sendFriendRequest: () => Promise.reject(new AccountError('network')),
+  respondFriendRequest: () => Promise.reject(new AccountError('network')),
+  cancelFriendRequest: () => Promise.reject(new AccountError('network')),
+  removeFriend: () => Promise.reject(new AccountError('network')),
+  reportMatch: () => Promise.resolve('ignored'),
 };
 
 export function createAccount(options: AccountOptions): Account {
@@ -151,11 +178,30 @@ export function createAccount(options: AccountOptions): Account {
     }
     try {
       const profile = await api.profile(id);
-      if (userId === id) set({ kind: 'signed-in', profile });
+      if (userId === id) set({ kind: 'signed-in', profile, incoming: 0 });
     } catch {
       // Profil se nenačetl (výpadek) – přihlášení zůstává, zkusí se znovu příště.
-      if (userId === id) set({ kind: 'signed-in', profile: null });
+      if (userId === id) set({ kind: 'signed-in', profile: null, incoming: 0 });
     }
+    if (userId === id && state.kind === 'signed-in' && state.profile) {
+      void loadRequests(api).catch(() => undefined);
+    }
+  }
+
+  async function loadRequests(api: AccountBackend): Promise<FriendRequest[]> {
+    const id = userId;
+    const requests = await api.friendRequests();
+    const incoming = requests.filter((r) => r.incoming).length;
+    if (userId === id && state.kind === 'signed-in' && state.incoming !== incoming) {
+      set({ ...state, incoming });
+    }
+    return requests;
+  }
+
+  /** Volání, která dávají smysl jen přihlášenému (s přezdívkou). */
+  async function signedIn(): Promise<AccountBackend> {
+    if (state.kind !== 'signed-in') throw new AccountError('network');
+    return ensureBackend();
   }
 
   function ensureBackend(): Promise<AccountBackend> {
@@ -221,7 +267,8 @@ export function createAccount(options: AccountOptions): Account {
     async setNickname(nickname) {
       const api = await ensureBackend();
       const profile = await api.setNickname(nickname);
-      set({ kind: 'signed-in', profile });
+      const incoming = state.kind === 'signed-in' ? state.incoming : 0;
+      set({ kind: 'signed-in', profile, incoming });
       return profile;
     },
     async deleteAccount() {
@@ -229,6 +276,30 @@ export function createAccount(options: AccountOptions): Account {
       await api.deleteAccount();
       userId = null;
       set({ kind: 'guest' });
+    },
+    async friends() {
+      return (await signedIn()).friends();
+    },
+    async friendRequests() {
+      return loadRequests(await signedIn());
+    },
+    async sendFriendRequest(profile) {
+      return (await signedIn()).sendFriendRequest(profile);
+    },
+    async respondFriendRequest(id, accept) {
+      const api = await signedIn();
+      await api.respondFriendRequest(id, accept);
+      await loadRequests(api).catch(() => undefined);
+    },
+    async cancelFriendRequest(id) {
+      return (await signedIn()).cancelFriendRequest(id);
+    },
+    async removeFriend(id) {
+      return (await signedIn()).removeFriend(id);
+    },
+    async reportMatch(matchKey, won) {
+      if (state.kind !== 'signed-in' || !state.profile) return 'ignored';
+      return (await ensureBackend()).reportMatch(matchKey, won);
     },
   };
 }
