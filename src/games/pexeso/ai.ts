@@ -2,8 +2,11 @@ import type { AIContext } from '../../core/MiniGame';
 import type { Difficulty } from '../../core/types';
 import { CARDS, pairOf, seenCard, type PexesoMove, type PexesoView } from './logic';
 
-/** Jak spolehlivě si AI zapamatuje otočenou kartu. */
-const RECALL: Record<Difficulty, number> = { easy: 0.35, medium: 0.7, hard: 1 };
+/**
+ * Jak spolehlivě si AI zapamatuje otočenou kartu. Těžká si pamatuje hodně, ale ne vše
+ * (dokonalou paměť člověk u 30 kartiček nemá – dřív vyhrávala ~9 z 10 her).
+ */
+const RECALL: Record<Difficulty, number> = { easy: 0.3, medium: 0.5, hard: 0.72 };
 
 interface Memory {
   /** Kolik karet už bylo vidět – když je jich míň, začala nová hra. */

@@ -15,9 +15,9 @@ import {
 
 /** Šance na správnou odpověď (při 5 obrázcích a pokles na každý další) a rychlost. */
 const SKILL: Record<Difficulty, { base: number; drop: number; ms: [number, number] }> = {
-  easy: { base: 0.75, drop: 0.05, ms: [2700, 600] },
-  medium: { base: 0.88, drop: 0.04, ms: [1900, 400] },
-  hard: { base: 0.97, drop: 0.025, ms: [1300, 300] },
+  easy: { base: 0.65, drop: 0.06, ms: [3000, 700] },
+  medium: { base: 0.8, drop: 0.05, ms: [2300, 500] },
+  hard: { base: 0.92, drop: 0.035, ms: [1700, 400] },
 };
 
 export function spotAIMove(view: SpotView, ai: AIContext): SpotMove {

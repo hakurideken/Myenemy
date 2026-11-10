@@ -10,20 +10,28 @@ import {
   type DigitView,
 } from './logic';
 
-/** Šance zapamatovat si číslici (u 4 číslic a pokles na každou další) a tempo psaní. */
-const SKILL: Record<Difficulty, { base: number; drop: number; perDigit: [number, number] }> = {
-  easy: { base: 0.93, drop: 0.07, perDigit: [520, 90] },
-  medium: { base: 0.97, drop: 0.045, perDigit: [400, 70] },
-  hard: { base: 0.995, drop: 0.022, perDigit: [300, 50] },
+/**
+ * Rozsah paměti (kolik číslic si AI v kole zapamatuje – průměr, rozptyl) a tempo psaní.
+ * Jako u člověka: do rozsahu skoro jistě, delší konec čísla už jen hádá. Člověk mívá
+ * rozsah kolem 7 číslic – lehká je pod ním, střední zhruba průměrná, těžká dobrý hráč.
+ */
+const SKILL: Record<Difficulty, { span: [number, number]; perDigit: [number, number] }> = {
+  easy: { span: [5, 1], perDigit: [600, 100] },
+  medium: { span: [6.2, 1], perDigit: [480, 80] },
+  hard: { span: [7.3, 1], perDigit: [380, 60] },
 };
+/** I v rozsahu paměti se občas splete (překlep, prohozená číslice). */
+const IN_SPAN = 0.97;
 
 export function digitAIMove(view: DigitView, ai: AIContext): DigitMove {
   const skill = SKILL[ai.difficulty];
   const answers = view.numbers.map((number) => {
-    const chance = Math.max(0.3, skill.base - skill.drop * (number.length - 4));
+    const span = Math.max(3, Math.round(ai.rng.normal(skill.span[0], skill.span[1])));
     const digits = [...number]
-      .map((digit) =>
-        ai.rng.chance(chance) ? digit : String((Number(digit) + 1 + ai.rng.int(9)) % 10),
+      .map((digit, i) =>
+        i < span && ai.rng.chance(IN_SPAN)
+          ? digit
+          : String((Number(digit) + 1 + ai.rng.int(9)) % 10),
       )
       .join('');
     const ms = Math.round(

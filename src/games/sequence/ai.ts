@@ -10,11 +10,15 @@ import {
   type SequenceView,
 } from './logic';
 
-/** Kolik kol AI zvládne (průměr, rozptyl) a jak rychle mačká (ms na položku). */
+/**
+ * Kolik kol AI zvládne (průměr, rozptyl) a jak rychle mačká (ms na položku). Člověk si
+ * zapamatuje zhruba 7 ± 2 položek (≈ 5. kolo) – lehká je pod tím, střední zhruba
+ * průměrný hráč, těžká dobrý hráč (řada kolem 11 položek), ne nepřekonatelná zeď.
+ */
 const SKILL: Record<Difficulty, { level: [number, number]; press: [number, number] }> = {
-  easy: { level: [5.5, 1.5], press: [520, 80] },
-  medium: { level: [8.5, 1.8], press: [420, 60] },
-  hard: { level: [12, 1.8], press: [330, 50] },
+  easy: { level: [4.5, 1.3], press: [600, 90] },
+  medium: { level: [6.5, 1.5], press: [480, 70] },
+  hard: { level: [9, 1.6], press: [400, 60] },
 };
 
 /** AI „zahraje“ celý běh najednou: správně do kola, kde udělá chybu. */

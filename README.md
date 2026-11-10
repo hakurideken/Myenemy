@@ -566,6 +566,19 @@ přečíst z paměti – stejné omezení jako u reakčních her).
 - Sekvence: AI pošle výsledek pár sekund po odpočtu (je schovaný až do konce) – dřív se
   na ni čekalo tak dlouho, jako by celý běh hrála (u těžké i minuty).
 - Čísla na mžik: Enter vždy odešle odpověď, i když je fokus na tlačítku číselníku.
+- **Obtížnost AI v paměťových hrách** (nastavená podle simulace, cíl: lehká pod průměrným
+  hráčem, střední ≈ průměrný hráč, těžká ≈ dobrý hráč, ne nepřekonatelná):
+
+  | Hra            | Lehká      | Střední    | Těžká      | Dřív těžká       |
+  | -------------- | ---------- | ---------- | ---------- | ---------------- |
+  | Sekvence (kol) | 4,6        | 6,6        | 9,1        | 12,1             |
+  | Co se změnilo  | 3,5 / 7    | 4,7 / 7    | 5,8 / 7    | 6,4 / 7          |
+  | Čísla na mžik  | 32,6 / 49  | 38,2 / 49  | 42,1 / 49  | 45,0 / 49        |
+  | Pexeso (paměť) | 30 % karet | 50 % karet | 72 % karet | 100 % (dokonalá) |
+
+  Čísla na mžik: AI má „rozsah paměti“ (5 / 6,2 / 7,3 číslice) – do něj skoro jistě,
+  delší konec čísla hádá, jako člověk. Tempo zadávání je pomalejší než dřív.
+
 - Oprava v Pexesu: obrázek měsíce měl dva oblouky se stejnou dráhou (nulová plocha)
   a nevykreslil se – teď je to srpek.
 
