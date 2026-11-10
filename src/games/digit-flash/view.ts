@@ -89,7 +89,7 @@ export function createDigitView(ctx: ViewContext<DigitMove>): GameView<DigitView
     h('span', { class: 'qd-name' }, ctx.names[opp]),
     opponentStatus,
   );
-  const display = h('div', { class: 'df-display', 'aria-label': t.answer });
+  const display = h('div', { class: 'df-display', 'aria-label': t.answer, tabindex: '-1' });
   const key = (label: string, onclick: () => void, cls = '', aria?: string): HTMLButtonElement =>
     h(
       'button',
@@ -159,7 +159,8 @@ export function createDigitView(ctx: ViewContext<DigitMove>): GameView<DigitView
       setKeys(true);
       setText(status, t.type(round + 1));
       typeAt = ctx.clock.now();
-      keys[0]?.focus({ preventScroll: true });
+      // Fokus na displej, ne na tlačítko – jinak by Enter „zmáčkl“ tlačítko místo odeslání.
+      display.focus({ preventScroll: true });
       answerTimer = ctx.clock.setTimeout(() => confirm(true), ANSWER_MS);
     }, showMs(number.length));
   }
@@ -219,7 +220,8 @@ export function createDigitView(ctx: ViewContext<DigitMove>): GameView<DigitView
     } else if (event.key === 'Backspace') {
       event.preventDefault();
       erase();
-    } else if (event.key === 'Enter' && !(event.target instanceof HTMLButtonElement)) {
+    } else if (event.key === 'Enter') {
+      // Enter vždy odešle (i když je fokus na tlačítku klávesnice na obrazovce).
       event.preventDefault();
       confirm();
     }

@@ -89,7 +89,10 @@ describe('Sekvence – AI', () => {
     const view = sequenceLogic.view(s, 'B');
     const ai = { difficulty: d, rng: createRng(seed), me: 'B' as const, memory: new AIMemory() };
     const move = sequenceAIMove(view, ai);
-    expect(sequenceAIDelay(view, move)).toBeGreaterThan(COUNTDOWN_MS);
+    // AI odešle výsledek do pár sekund po odpočtu – hráč na ni nečeká, i když skončí hned.
+    const delay = sequenceAIDelay(view, move, ai);
+    expect(delay).toBeGreaterThan(COUNTDOWN_MS);
+    expect(delay).toBeLessThan(COUNTDOWN_MS + 3500);
     const result = normalizeRun(s.sequence, move);
     if (result.kind !== 'run') throw new Error('AI poslala neplatný běh');
     return result.level;

@@ -20,7 +20,13 @@ import { connectionBanner } from './components/banner';
 import { gameScreen } from './screens/game';
 import { gameIntroScreen } from './screens/gameIntro';
 import { matchResultScreen } from './screens/matchResult';
-import { connectingScreen, lobbyScreen, messageScreen, waitingScreen } from './screens/online';
+import {
+  connectingScreen,
+  lobbyScreen,
+  messageScreen,
+  waitingScreen,
+  type InviteOptions,
+} from './screens/online';
 import { roundResultScreen } from './screens/roundResult';
 
 const SILENT: Sfx = { play: () => undefined, vibrate: () => undefined };
@@ -116,6 +122,8 @@ export class OnlineFlow {
   private session: OnlineSession | null = null;
   /** Zápas, jehož výsledek už šel do databáze (kamarádi) – jen jednou. */
   private reportedMatch: string | null = null;
+  /** Místnost, do které hostitel poslal pozvánky (při zrušení se stáhnou). */
+  private invitedRoom: string | null = null;
   /** Kontrolní kód spojení pro lobby. */
   private check: string | null = null;
   private disposed = false;
@@ -156,8 +164,24 @@ export class OnlineFlow {
         link: roomLink(code, window.location),
         format,
         onCancel: () => this.exit(),
+        invite: this.inviteOptions(code),
       }),
     );
+  }
+
+  /** Přihlášený hráč s přezdívkou může zvát kamarády do právě založené místnosti. */
+  private inviteOptions(code: string): InviteOptions | undefined {
+    const account = this.app.account;
+    const auto = this.app.takePendingInvite();
+    if (account.state.kind !== 'signed-in' || !account.state.profile) return undefined;
+    return {
+      friends: () => account.friends(),
+      send: (friend) => {
+        this.invitedRoom = code;
+        return account.sendGameInvite(friend.id, code);
+      },
+      auto,
+    };
   }
 
   async joinRoom(code: string): Promise<void> {
@@ -203,6 +227,13 @@ export class OnlineFlow {
     this.disposed = true;
     window.removeEventListener('pagehide', this.onPageHide);
     this.app.setBanner(null);
+    // Odcházím z rozhodnutého zápasu dřív, než se nahlásil výsledek – nahlásit teď.
+    const report = this.session?.leavingReport;
+    if (report) this.reportResult(report.matchKey, report.won, 'left');
+    // Místnost zaniká bez soupeře – pozvánky do ní stáhnout.
+    if (!this.session && this.invitedRoom) {
+      this.app.account.cancelGameInvites(this.invitedRoom).catch(() => undefined);
+    }
     const leaving = this.session?.leave() ?? Promise.resolve();
     const transport = this.transport;
     const hostRoom = this.hostRoom;

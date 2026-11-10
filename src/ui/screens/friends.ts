@@ -38,6 +38,7 @@ const t = translations(
     decline: 'Odmítnout',
     cancel: 'Zrušit',
     remove: 'Odebrat',
+    play: 'Pozvat do hry',
     removeTitle: 'Odebrat kamaráda?',
     removeText: (handle: string) =>
       `${handle} zmizí z kamarádů a smaže se i vaše vzájemné skóre. Přidat se můžete znovu.`,
@@ -78,6 +79,7 @@ const t = translations(
     decline: 'Decline',
     cancel: 'Cancel',
     remove: 'Remove',
+    play: 'Invite to a game',
     removeTitle: 'Remove friend?',
     removeText: (handle: string) =>
       `${handle} will be removed from your friends and your head-to-head score is deleted. You can add each other again.`,
@@ -249,7 +251,14 @@ export function friendsScreen(app: App): Mount {
           { class: 'friend-score', 'aria-label': t.scoreLabel(name, f.wins, f.losses) },
           t.score(f.wins, f.losses),
         ),
-        h('span', { class: 'friend-actions' }, remove),
+        h(
+          'span',
+          { class: 'friend-actions' },
+          app.onlineAvailable
+            ? button(t.play, () => app.inviteToGame(f), 'btn btn-primary btn-small')
+            : null,
+          remove,
+        ),
       );
     };
 

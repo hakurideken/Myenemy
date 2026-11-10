@@ -12,6 +12,8 @@ import type { SupabaseConfig } from './config';
 import {
   friendRequestsSchema,
   friendsSchema,
+  inviteResultSchema,
+  notificationsSchema,
   reportResultSchema,
   sendRequestResultSchema,
 } from './friends';
@@ -64,8 +66,13 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
   }
 
   const profiles = z.array(profileSchema).max(1);
-  const rpc = (name: string, args: Record<string, unknown> = {}): Promise<unknown> =>
-    rest(`rpc/${name}`, { method: 'POST', body: JSON.stringify(args) });
+  /** keepalive: požadavek doběhne, i když stránka zrovna končí (odchod ze zápasu, zavření). */
+  const rpc = (
+    name: string,
+    args: Record<string, unknown> = {},
+    keepalive = false,
+  ): Promise<unknown> =>
+    rest(`rpc/${name}`, { method: 'POST', body: JSON.stringify(args), keepalive });
 
   return {
     async init() {
@@ -144,9 +151,23 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
     async removeFriend(userId) {
       await rpc('remove_friend', { p_friend: userId });
     },
+    async notifications() {
+      return notificationsSchema.parse(await rpc('my_notifications'));
+    },
+    async sendGameInvite(friendId, room) {
+      return inviteResultSchema.parse(
+        await rpc('send_game_invite', { p_friend: friendId, p_room: room }),
+      );
+    },
+    async dismissGameInvite(inviteId) {
+      await rpc('dismiss_game_invite', { p_invite: inviteId });
+    },
+    async cancelGameInvites(room) {
+      await rpc('cancel_game_invites', { p_room: room }, true);
+    },
     async reportMatch(matchKey, won) {
       return reportResultSchema.parse(
-        await rpc('report_match', { p_match_key: matchKey, p_won: won }),
+        await rpc('report_match', { p_match_key: matchKey, p_won: won }, true),
       );
     },
   };

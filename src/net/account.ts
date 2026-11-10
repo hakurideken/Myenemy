@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import type { SupabaseConfig } from './config';
-import type { Friend, FriendRequest, ReportResult, SendRequestResult } from './friends';
+import type {
+  Friend,
+  FriendRequest,
+  GameInvite,
+  InviteResult,
+  Notifications,
+  ReportResult,
+  SendRequestResult,
+} from './friends';
 
 /**
  * Účet hráče (přihlášení přes Google / Discord). Hrát jde i bez něj – účet je jen pro
@@ -38,7 +46,13 @@ export type AccountState =
    * profile null = první přihlášení, ještě bez přezdívky.
    * incoming = počet žádostí o přátelství, které čekají na odpověď (tečka na účtu).
    */
-  | { readonly kind: 'signed-in'; readonly profile: Profile | null; readonly incoming: number };
+  | {
+      readonly kind: 'signed-in';
+      readonly profile: Profile | null;
+      readonly incoming: number;
+      /** Pozvánky do hry od kamarádů (obnovují se průběžně). */
+      readonly invites: readonly GameInvite[];
+    };
 
 export type AccountErrorCode =
   'invalid' | 'full' | 'too-soon' | 'limit' | 'network' | 'login-failed' | 'sign-out-failed';
@@ -71,6 +85,10 @@ export interface AccountBackend {
   removeFriend(userId: string): Promise<void>;
   /** Výsledek online zápasu; započítá se, až ho shodně nahlásí i soupeř (kamarád). */
   reportMatch(matchKey: string, won: boolean): Promise<ReportResult>;
+  notifications(): Promise<Notifications>;
+  sendGameInvite(friendId: string, room: string): Promise<InviteResult>;
+  dismissGameInvite(inviteId: string): Promise<void>;
+  cancelGameInvites(room: string): Promise<void>;
 }
 
 export interface Account {
@@ -91,6 +109,12 @@ export interface Account {
   cancelFriendRequest(requestId: string): Promise<void>;
   removeFriend(userId: string): Promise<void>;
   reportMatch(matchKey: string, won: boolean): Promise<ReportResult>;
+  /** Průběžné obnovení žádostí a pozvánek (bez obnovení stránky). */
+  refreshNotifications(): Promise<void>;
+  sendGameInvite(friendId: string, room: string): Promise<InviteResult>;
+  dismissGameInvite(inviteId: string): Promise<void>;
+  /** Hostitel ruší místnost – pozvánky do ní zmizí. */
+  cancelGameInvites(room: string): Promise<void>;
 }
 
 /** Parametry, které po přihlášení přidá Supabase do adresy (kód pro výměnu, chyba). */
@@ -140,6 +164,10 @@ const UNAVAILABLE: Account = {
   cancelFriendRequest: () => Promise.reject(new AccountError('network')),
   removeFriend: () => Promise.reject(new AccountError('network')),
   reportMatch: () => Promise.resolve('ignored'),
+  refreshNotifications: () => Promise.resolve(),
+  sendGameInvite: () => Promise.reject(new AccountError('network')),
+  dismissGameInvite: () => Promise.resolve(),
+  cancelGameInvites: () => Promise.resolve(),
 };
 
 export function createAccount(options: AccountOptions): Account {
@@ -178,13 +206,13 @@ export function createAccount(options: AccountOptions): Account {
     }
     try {
       const profile = await api.profile(id);
-      if (userId === id) set({ kind: 'signed-in', profile, incoming: 0 });
+      if (userId === id) set({ kind: 'signed-in', profile, incoming: 0, invites: [] });
     } catch {
       // Profil se nenačetl (výpadek) – přihlášení zůstává, zkusí se znovu příště.
-      if (userId === id) set({ kind: 'signed-in', profile: null, incoming: 0 });
+      if (userId === id) set({ kind: 'signed-in', profile: null, incoming: 0, invites: [] });
     }
     if (userId === id && state.kind === 'signed-in' && state.profile) {
-      void loadRequests(api).catch(() => undefined);
+      void loadNotifications(api).catch(() => undefined);
     }
   }
 
@@ -196,6 +224,17 @@ export function createAccount(options: AccountOptions): Account {
       set({ ...state, incoming });
     }
     return requests;
+  }
+
+  async function loadNotifications(api: AccountBackend): Promise<void> {
+    const id = userId;
+    const { requests, invites } = await api.notifications();
+    if (userId !== id || state.kind !== 'signed-in') return;
+    const same =
+      state.incoming === requests &&
+      state.invites.length === invites.length &&
+      state.invites.every((inv, i) => inv.id === invites[i]?.id);
+    if (!same) set({ ...state, incoming: requests, invites });
   }
 
   /** Volání, která dávají smysl jen přihlášenému (s přezdívkou). */
@@ -268,7 +307,8 @@ export function createAccount(options: AccountOptions): Account {
       const api = await ensureBackend();
       const profile = await api.setNickname(nickname);
       const incoming = state.kind === 'signed-in' ? state.incoming : 0;
-      set({ kind: 'signed-in', profile, incoming });
+      const invites = state.kind === 'signed-in' ? state.invites : [];
+      set({ kind: 'signed-in', profile, incoming, invites });
       return profile;
     },
     async deleteAccount() {
@@ -296,6 +336,25 @@ export function createAccount(options: AccountOptions): Account {
     },
     async removeFriend(id) {
       return (await signedIn()).removeFriend(id);
+    },
+    async refreshNotifications() {
+      if (state.kind !== 'signed-in' || !state.profile) return;
+      await loadNotifications(await ensureBackend());
+    },
+    async sendGameInvite(friendId, room) {
+      return (await signedIn()).sendGameInvite(friendId, room);
+    },
+    async dismissGameInvite(inviteId) {
+      const api = await signedIn();
+      // Hned schovat (i kdyby síť chvíli trvala).
+      if (state.kind === 'signed-in') {
+        set({ ...state, invites: state.invites.filter((i) => i.id !== inviteId) });
+      }
+      await api.dismissGameInvite(inviteId);
+    },
+    async cancelGameInvites(room) {
+      if (state.kind !== 'signed-in' || !state.profile) return;
+      await (await ensureBackend()).cancelGameInvites(room);
     },
     async reportMatch(matchKey, won) {
       if (state.kind !== 'signed-in' || !state.profile) return 'ignored';

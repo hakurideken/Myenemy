@@ -279,6 +279,17 @@ export class OnlineSession {
     return { ...(this.controller?.score ?? { A: 0, B: 0 }) };
   }
 
+  /**
+   * Výsledek pro kamarády při odchodu ze zápasu, který je už rozhodnutý (hráč odchází
+   * z výsledku posledního kola). Rozehraný zápas se nehlásí – jinak by šlo výhru
+   * „vysedět“: prohrávající by nekliknul na „Začít“ a čekal, až soupeř odejde.
+   */
+  get leavingReport(): { readonly matchKey: string; readonly won: boolean } | null {
+    const c = this.controller;
+    if (!c?.isOver || !this.matchKey || this.detail !== null) return null;
+    return { matchKey: this.matchKey, won: c.winner === this.me };
+  }
+
   get history(): readonly RoundRecord[] {
     return this.controller ? this.controller.history : [];
   }
@@ -1344,7 +1355,9 @@ export class OnlineSession {
       (name === 'intro' || name === 'playing' || name === 'round-result')
     ) {
       this.endByForfeit(this.opponent, kind === 'left' ? 'left' : 'disconnect');
-    } else if (name === 'match-result') {
+    } else if (name === 'match-result' || this.controller?.isOver) {
+      // Zápas už je rozhodnutý (soupeř odešel z výsledku posledního kola) – výsledek ukázat
+      // i tak, ať se započte kamarádům.
       this.showMatchResult();
     } else {
       this.close(kind === 'left' ? 'opponent-left' : 'opponent-gone', null);

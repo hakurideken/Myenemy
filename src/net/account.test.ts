@@ -45,6 +45,16 @@ function fakeBackend(options: { user?: string | null; profile?: Profile | null }
     cancelFriendRequest: () => Promise.resolve(),
     removeFriend: () => Promise.resolve(),
     reportMatch: () => Promise.resolve('pending' as const),
+    notifications: () =>
+      Promise.resolve({
+        requests: 1,
+        invites: [
+          { id: '00000000-0000-4000-8000-000000000009', nickname: 'Ema', tag: 5, room: 'ABCDE' },
+        ],
+      }),
+    sendGameInvite: () => Promise.resolve('sent' as const),
+    dismissGameInvite: () => Promise.resolve(),
+    cancelGameInvites: () => Promise.resolve(),
     deleteAccount,
   };
   return { backend, signOut, deleteAccount, emitUser: (id: string | null) => userHandler?.(id) };
@@ -114,12 +124,15 @@ describe('účet – průběh', () => {
     const { account, states } = setup(backend, { stored: true });
     account.start();
     await flush();
-    // Po profilu se načtou žádosti o přátelství – jedna čeká (tečka na účtu).
+    // Po profilu se načtou upozornění – čeká žádost o přátelství a pozvánka do hry.
     expect(states).toEqual(['loading', 'signed-in', 'signed-in']);
     expect(account.state).toEqual({
       kind: 'signed-in',
       profile: { nickname: 'Pepa', tag: 7 },
       incoming: 1,
+      invites: [
+        { id: '00000000-0000-4000-8000-000000000009', nickname: 'Ema', tag: 5, room: 'ABCDE' },
+      ],
     });
   });
 
@@ -128,11 +141,11 @@ describe('účet – průběh', () => {
     const { account } = setup(backend, { search: '?code=xyz' });
     account.start();
     await flush();
-    expect(account.state).toEqual({ kind: 'signed-in', profile: null, incoming: 0 });
+    expect(account.state).toEqual({ kind: 'signed-in', profile: null, incoming: 0, invites: [] });
     await expect(account.setNickname('zlé')).rejects.toMatchObject({ code: 'invalid' });
     const profile = await account.setNickname('Jana');
     expect(profile).toEqual({ nickname: 'Jana', tag: 42 });
-    expect(account.state).toEqual({ kind: 'signed-in', profile, incoming: 0 });
+    expect(account.state).toEqual({ kind: 'signed-in', profile, incoming: 0, invites: [] });
   });
 
   it('nepovedené odhlášení na serveru: tady host, chyba se ohlásí', async () => {

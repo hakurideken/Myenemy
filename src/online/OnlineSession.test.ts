@@ -362,6 +362,31 @@ describe('online zápas – odpojení a neaktivita', () => {
     expect(host.phase).toMatchObject({ name: 'match-result', winner: 'A', reason: 'left' });
   });
 
+  it('soupeř odejde po posledním kole: druhý i tak uvidí výsledek zápasu (kvůli kamarádům)', async () => {
+    const game = stubbed(pick);
+    const { host, guest } = await sessions([game.module], {
+      kind: 'vlastni',
+      bestOf: 1,
+      picks: ['pick'],
+    });
+    await toPlaying(host, guest);
+    lastView(game.views, 'A').ctx.submit('A', { n: 5 });
+    lastView(game.views, 'B').ctx.submit('B', { n: 1 });
+    await run(clock, 1000);
+    expect([phaseOf(host), phaseOf(guest)]).toEqual(['round-result', 'round-result']);
+    // Hostitel se rovnou podívá na výsledek a odejde; host je ještě na výsledku kola.
+    host.continueAfterRound();
+    expect(host.leavingReport).toMatchObject({ won: true });
+    const key = host.leavingReport?.matchKey;
+    expect(key).toMatch(/^[0-9a-f]{64}$/);
+    void host.leave();
+    await run(clock, 300);
+    const phase = guest.phase;
+    if (phase.name !== 'match-result') throw new Error(`fáze ${phase.name}`);
+    // Host vidí výsledek (prohra) se stejným klíčem – obě hlášení se shodnou.
+    expect(phase).toMatchObject({ winner: 'A', matchKey: key });
+  });
+
   it('odchod v lobby místnost zavře', async () => {
     const { host, guest } = await sessions([pick], { kind: 'vlastni', bestOf: 3, picks: ['pick'] });
     void guest.leave();

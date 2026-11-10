@@ -7,15 +7,14 @@ import {
   COUNTDOWN_MS,
   duckAt,
   duckLogic,
-  DUCK_COUNT,
   DURATION_MS,
   FIELD_W,
   findTarget,
-  GROUND_Y,
+  goldenIndex,
   HIT_RADIUS,
+  isTie,
   judgeDucks,
   MAX_FLYING,
-  MIN_REACTION_MS,
   planDucks,
   scoreOf,
   type DuckMove,
@@ -25,11 +24,11 @@ import {
 const fresh = (seed = 'kachny'): DuckState =>
   duckLogic.setup({ rng: createRng(seed), starter: 'A' });
 
-/** Zásah kachny v čase t přesně do středu. */
+/** Zásah ptáka v čase t přesně do středu. */
 function hit(state: DuckState, duck: number, t: number): DuckMove {
   const d = state.ducks[duck];
   const at = d && duckAt(d, t);
-  if (!at) throw new Error(`kachna ${duck} v čase ${t} neletí`);
+  if (!at) throw new Error(`pták ${duck} v čase ${t} neletí`);
   return { kind: 'shot', duck, t, x: at.x, y: at.y };
 }
 
@@ -39,131 +38,147 @@ const play = (state: DuckState, moves: [PlayerSlot, DuckMove][]): DuckState =>
     return duckLogic.apply(s, p, m);
   }, state);
 
+/** Okamžik, kdy je pták uprostřed letu (a v minutě, kromě zlaté kachny). */
 const mid = (state: DuckState, duck: number): number => {
   const d = state.ducks[duck];
-  if (!d) throw new Error('chybí kachna');
-  return Math.round((d.spawn + d.gone) / 2);
+  if (!d) throw new Error('chybí pták');
+  const end = d.kind === 'golden' ? d.gone : Math.min(d.gone, DURATION_MS);
+  return Math.round((Math.max(d.spawn, d.kind === 'golden' ? DURATION_MS : 0) + end) / 2);
 };
 
-describe('Kachní hon – plán kachen', () => {
-  it('15 kachen, najednou nejvýš 3, všechny zmizí do konce minuty', () => {
-    for (let seed = 0; seed < 200; seed++) {
-      const ducks = planDucks(createRng(`seed-${seed}`));
-      expect(ducks).toHaveLength(DUCK_COUNT);
-      for (const duck of ducks) {
-        expect(duck.spawn).toBeGreaterThanOrEqual(0);
-        expect(duck.gone).toBeLessThanOrEqual(DURATION_MS);
-        expect(duck.gone - duck.spawn).toBeGreaterThan(1500);
-        expect(duck.path.length).toBeGreaterThanOrEqual(3); // aspoň jedna změna směru
-      }
-      for (const { spawn } of ducks) {
-        const flying = ducks.filter((d) => d.spawn <= spawn && d.gone >= spawn).length;
+const firstOf = (s: DuckState, kind: 'duck' | 'dove'): number => {
+  const i = s.ducks.findIndex((d) => d.kind === kind);
+  if (i < 0) throw new Error(`žádný ${kind}`);
+  return i;
+};
+
+describe('Kachní hon – plán ptáků', () => {
+  it('kachny létají celou minutu (najednou nejvýš 3), občas holubice, na konci zlatá kachna', () => {
+    let doves = 0;
+    let total = 0;
+    for (let seed = 0; seed < 100; seed++) {
+      const birds = planDucks(createRng(`seed-${seed}`));
+      const golden = birds.at(-1);
+      expect(golden?.kind).toBe('golden');
+      expect(golden?.spawn).toBeGreaterThan(DURATION_MS);
+      const regular = birds.slice(0, -1);
+      expect(regular.length).toBeGreaterThan(18); // víc než dřív (15) – „neomezeně“ po minutu
+      expect(regular.every((b) => b.kind !== 'golden' && b.spawn < DURATION_MS)).toBe(true);
+      // Poslední pták vylétne těsně před koncem minuty.
+      expect(Math.max(...regular.map((b) => b.spawn))).toBeGreaterThan(DURATION_MS - 9000);
+      for (const { spawn } of regular) {
+        const flying = regular.filter((d) => d.spawn <= spawn && d.gone > spawn).length;
         expect(flying).toBeLessThanOrEqual(MAX_FLYING);
       }
-      // Pořadí vylétnutí odpovídá pořadí v plánu.
-      expect(ducks.map((d) => d.spawn)).toEqual(
-        [...ducks.map((d) => d.spawn)].sort((a, b) => a - b),
-      );
+      doves += regular.filter((b) => b.kind === 'dove').length;
+      total += regular.length;
     }
+    expect(doves / total).toBeGreaterThan(0.08);
+    expect(doves / total).toBeLessThan(0.3);
+  });
+
+  it('ptáci vylétají ze všech stran (z trávy, zleva, zprava i shora)', () => {
+    const sides = new Set<string>();
+    for (let seed = 0; seed < 30; seed++) {
+      for (const bird of planDucks(createRng(`s${seed}`))) {
+        const start = bird.path[0];
+        if (!start) continue;
+        if (start.x < 0) sides.add('left');
+        else if (start.x > FIELD_W) sides.add('right');
+        else if (start.y < 0) sides.add('top');
+        else sides.add('bottom');
+      }
+    }
+    expect([...sides].sort()).toEqual(['bottom', 'left', 'right', 'top']);
   });
 
   it('stejný seed = stejné dráhy (online mají oba hráči totéž)', () => {
     expect(planDucks(createRng('x'))).toEqual(planDucks(createRng('x')));
     expect(planDucks(createRng('x'))).not.toEqual(planDucks(createRng('y')));
   });
-
-  it('kachna vylétne z trávy, létá na obloze a odletí nahoru za okraj', () => {
-    const [duck] = planDucks(createRng('dráha'));
-    if (!duck) throw new Error('chybí kachna');
-    expect(duckAt(duck, duck.spawn - 1)).toBeNull();
-    expect(duckAt(duck, duck.spawn)?.y).toBeGreaterThan(GROUND_Y);
-    expect(duckAt(duck, duck.gone)?.y).toBeLessThan(0);
-    expect(duckAt(duck, duck.gone + 1)).toBeNull();
-    for (let t = duck.spawn; t <= duck.gone; t += 50) {
-      const at = duckAt(duck, t);
-      expect(at?.x).toBeGreaterThanOrEqual(-8);
-      expect(at?.x).toBeLessThanOrEqual(FIELD_W + 8);
-    }
-  });
 });
 
 describe('Kachní hon – zásahy a vyhodnocení', () => {
-  it('platný je jen zásah, kde kachna v tu chvíli opravdu je', () => {
+  it('platný je jen zásah, kde pták v tu chvíli opravdu je', () => {
     const s = fresh();
-    const t = mid(s, 0);
-    const shot = hit(s, 0, t);
+    const duck = firstOf(s, 'duck');
+    const shot = hit(s, duck, mid(s, duck));
     expect(duckLogic.legal(s, 'A', shot)).toBe(true);
     if (shot.kind !== 'shot') throw new Error();
     expect(duckLogic.legal(s, 'A', { ...shot, x: shot.x + HIT_RADIUS + 1 })).toBe(false);
-    expect(duckLogic.legal(s, 'A', { ...shot, t: (s.ducks[0]?.gone ?? 0) + 10 })).toBe(false);
     expect(duckLogic.legal(s, 'A', { ...shot, duck: 99 })).toBe(false);
-    // Nelidsky rychlá „reakce“ hned po vylétnutí z trávy neplatí.
-    const spawn = s.ducks[0]?.spawn ?? 0;
-    expect(duckLogic.legal(s, 'A', hit(s, 0, spawn + MIN_REACTION_MS - 1))).toBe(false);
-    expect(duckLogic.legal(s, 'A', hit(s, 0, spawn + MIN_REACTION_MS))).toBe(true);
-    // Stejnou kachnu dvakrát ne, ale soupeř ji trefit smí (rozhodne čas).
     const after = duckLogic.apply(s, 'A', shot);
     expect(duckLogic.legal(after, 'A', shot)).toBe(false);
-    expect(duckLogic.legal(after, 'B', hit(s, 0, t + 5))).toBe(true);
   });
 
-  it('kachnu získá dřívější zásah bez ohledu na pořadí, v jakém zásahy dorazily', () => {
+  it('zlatá kachna jde trefit jen po minutě, běžní ptáci jen v minutě', () => {
     const s = fresh();
-    const t = mid(s, 1);
-    const early = hit(s, 1, t - 40);
-    const late = hit(s, 1, t);
-    const ab = play(s, [
-      ['A', late],
-      ['B', early],
-    ]);
-    const ba = play(s, [
-      ['B', early],
-      ['A', late],
-    ]);
-    expect(duckLogic.view(ab, 'A').owners[1]).toBe('B');
-    expect(duckLogic.view(ab, 'A')).toEqual(duckLogic.view(ba, 'A'));
+    const g = goldenIndex(s.ducks);
+    expect(duckLogic.legal(s, 'A', hit(s, g, mid(s, g)))).toBe(true);
+    const late = s.ducks.findIndex((d) => d.kind === 'duck' && d.gone > DURATION_MS + 300);
+    if (late >= 0) {
+      expect(duckLogic.legal(s, 'A', hit(s, late, DURATION_MS + 200))).toBe(false);
+    }
   });
 
-  it('víc kachen vyhrává, při shodě kratší součet reakcí, úplná shoda je remíza', () => {
-    expect(judgeDucks({ A: { hits: 3, reaction: 9000 }, B: { hits: 2, reaction: 100 } })).toEqual(
-      win('A'),
-    );
-    expect(judgeDucks({ A: { hits: 2, reaction: 2100 }, B: { hits: 2, reaction: 2000 } })).toEqual(
-      win('B'),
-    );
-    expect(judgeDucks({ A: { hits: 2, reaction: 2000 }, B: { hits: 2, reaction: 2000 } })).toEqual(
-      DRAW,
-    );
-    expect(judgeDucks({ A: { hits: 0, reaction: 0 }, B: { hits: 0, reaction: 0 } })).toEqual(DRAW);
-  });
-
-  it('reakce se počítá od vylétnutí kachny a hra končí, až mají hotovo oba', () => {
+  it('kachna +1 (dřívější zásah), holubice −1 každému, kdo ji trefil', () => {
     const s = fresh();
-    const spawn = s.ducks[2]?.spawn ?? 0;
-    let state = play(s, [
-      ['A', hit(s, 2, spawn + 900)],
-      ['B', hit(s, 3, (s.ducks[3]?.spawn ?? 0) + 700)],
-      ['A', { kind: 'done' }],
+    const duck = firstOf(s, 'duck');
+    const dove = firstOf(s, 'dove');
+    const state = play(s, [
+      ['A', hit(s, duck, mid(s, duck))],
+      ['B', hit(s, duck, mid(s, duck) - 30)],
+      ['A', hit(s, dove, mid(s, dove))],
+      ['B', hit(s, dove, mid(s, dove) + 10)],
     ]);
-    expect(duckLogic.outcome(state)).toBeNull();
-    expect(duckLogic.toMove(state)).toEqual(['B']);
-    expect(duckLogic.legal(state, 'A', hit(s, 4, mid(s, 4)))).toBe(false);
-    state = play(state, [['B', { kind: 'done' }]]);
     expect(scoreOf(state.ducks, state.shots)).toEqual({
-      A: { hits: 1, reaction: 900 },
-      B: { hits: 1, reaction: 700 },
+      A: { ducks: 0, doves: 1, points: -1 },
+      B: { ducks: 1, doves: 1, points: 0 },
     });
-    expect(duckLogic.outcome(state)).toEqual(win('B'));
   });
 
-  it('findTarget vybere nejbližší kachnu a vynechá ty, které už patří soupeři', () => {
+  it('víc bodů vyhrává; při shodě rozstřel (zlatá kachna), jinak remíza', () => {
     const s = fresh();
-    const t = mid(s, 0);
-    const shot = hit(s, 0, t);
+    const [d1, d2] = s.ducks.flatMap((d, i) => (d.kind === 'duck' ? [i] : [])).slice(0, 2);
+    if (d1 === undefined || d2 === undefined) throw new Error('málo kachen');
+    const g = goldenIndex(s.ducks);
+    const tied = play(s, [
+      ['A', hit(s, d1, mid(s, d1))],
+      ['B', hit(s, d2, mid(s, d2))],
+    ]);
+    expect(isTie(duckLogic.view(tied, 'A'))).toBe(true);
+    expect(judgeDucks(tied.ducks, tied.shots)).toEqual(DRAW);
+    const golden = play(tied, [
+      ['A', hit(s, g, mid(s, g))],
+      ['B', hit(s, g, mid(s, g) - 40)],
+    ]);
+    expect(judgeDucks(golden.ducks, golden.shots)).toEqual(win('B'));
+    // Bez remízy zlatá kachna nic nemění.
+    const ahead = play(s, [
+      ['A', hit(s, d1, mid(s, d1))],
+      ['A', hit(s, d2, mid(s, d2))],
+      ['B', hit(s, g, mid(s, g))],
+    ]);
+    expect(judgeDucks(ahead.ducks, ahead.shots)).toEqual(win('A'));
+  });
+
+  it('hra končí, až mají hotovo oba', () => {
+    let s = fresh();
+    s = play(s, [['A', { kind: 'done' }]]);
+    expect(duckLogic.outcome(s)).toBeNull();
+    expect(duckLogic.toMove(s)).toEqual(['B']);
+    s = play(s, [['B', { kind: 'done' }]]);
+    expect(duckLogic.outcome(s)).toEqual(DRAW);
+  });
+
+  it('findTarget vybere nejbližšího ptáka a vynechá ty, co už patří soupeři', () => {
+    const s = fresh();
+    const duck = firstOf(s, 'duck');
+    const t = mid(s, duck);
+    const shot = hit(s, duck, t);
     if (shot.kind !== 'shot') throw new Error();
-    expect(findTarget(duckLogic.view(s, 'A'), 'A', t, shot.x + 1, shot.y)).toBe(0);
-    expect(findTarget(duckLogic.view(s, 'A'), 'A', t, shot.x + 20, shot.y + 20)).toBeNull();
-    const taken = duckLogic.apply(s, 'B', hit(s, 0, t - 10));
+    expect(findTarget(duckLogic.view(s, 'A'), 'A', t, shot.x + 1, shot.y)).toBe(duck);
+    const taken = duckLogic.apply(s, 'B', hit(s, duck, t - 10));
     expect(findTarget(duckLogic.view(taken, 'A'), 'A', t, shot.x, shot.y)).toBeNull();
   });
 });
@@ -176,12 +191,12 @@ describe('Kachní hon – AI', () => {
     memory: new AIMemory(),
   });
 
-  /** AI odehraje celé kolo sama; vrátí počet zásahů a ověří časování tahů. */
-  function solo(difficulty: Difficulty, seed: string): number {
+  /** AI odehraje celé kolo sama; vrátí body a ověří časování tahů. */
+  function solo(difficulty: Difficulty, seed: string): { points: number; doves: number } {
     let state = fresh(`kolo-${seed}`);
     const ctx = ai(difficulty, seed);
     let clock = 0;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 120; i++) {
       const view = duckLogic.view(state, 'B');
       const move = duckAIMove(view, ctx);
       clock += duckAIDelay(view, move, ctx);
@@ -190,38 +205,24 @@ describe('Kachní hon – AI', () => {
       state = duckLogic.apply(state, 'B', move);
       if (move.kind === 'done') {
         expect(clock).toBeGreaterThanOrEqual(COUNTDOWN_MS + DURATION_MS);
-        return state.shots.B.length;
+        const score = scoreOf(state.ducks, state.shots).B;
+        return { points: score.points, doves: score.doves };
       }
     }
     throw new Error('AI neskončila');
   }
 
-  it('tahy jsou platné, načasované podle zásahu a těžká trefí víc než lehká', () => {
-    let easy = 0;
-    let hard = 0;
+  it('tahy jsou platné, načasované podle zásahu; těžká má víc bodů a míň holubic', () => {
+    let easy = { points: 0, doves: 0 };
+    let hard = { points: 0, doves: 0 };
     for (let i = 0; i < 20; i++) {
-      easy += solo('easy', `e${i}`);
-      hard += solo('hard', `h${i}`);
+      const e = solo('easy', `e${i}`);
+      const h = solo('hard', `h${i}`);
+      easy = { points: easy.points + e.points, doves: easy.doves + e.doves };
+      hard = { points: hard.points + h.points, doves: hard.doves + h.doves };
     }
-    expect(hard).toBeGreaterThan(easy * 1.4);
-    expect(hard / 20).toBeLessThanOrEqual(DUCK_COUNT);
-  });
-
-  it('těžká AI reaguje rychleji než lehká', () => {
-    expect(DUCK_SKILL.hard.reaction[1]).toBeLessThan(DUCK_SKILL.easy.reaction[0]);
-    const s = fresh('reakce');
-    const view = duckLogic.view(s, 'B');
-    const first = (d: Difficulty): number => {
-      const move = duckAIMove(view, { ...ai(d, 'r'), memory: new AIMemory() });
-      return move.kind === 'shot' ? move.t - (s.ducks[move.duck]?.spawn ?? 0) : Infinity;
-    };
-    expect(first('hard')).toBeLessThan(1200);
-  });
-
-  it('kachnu, kterou už má soupeř, AI nechá být', () => {
-    const s = fresh('obsazeno');
-    const taken = duckLogic.apply(s, 'A', hit(s, 0, mid(s, 0)));
-    const move = duckAIMove(duckLogic.view(taken, 'B'), ai('hard', 'z'));
-    expect(move.kind === 'shot' && move.duck === 0).toBe(false);
+    expect(hard.points).toBeGreaterThan(easy.points * 1.5);
+    expect(hard.doves).toBeLessThan(easy.doves);
+    expect(DUCK_SKILL.hard.doveMistake).toBeLessThan(DUCK_SKILL.easy.doveMistake);
   });
 });

@@ -1,3 +1,5 @@
+import { formatHandle } from '../../net/account';
+import type { Friend, InviteResult } from '../../net/friends';
 import type { MatchFormat, MatchPlan } from '../../core/match/planMatch';
 import type { PerPlayer } from '../../core/types';
 import { translations } from '../../i18n';
@@ -186,11 +188,86 @@ export function connectingScreen(text: string, onCancel: () => void): Mount {
   };
 }
 
+export interface InviteOptions {
+  readonly friends: () => Promise<readonly Friend[]>;
+  readonly send: (friend: Friend) => Promise<InviteResult>;
+  /** Kamarád, kterého pozvat hned (z obrazovky Kamarádi). */
+  readonly auto: Friend | null;
+}
+
 interface WaitingOptions {
   readonly code: string;
   readonly link: string;
   readonly format: MatchFormat;
   readonly onCancel: () => void;
+  /** Přihlášený hráč může rovnou pozvat kamaráda (bez posílání kódu). */
+  readonly invite?: InviteOptions;
+}
+
+const it = translations(
+  {
+    title: 'Pozvat kamaráda',
+    hint: 'Kamarád dostane pozvánku přímo ve hře – kód posílat nemusíš.',
+    invite: 'Pozvat',
+    sent: 'Pozváno ✓',
+    notFriends: 'Už nejste kamarádi',
+    failed: 'Nepovedlo se',
+    none: 'Zatím nemáš kamarády – přidáš je vpravo nahoře v účtu.',
+    loading: 'Načítám kamarády…',
+  },
+  {
+    title: 'Invite a friend',
+    hint: 'Your friend gets the invite right in the game – no need to send the code.',
+    invite: 'Invite',
+    sent: 'Invited ✓',
+    notFriends: 'No longer friends',
+    failed: 'Failed',
+    none: 'No friends yet – add them in your account at the top right.',
+    loading: 'Loading friends…',
+  },
+);
+
+/** Seznam kamarádů s tlačítkem „Pozvat“ (pozvánka nese kód této místnosti). */
+function inviteSection(o: InviteOptions): HTMLElement {
+  const list = h('ul', { class: 'friend-list' }, h('li', null, it.loading));
+  const send = (friend: Friend, b: HTMLButtonElement): void => {
+    b.disabled = true;
+    o.send(friend).then(
+      (result) => setText(b, result === 'sent' ? it.sent : it.notFriends),
+      () => {
+        b.disabled = false;
+        setText(b, it.failed);
+      },
+    );
+  };
+  o.friends().then(
+    (friends) => {
+      if (friends.length === 0) {
+        list.replaceChildren(h('li', { class: 'field-hint' }, it.none));
+        return;
+      }
+      list.replaceChildren(
+        ...friends.map((friend) => {
+          const b = button(it.invite, () => send(friend, b), 'btn btn-small');
+          if (o.auto?.id === friend.id) send(friend, b);
+          return h(
+            'li',
+            { class: 'friend-row' },
+            h('span', { class: 'friend-name' }, formatHandle(friend)),
+            h('span', { class: 'friend-actions' }, b),
+          );
+        }),
+      );
+    },
+    () => list.replaceChildren(h('li', { class: 'field-error' }, it.failed)),
+  );
+  return h(
+    'section',
+    { class: 'card stack' },
+    h('h2', { class: 'friends-title' }, it.title),
+    h('p', { class: 'field-hint' }, it.hint),
+    list,
+  );
 }
 
 export function waitingScreen(o: WaitingOptions): Mount {
@@ -244,6 +321,7 @@ export function waitingScreen(o: WaitingOptions): Mount {
           h('span', { class: 'pulse', 'aria-hidden': 'true' }),
           t.waiting,
         ),
+        o.invite ? inviteSection(o.invite) : null,
         h('p', { class: 'note' }, t.format(formatTitle(o.format))),
         button(t.cancelRoom, o.onCancel, 'btn btn-ghost'),
       ),

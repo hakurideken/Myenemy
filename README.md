@@ -186,7 +186,8 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
    (s RLS), funkce pro přezdívku s kódem, export dat a smazání účtu. Spustit znovu je
    bezpečné. Na konci souboru je kontrolní dotaz – má vrátit 0 řádků.
    Potom stejně spusť `supabase/migrations/20261108120000_friends.sql` (kamarádi, žádosti,
-   vzájemné výsledky). Pořadí je důležité – druhý soubor potřebuje tabulku profilů.
+   vzájemné výsledky) a nakonec `supabase/migrations/20261110120000_invites.sql` (pozvánky do
+   hry, souhrn upozornění). Pořadí je důležité – další soubory potřebují předchozí tabulky.
 2. **Adresy:** **Authentication → URL Configuration**
    - Site URL: `https://hakurideken.github.io/Myenemy/`
    - Redirect URLs: `https://hakurideken.github.io/Myenemy/`, `http://localhost:5173/`
@@ -246,6 +247,23 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
   a dva domluvení kamarádi si můžou skóre vymyslet. Pro skóre mezi dvěma lidmi to nevadí,
   pro budoucí statistiky nebo žebříčky by `friend_matches` nestačily.
 - Volitelně: pravidelný úklid přes pg_cron (návod na konci SQL souboru).
+
+**Pozvánky do hry** (bez posílání kódu):
+
+- V **Kamarádi** je u každého kamaráda **Pozvat do hry** → nastavení zápasu („Po založení
+  místnosti dostane pozvánku Pepa#0042“) → místnost → pozvánka odejde sama. Na čekací
+  obrazovce místnosti je i seznam kamarádů s tlačítkem **Pozvat**.
+- Pozvaný uvidí dole na obrazovce „Pepa#0042 tě zve do hry“ s **Přijmout** (rovnou se
+  připojí) / **Odmítnout**. Mimo rozehraný zápas a online místnost.
+- Žádosti o přátelství i pozvánky se obnovují samy každých 15 s (jen ve viditelné
+  záložce) a hned po návratu do záložky – bez obnovení stránky.
+- Pozvat jde jen kamaráda; pozvánka platí 10 minut, stejnému kamarádovi nejvýš jednou za
+  30 s, celkem 30 za hodinu. Zrušením místnosti bez soupeře se pozvánky do ní stáhnou.
+- Omezení: kód v pozvánce nejde svázat s místností odesílatele (bez rozhodčího serveru).
+
+**Výsledky při odchodu:** když hráč odejde z výsledku posledního kola (zápas je rozhodnutý),
+nahlásí výsledek i tak a soupeři se místo „soupeř odešel“ ukáže výsledek zápasu – skóre
+kamarádů se započte. Odchod z rozehraného zápasu se nepočítá (jinak by šlo výhru „vysedět“).
 
 **Jak otestovat kamarády:** dva účty (třeba Google v jednom prohlížeči a Discord ve druhém) →
 první pošle žádost na `Jméno#kód` druhého → druhý vidí tečku a v **Kamarádi** žádost
@@ -458,12 +476,14 @@ prohlížečích (oba musí mít novou verzi – změnil se protokol).
 zmizelo předávání zařízení (`handoff`, `localLayout`, hotseat v `GameRunner`), z menu
 volba „Dva hráči na jednom zařízení“ a reakční hry už nemají půlenou obrazovku.
 
-**Kachní hon (nová hra).** Po odpočtu létají minutu nad krajinou kachny – celkem 15
-(lichý počet), najednou nejvýš 3. Každá vylétne z trávy, letí po své lomené dráze
-(mění směr), po chvíli uletí nahoru za okraj; pozdější kachny jsou rychlejší a létají
-kratší dobu. Kachnu získá, kdo ji trefí první – padá v jeho barvě. Vyhrává víc kachen,
-při shodě menší součet reakcí (zásah − vylétnutí kachny; zásah do 150 ms od vylétnutí neplatí), úplná shoda je remíza
-(rozhodující kolo). Po minutí se puška 0,45 s nabíjí, aby se nevyplatilo „kropit“ naslepo.
+**Kachní hon (nová hra).** Po odpočtu létají minutu kachny – bez pevného počtu (za minutu
+kolem 20–30), najednou nejvýš 3, ze všech stran (z trávy, zleva, zprava i shora) a odlétají
+za kterýkoli okraj; čím později, tím rychlejší a kratší let. Kachnu získá, kdo ji trefí
+první (+1) – padá v jeho barvě. **Bílá holubice** (asi každý šestý pták) se nestřílí –
+každý zásah holubice je −1 bod. Vyhrává víc bodů. **Rozstřel:** když je po minutě
+nerozhodně, vyletí zlatá kachna – kdo ji trefí první, vyhrává; když nikdo, remíza
+(rozhodující kolo). O rozstřelu se rozhodne 0,5 s po konci minuty (zpoždění sítě).
+Zásah do 150 ms od vylétnutí neplatí. Po minutí se puška 0,45 s nabíjí.
 
 - Ovládání: klik / klepnutí na kachnu; bez myši šipky posouvají zaměřovač, mezerník nebo
   Enter střílí.
@@ -473,8 +493,8 @@ při shodě menší součet reakcí (zásah − vylétnutí kachny; zásah do 15
 - Online se zásahy posílají hned (`liveMoves` – bez zapečetění), takže každý vidí, co
   soupeř sestřelil. Čas zásahu měří klient střelce (stejně jako u ostatních reakčních her).
   Soupeř smí mlčet celou minutu (`untimedLimitMs`), než by přišla kontumace.
-- AI míří na kachny podle pořadí. Bez soupeře sestřelí lehká asi 5, střední asi 9
-  a těžká asi 13 kachen z 15 (těžká reaguje za 0,7–1,15 s od vylétnutí).
+- AI míří na kachny podle pořadí, holubice se snaží vynechat (lehká se splete asi u třetiny,
+  těžká u 3 %) a po minutě zkusí zlatou kachnu (když nerozhodně není, nic tím nezmění).
 
 **Jak otestovat:** Proti AI → Vlastní výběr → best of 1 → Vybrat hry → Kachní hon. Střílej
 na kachny, zkus minout (zaměřovač se na chvíli zašedí, „Nabíjím…“) a ovládání šipkami.
@@ -505,6 +525,10 @@ vypni Hudbu (zvuky efektů zůstanou) a posuvníkem změň hlasitost. Dohraj zá
 (třeba best of 1, KNP) – při výhře zazní fanfára, při prohře „Try Again“, po návratu do
 menu zase podklad.
 
+**Obnovení stránky:** obrazovka je v adrese (`#settings`, `#friends`, `#privacy`,
+`#setup-pve`, `#setup-online`, `#online`) – po obnovení stránky nebo přepnutí jazyka se
+hráč vrátí tam, kde byl. Rozehraný zápas ani online místnost obnovit nejde (vedou do menu).
+
 **Animace konce zápasu** (`src/ui/components/celebration.ts`, SVG + CSS, bez obrázků):
 
 - **Výhra:** ohňostroj (8 výbuchů v barvách hry) a panďulák v barvě vítěze přinese
@@ -531,6 +555,9 @@ přečíst z paměti – stejné omezení jako u reakčních her).
 - **Čísla na mžik:** 7 kol, číslo o 4 až 10 číslicích blikne (0,7 s + 0,26 s na číslici),
   pak se píše (0–9, Backspace, Enter nebo klávesnice na obrazovce). Bod za každou číslici
   na správném místě, nejvýš 49.
+- Sekvence: AI pošle výsledek pár sekund po odpočtu (je schovaný až do konce) – dřív se
+  na ni čekalo tak dlouho, jako by celý běh hrála (u těžké i minuty).
+- Čísla na mžik: Enter vždy odešle odpověď, i když je fokus na tlačítku číselníku.
 - Oprava v Pexesu: obrázek měsíce měl dva oblouky se stejnou dráhou (nulová plocha)
   a nevykreslil se – teď je to srpek.
 

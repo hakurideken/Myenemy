@@ -20,6 +20,20 @@ export type SendRequestResult =
 
 export type ReportResult = 'pending' | 'recorded' | 'ignored';
 
+/** Pozvánka do hry od kamaráda (kód místnosti, platí 10 minut). */
+export interface GameInvite extends Profile {
+  readonly id: string;
+  readonly room: string;
+}
+
+export interface Notifications {
+  /** Čekající žádosti o přátelství. */
+  readonly requests: number;
+  readonly invites: readonly GameInvite[];
+}
+
+export type InviteResult = 'sent' | 'not-friends';
+
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 const nickname = z.string().min(1).max(64);
 const tag = z.number().int().min(1).max(9999);
@@ -50,6 +64,21 @@ export const sendRequestResultSchema = z.enum([
   'no-profile',
 ]);
 export const reportResultSchema = z.enum(['pending', 'recorded', 'ignored']);
+export const inviteResultSchema = z.enum(['sent', 'not-friends']);
+
+export const notificationsSchema = z.object({
+  requests: z.number().int().min(0).max(10_000),
+  invites: z
+    .array(
+      z.object({
+        id: uuid,
+        nickname,
+        tag,
+        room: z.string().regex(/^[A-HJ-NP-Z2-9]{5}$/),
+      }),
+    )
+    .max(100),
+});
 
 export function isUserId(value: string): boolean {
   return uuid.safeParse(value).success;

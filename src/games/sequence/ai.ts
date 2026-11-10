@@ -2,13 +2,10 @@ import type { AIContext } from '../../core/MiniGame';
 import type { Difficulty } from '../../core/types';
 import {
   COUNTDOWN_MS,
-  LEVEL_PAUSE_MS,
   levelLength,
   MAX_LEVEL,
   MIN_PRESS_MS,
   PADS,
-  SHOW_GAP_MS,
-  showOnMs,
   type SequenceMove,
   type SequenceView,
 } from './logic';
@@ -45,14 +42,11 @@ export function sequenceAIMove(view: SequenceView, ai: AIContext): SequenceMove 
   return { kind: 'run', presses, ms };
 }
 
-/** Kdy AI „dohraje“ – zhruba jako člověk: ukázky, zadávání a pauzy mezi koly. */
-export function sequenceAIDelay(_view: SequenceView, move: SequenceMove): number {
-  let total = COUNTDOWN_MS + move.ms;
-  let remaining = move.presses.length;
-  for (let l = 1; remaining > 0 && l <= MAX_LEVEL; l++) {
-    const length = levelLength(l);
-    total += length * (showOnMs(l) + SHOW_GAP_MS) + LEVEL_PAUSE_MS;
-    remaining -= length;
-  }
-  return total;
+/**
+ * Kdy AI odešle výsledek: hned po odpočtu (pár sekund). Celý běh by trval jako u člověka
+ * (u těžké AI i minuty) a hráč, který skončí brzy, by na ni zbytečně čekal. Výsledek AI
+ * je stejně schovaný, dokud nedohraje i hráč.
+ */
+export function sequenceAIDelay(_view: SequenceView, _move: SequenceMove, ai: AIContext): number {
+  return COUNTDOWN_MS + ai.rng.range(1500, 3000);
 }

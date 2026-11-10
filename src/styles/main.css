@@ -1100,6 +1100,55 @@ legend {
   color: var(--muted);
 }
 
+/* ---------- Pozvánka do hry ---------- */
+
+.invite-toast {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 55;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 12px 14px;
+  border: 2px solid var(--gold);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.invite-toast[hidden] {
+  display: none;
+}
+
+.invite-toast.is-new {
+  animation: pop 260ms ease-out;
+}
+
+.invite-text {
+  margin: 0;
+  font-weight: 700;
+}
+
+.invite-more {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.df-display:focus {
+  outline: none;
+}
+
 /* ---------- Potvrzovací dialog ---------- */
 
 .dialog-backdrop {
@@ -3205,6 +3254,56 @@ html.reduce-motion .celebration * {
 .dh-duck.is-down--b .dh-tail,
 .dh-duck.is-down--b .dh-wing {
   fill: var(--b);
+}
+
+.dh-duck--dove .dh-body,
+.dh-duck--dove .dh-tail,
+.dh-duck--dove.is-down .dh-body,
+.dh-duck--dove.is-down .dh-tail {
+  fill: #f5f5f0;
+}
+
+.dh-duck--dove .dh-wing,
+.dh-duck--dove.is-down .dh-wing {
+  fill: #c9cdd6;
+}
+
+.dh-duck--dove .dh-head {
+  fill: #ffffff;
+}
+
+.dh-duck--dove .dh-beak {
+  fill: #e8a0a0;
+}
+
+.dh-duck--golden .dh-body,
+.dh-duck--golden .dh-tail,
+.dh-duck--golden.is-down .dh-body,
+.dh-duck--golden.is-down .dh-tail {
+  fill: var(--gold);
+}
+
+.dh-duck--golden .dh-wing,
+.dh-duck--golden.is-down .dh-wing {
+  fill: #d49a12;
+}
+
+.dh-duck--golden .dh-head {
+  fill: #ffe27a;
+}
+
+.dh-duck--golden {
+  filter: drop-shadow(0 0 1.5px #fff6c0);
+}
+
+.dh-mark--dove text {
+  fill: var(--a);
+  font-size: 4.2px;
+  font-weight: 800;
+}
+
+.dh.is-overtime .dh-sky {
+  fill: #f6c58a;
 }
 
 .dh-cross {

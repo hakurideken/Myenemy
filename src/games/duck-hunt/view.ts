@@ -12,15 +12,18 @@ import {
   FIELD_H,
   FIELD_W,
   findTarget,
+  goldenIndex,
   GROUND_Y,
+  isTie,
   RELOAD_MS,
+  TIE_CHECK_MS,
   type DuckMove,
   type DuckView,
 } from './logic';
 
 const t = translations(
   {
-    ducks: (n: number) => `${n} ${plural(n, 'kachna', 'kachny', 'kachen')}`,
+    points: (n: number) => `${n} ${plural(Math.abs(n), 'bod', 'body', 'bodů')}`,
     you: 'Ty',
     getReady: 'Připrav se…',
     goLive: 'Střílej!',
@@ -29,13 +32,17 @@ const t = translations(
     waiting: 'Konec! Čekám na soupeře…',
     draw: 'Remíza',
     winner: (name: string) => `Vítěz: ${name}`,
-    tieBreak: 'Stejně kachen – rozhodla rychlejší reakce.',
-    scene: 'Obloha s kachnami. Klikni nebo klepni na kachnu, klávesy: šipky a mezerník.',
+    tieBreak: 'Nerozhodně – rozhodla zlatá kachna.',
+    scene:
+      'Obloha s kachnami. Klikni nebo klepni na kachnu, holubici nech být. Klávesy: šipky a mezerník.',
     hitLive: (n: number) => `Trefa! Máš ${n}.`,
+    doveLive: 'Holubice! −1 bod.',
     lostLive: 'Soupeř byl rychlejší.',
+    overtime: 'Rozstřel!',
+    overtimeHint: 'Nerozhodně – kdo první trefí zlatou kachnu, vyhrává.',
   },
   {
-    ducks: (n: number) => `${n} ${n === 1 ? 'duck' : 'ducks'}`,
+    points: (n: number) => `${n} ${Math.abs(n) === 1 ? 'point' : 'points'}`,
     you: 'You',
     getReady: 'Get ready…',
     goLive: 'Shoot!',
@@ -44,14 +51,18 @@ const t = translations(
     waiting: 'Time! Waiting for your opponent…',
     draw: 'Draw',
     winner: (name: string) => `Winner: ${name}`,
-    tieBreak: 'Same number of ducks – the faster reactions decided.',
-    scene: 'A sky with ducks. Click or tap a duck; keys: arrows and Space.',
+    tieBreak: 'A tie – the golden duck decided.',
+    scene: 'A sky with ducks. Click or tap a duck, leave the doves alone. Keys: arrows and Space.',
     hitLive: (n: number) => `Hit! You have ${n}.`,
+    doveLive: 'A dove! −1 point.',
     lostLive: 'Your opponent was faster.',
+    overtime: 'Shoot-out!',
+    overtimeHint: 'A tie – whoever hits the golden duck first wins.',
   },
 );
 
-type Phase = 'waiting' | 'countdown' | 'live' | 'done';
+/** judging = po minutě se čeká na poslední zásahy; overtime = rozstřel se zlatou kachnou. */
+type Phase = 'waiting' | 'countdown' | 'live' | 'judging' | 'overtime' | 'done';
 
 /** Rychlost zaměřovače při ovládání šipkami (jednotky za sekundu). */
 const AIM_SPEED = 70;
@@ -139,8 +150,8 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
   let seenOwners: readonly (PlayerSlot | null)[] = [];
 
   const live = h('p', { class: 'sr-only', 'aria-live': 'assertive' });
-  const myScore = h('strong', { class: 'dh-score-value' }, t.ducks(0));
-  const oppScore = h('strong', { class: 'dh-score-value' }, t.ducks(0));
+  const myScore = h('strong', { class: 'dh-score-value' }, t.points(0));
+  const oppScore = h('strong', { class: 'dh-score-value' }, t.points(0));
   const clockEl = h('span', { class: 'dh-clock' }, t.getReady);
   const hud = h(
     'div',
@@ -214,11 +225,11 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
   }
 
   function fire(x: number, y: number): void {
-    if (phase !== 'live' || !latest || !canAct.includes(me)) return;
+    if ((phase !== 'live' && phase !== 'overtime') || !latest || !canAct.includes(me)) return;
     const now = ctx.clock.now();
     if (now < reloadUntil) return;
     const time = Math.round(now - goAt);
-    if (time < 0 || time > DURATION_MS) return;
+    if (time < 0 || (phase === 'live' && time > DURATION_MS)) return;
     const sx = r2(x);
     const sy = r2(y);
     const duck = findTarget(latest, me, time, sx, sy);
@@ -230,19 +241,29 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
       ctx.sfx.play('click');
       return;
     }
-    ctx.sfx.play('signal');
-    ctx.sfx.vibrate(40);
+    if (latest.ducks[duck]?.kind === 'dove') {
+      // Holubice: zásah platí, ale stojí bod.
+      ctx.sfx.play('lose');
+      ctx.sfx.vibrate([40, 40, 40]);
+      mark(sx, sy, 'dove');
+      live.textContent = t.doveLive;
+    } else {
+      ctx.sfx.play('signal');
+      ctx.sfx.vibrate(40);
+    }
     ctx.submit(me, { kind: 'shot', duck, t: time, x: sx, y: sy });
   }
 
   /** Krátká značka výstřelu (minutí nebo zásah soupeře) – po chvíli zmizí. */
-  function mark(x: number, y: number, kind: 'miss' | 'opp'): void {
+  function mark(x: number, y: number, kind: 'miss' | 'opp' | 'dove'): void {
     const el = svg(
       'g',
       { class: `dh-mark dh-mark--${kind}`, transform: `translate(${x} ${y})` },
       kind === 'miss'
         ? svg('circle', { cx: '0', cy: '0', r: '1.6' })
-        : svg('path', { d: 'M-1.6 -1.6 1.6 1.6M1.6 -1.6 -1.6 1.6' }),
+        : kind === 'dove'
+          ? svg('text', { x: '0', y: '-3', 'text-anchor': 'middle' }, '−1')
+          : svg('path', { d: 'M-1.6 -1.6 1.6 1.6M1.6 -1.6 -1.6 1.6' }),
     );
     markLayer.append(el);
     timers.push(ctx.clock.setTimeout(() => el.remove(), 600));
@@ -279,7 +300,7 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
       );
     }
     timers.push(ctx.clock.setTimeout(go, COUNTDOWN_MS));
-    timers.push(ctx.clock.setTimeout(stop, COUNTDOWN_MS + DURATION_MS));
+    timers.push(ctx.clock.setTimeout(endOfMinute, COUNTDOWN_MS + DURATION_MS));
     ctx.sfx.play('tick');
     raf = requestAnimationFrame(frame);
   }
@@ -294,10 +315,36 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
     ctx.sfx.play('signal');
   }
 
+  /** Po minutě: chvíli počkat na poslední zásahy ze sítě, pak rozstřel nebo konec. */
+  function endOfMinute(): void {
+    if (phase !== 'live') return;
+    phase = 'judging';
+    arena.classList.remove('is-live');
+    timers.push(
+      ctx.clock.setTimeout(() => {
+        if (phase !== 'judging' || !latest) return;
+        if (!isTie(latest)) {
+          stop();
+          return;
+        }
+        const golden = latest.ducks[goldenIndex(latest.ducks)];
+        phase = 'overtime';
+        arena.classList.add('is-live', 'is-overtime');
+        banner.hidden = false;
+        banner.replaceChildren(h('span', null, t.overtime), h('small', null, t.overtimeHint));
+        live.textContent = t.overtimeHint;
+        ctx.sfx.play('signal');
+        timers.push(ctx.clock.setTimeout(() => (banner.hidden = true), 1400));
+        const left = (golden?.gone ?? DURATION_MS) - elapsed() + 150;
+        timers.push(ctx.clock.setTimeout(stop, Math.max(0, left)));
+      }, TIE_CHECK_MS),
+    );
+  }
+
   function stop(): void {
     if (phase === 'done') return;
     phase = 'done';
-    arena.classList.remove('is-live');
+    arena.classList.remove('is-live', 'is-overtime');
     if (canAct.includes(me)) ctx.submit(me, { kind: 'done' });
     update();
   }
@@ -327,9 +374,13 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
     if (phase === 'live') {
       const left = Math.max(0, Math.ceil((DURATION_MS - elapsed()) / 1000));
       setText(clockEl, now < reloadUntil ? t.reloading : t.timeLeft(left));
+    } else if (phase === 'overtime') {
+      setText(clockEl, now < reloadUntil ? t.reloading : t.overtime);
     }
-    // Po konci ještě chvíli – ať dopadnou poslední sestřelené kachny.
-    if (phase !== 'done' || elapsed() < DURATION_MS + 2000) raf = requestAnimationFrame(frame);
+    // Po konci ještě chvíli – ať dopadnou poslední sestřelení ptáci.
+    const golden = latest?.ducks[goldenIndex(latest.ducks)];
+    const end = Math.max(DURATION_MS, golden?.gone ?? 0) + 2000;
+    if (phase !== 'done' || elapsed() < end) raf = requestAnimationFrame(frame);
   }
 
   function drawDucks(): void {
@@ -350,18 +401,26 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
         const y = shot.y + 0.5 * FALL_G * fall * fall;
         const visible = y < GROUND_Y + 6;
         el.style.display = visible ? '' : 'none';
-        el.setAttribute('class', `dh-duck is-down is-down--${owner.toLowerCase()}`);
+        el.setAttribute(
+          'class',
+          `dh-duck dh-duck--${duck.kind} is-down is-down--${owner.toLowerCase()}`,
+        );
         el.setAttribute('transform', `translate(${shot.x} ${r2(y)}) rotate(90)`);
         return;
       }
-      const at = time < 0 ? null : duckAt(duck, time);
+      // Po minutě už běžní ptáci nehrají; zlatá kachna jen při rozstřelu.
+      const inPlay =
+        duck.kind === 'golden'
+          ? phase === 'overtime' || (phase === 'done' && owner !== null)
+          : time <= DURATION_MS;
+      const at = time < 0 || !inPlay ? null : duckAt(duck, time);
       if (!at) {
         el.style.display = 'none';
         return;
       }
       el.style.display = '';
       const flap = !ctx.prefs.reducedMotion && Math.floor(time / 130) % 2 === 0;
-      el.setAttribute('class', `dh-duck${flap ? ' is-flap' : ''}`);
+      el.setAttribute('class', `dh-duck dh-duck--${duck.kind}${flap ? ' is-flap' : ''}`);
       el.setAttribute(
         'transform',
         `translate(${r2(at.x)} ${r2(at.y)}) scale(${duckHeading(duck, time)} 1)`,
@@ -372,18 +431,23 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
   function update(): void {
     if (!latest) return;
     const view = latest;
-    setText(myScore, t.ducks(view.score[me].hits));
-    setText(oppScore, t.ducks(view.score[opp].hits));
+    setText(myScore, t.points(view.score[me].points));
+    setText(oppScore, t.points(view.score[opp].points));
     // Nové zásahy: soupeřovy označit, vlastní ohlásit čtečce.
     view.owners.forEach((owner, index) => {
       const before = seenOwners[index] ?? null;
       if (owner === before) return;
+      const kind = view.ducks[index]?.kind;
       if (owner === opp) {
         const shot = view.shots[opp].find((s) => s.duck === index);
-        if (shot) mark(shot.x, shot.y, 'opp');
-        if (before === me) live.textContent = t.lostLive;
-      } else if (owner === me) {
-        live.textContent = t.hitLive(view.score[me].hits);
+        if (shot) mark(shot.x, shot.y, kind === 'dove' ? 'dove' : 'opp');
+        if (before === me && kind !== 'dove') live.textContent = t.lostLive;
+      } else if (owner === me && kind !== 'dove') {
+        live.textContent = t.hitLive(view.score[me].points);
+      }
+      // Zlatá kachna padla – rozstřel je rozhodnutý.
+      if (kind === 'golden' && owner !== null && phase === 'overtime') {
+        timers.push(ctx.clock.setTimeout(stop, 700));
       }
     });
     seenOwners = view.owners;
@@ -391,7 +455,7 @@ export function createDuckView(ctx: ViewContext<DuckMove>): GameView<DuckView> {
     if (outcome) {
       phase = 'done';
       banner.hidden = false;
-      const tie = view.score.A.hits === view.score.B.hits && outcome.kind === 'win';
+      const tie = view.score.A.points === view.score.B.points && outcome.kind === 'win';
       const text = outcome.kind === 'draw' ? t.draw : t.winner(ctx.names[outcome.winner]);
       banner.replaceChildren(h('span', null, text), tie ? h('small', null, t.tieBreak) : '');
       arena.classList.add('is-finished');

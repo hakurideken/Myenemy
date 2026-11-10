@@ -30,6 +30,7 @@ const FORMAT_KINDS: readonly FormatKind[] = ['rychlovka', 'velky-souboj', 'vlast
 const t = translations(
   {
     player1: 'Hráč 1',
+    inviteNote: (handle: string) => `Po založení místnosti dostane pozvánku ${handle}.`,
     hostNote: (name: string) =>
       `Hraješ jako ${name} (hostitel). Soupeře pozveš kódem místnosti nebo odkazem.`,
     difficulty: 'Obtížnost AI',
@@ -55,6 +56,7 @@ const t = translations(
   },
   {
     player1: 'Player 1',
+    inviteNote: (handle: string) => `${handle} gets an invite once the room is created.`,
     hostNote: (name: string) =>
       `You play as ${name} (host). Invite your opponent with the room code or a link.`,
     difficulty: 'AI difficulty',
@@ -96,7 +98,14 @@ export function setupScreen(app: App, mode: SetupMode): Mount {
     // --- soupeř ---
     const opponentSection =
       mode === 'online'
-        ? h('p', { class: 'note' }, t.hostNote(nickname))
+        ? h(
+            'div',
+            null,
+            h('p', { class: 'note' }, t.hostNote(nickname)),
+            app.pendingInviteName
+              ? h('p', { class: 'note note--invite' }, t.inviteNote(app.pendingInviteName))
+              : null,
+          )
         : radioGroup(
             t.difficulty,
             'difficulty',
