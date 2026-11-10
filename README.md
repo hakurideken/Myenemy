@@ -186,8 +186,9 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
    (s RLS), funkce pro přezdívku s kódem, export dat a smazání účtu. Spustit znovu je
    bezpečné. Na konci souboru je kontrolní dotaz – má vrátit 0 řádků.
    Potom stejně spusť `supabase/migrations/20261108120000_friends.sql` (kamarádi, žádosti,
-   vzájemné výsledky) a nakonec `supabase/migrations/20261110120000_invites.sql` (pozvánky do
-   hry, souhrn upozornění). Pořadí je důležité – další soubory potřebují předchozí tabulky.
+   vzájemné výsledky) pak `supabase/migrations/20261110120000_invites.sql` (pozvánky do hry,
+   souhrn upozornění) a nakonec `supabase/migrations/20261111120000_presence.sql` (stav
+   kamarádů online / ve hře). Pořadí je důležité – další soubory potřebují předchozí tabulky.
 2. **Adresy:** **Authentication → URL Configuration**
    - Site URL: `https://hakurideken.github.io/Myenemy/`
    - Redirect URLs: `https://hakurideken.github.io/Myenemy/`, `http://localhost:5173/`
@@ -260,6 +261,13 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
 - Pozvat jde jen kamaráda; pozvánka platí 10 minut, stejnému kamarádovi nejvýš jednou za
   30 s, celkem 30 za hodinu. Zrušením místnosti bez soupeře se pozvánky do ní stáhnou.
 - Omezení: kód v pozvánce nejde svázat s místností odesílatele (bez rozhodčího serveru).
+
+**Stav kamarádů:** v Kamarádi je u každého tečka a stav – 🟢 online, 🟠 ve hře (rozehraný
+zápas nebo online místnost), ⚪ offline; online kamarádi jsou nahoře a u nich je „Pozvat
+do hry“ zvýrazněné. Hra se ozve (`ping`) se stejným 15s obnovováním jako pozvánky, online
+= ozval se v posledních 45 s; při zavření stránky nebo odhlášení je hráč hned offline.
+Čas posledního ozvání se kamarádům neukazuje. V Nastavení jde vypnout „Ukazovat
+kamarádům, že jsem online“ (pak je hráč pro všechny offline a čas se neukládá).
 
 **Výsledky při odchodu:** když hráč odejde z výsledku posledního kola (zápas je rozhodnutý),
 nahlásí výsledek i tak a soupeři se místo „soupeř odešel“ ukáže výsledek zápasu – skóre

@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import type { Profile } from './account';
 
+/** online = je ve hře (ne v zápase), playing = hraje zápas, offline = není (nebo stav skrývá). */
+export type FriendStatus = 'online' | 'playing' | 'offline';
+
 /** Kamarád se skóre zápasů z mého pohledu. */
 export interface Friend extends Profile {
   readonly id: string;
   readonly wins: number;
   readonly losses: number;
+  readonly status: FriendStatus;
 }
 
 export interface FriendRequest extends Profile {
@@ -30,6 +34,8 @@ export interface Notifications {
   /** Čekající žádosti o přátelství. */
   readonly requests: number;
   readonly invites: readonly GameInvite[];
+  /** Ukazuji kamarádům, že jsem online (přepínač v Nastavení). */
+  readonly showOnline: boolean;
 }
 
 export type InviteResult = 'sent' | 'not-friends';
@@ -46,6 +52,7 @@ export const friendsSchema = z
       tag,
       wins: z.number().int().min(0),
       losses: z.number().int().min(0),
+      status: z.enum(['online', 'playing', 'offline']),
     }),
   )
   .max(1000);
@@ -78,6 +85,7 @@ export const notificationsSchema = z.object({
       }),
     )
     .max(100),
+  show_online: z.boolean(),
 });
 
 export function isUserId(value: string): boolean {

@@ -52,6 +52,8 @@ export type AccountState =
       readonly incoming: number;
       /** Pozvánky do hry od kamarádů (obnovují se průběžně). */
       readonly invites: readonly GameInvite[];
+      /** Ukazuji kamarádům, že jsem online. */
+      readonly showOnline: boolean;
     };
 
 export type AccountErrorCode =
@@ -85,7 +87,11 @@ export interface AccountBackend {
   removeFriend(userId: string): Promise<void>;
   /** Výsledek online zápasu; započítá se, až ho shodně nahlásí i soupeř (kamarád). */
   reportMatch(matchKey: string, won: boolean): Promise<ReportResult>;
-  notifications(): Promise<Notifications>;
+  /** Ozvání „jsem tady“ (inMatch = hraju zápas) + souhrn žádostí a pozvánek. */
+  ping(inMatch: boolean): Promise<Notifications>;
+  /** Hned offline (zavření stránky, odhlášení). */
+  presenceOffline(): Promise<void>;
+  setShowOnline(show: boolean): Promise<void>;
   sendGameInvite(friendId: string, room: string): Promise<InviteResult>;
   dismissGameInvite(inviteId: string): Promise<void>;
   cancelGameInvites(room: string): Promise<void>;
@@ -109,8 +115,11 @@ export interface Account {
   cancelFriendRequest(requestId: string): Promise<void>;
   removeFriend(userId: string): Promise<void>;
   reportMatch(matchKey: string, won: boolean): Promise<ReportResult>;
-  /** Průběžné obnovení žádostí a pozvánek (bez obnovení stránky). */
-  refreshNotifications(): Promise<void>;
+  /** Průběžné obnovení žádostí a pozvánek; zároveň kamarádům hlásí „jsem online“. */
+  refreshNotifications(inMatch?: boolean): Promise<void>;
+  /** Zavírám stránku – kamarádům hned offline. */
+  goOffline(): void;
+  setShowOnline(show: boolean): Promise<void>;
   sendGameInvite(friendId: string, room: string): Promise<InviteResult>;
   dismissGameInvite(inviteId: string): Promise<void>;
   /** Hostitel ruší místnost – pozvánky do ní zmizí. */
@@ -165,6 +174,8 @@ const UNAVAILABLE: Account = {
   removeFriend: () => Promise.reject(new AccountError('network')),
   reportMatch: () => Promise.resolve('ignored'),
   refreshNotifications: () => Promise.resolve(),
+  goOffline: () => undefined,
+  setShowOnline: () => Promise.reject(new AccountError('network')),
   sendGameInvite: () => Promise.reject(new AccountError('network')),
   dismissGameInvite: () => Promise.resolve(),
   cancelGameInvites: () => Promise.resolve(),
@@ -189,6 +200,8 @@ export function createAccount(options: AccountOptions): Account {
 
   let state: AccountState = { kind: 'guest' };
   let backend: Promise<AccountBackend> | null = null;
+  /** Načtený backend (synchronně – kvůli zavírání stránky). */
+  let loaded: AccountBackend | null = null;
   let userId: string | null = null;
   const handlers = new Set<(state: AccountState) => void>();
 
@@ -206,10 +219,12 @@ export function createAccount(options: AccountOptions): Account {
     }
     try {
       const profile = await api.profile(id);
-      if (userId === id) set({ kind: 'signed-in', profile, incoming: 0, invites: [] });
+      if (userId === id)
+        set({ kind: 'signed-in', profile, incoming: 0, invites: [], showOnline: true });
     } catch {
       // Profil se nenačetl (výpadek) – přihlášení zůstává, zkusí se znovu příště.
-      if (userId === id) set({ kind: 'signed-in', profile: null, incoming: 0, invites: [] });
+      if (userId === id)
+        set({ kind: 'signed-in', profile: null, incoming: 0, invites: [], showOnline: true });
     }
     if (userId === id && state.kind === 'signed-in' && state.profile) {
       void loadNotifications(api).catch(() => undefined);
@@ -226,15 +241,16 @@ export function createAccount(options: AccountOptions): Account {
     return requests;
   }
 
-  async function loadNotifications(api: AccountBackend): Promise<void> {
+  async function loadNotifications(api: AccountBackend, inMatch = false): Promise<void> {
     const id = userId;
-    const { requests, invites } = await api.notifications();
+    const { requests, invites, showOnline } = await api.ping(inMatch);
     if (userId !== id || state.kind !== 'signed-in') return;
     const same =
       state.incoming === requests &&
       state.invites.length === invites.length &&
-      state.invites.every((inv, i) => inv.id === invites[i]?.id);
-    if (!same) set({ ...state, incoming: requests, invites });
+      state.invites.every((inv, i) => inv.id === invites[i]?.id) &&
+      state.showOnline === showOnline;
+    if (!same) set({ ...state, incoming: requests, invites, showOnline });
   }
 
   /** Volání, která dávají smysl jen přihlášenému (s přezdívkou). */
@@ -245,6 +261,7 @@ export function createAccount(options: AccountOptions): Account {
 
   function ensureBackend(): Promise<AccountBackend> {
     backend ??= load(config as SupabaseConfig).then((api) => {
+      loaded = api;
       api.onUserChange((id) => {
         if (id !== userId) void refresh(api, id);
       });
@@ -290,6 +307,8 @@ export function createAccount(options: AccountOptions): Account {
     },
     async signOut() {
       const api = await ensureBackend();
+      // Kamarádům hned offline (dokud ještě platí přihlášení).
+      await api.presenceOffline().catch(() => undefined);
       userId = null;
       try {
         await api.signOut();
@@ -308,7 +327,8 @@ export function createAccount(options: AccountOptions): Account {
       const profile = await api.setNickname(nickname);
       const incoming = state.kind === 'signed-in' ? state.incoming : 0;
       const invites = state.kind === 'signed-in' ? state.invites : [];
-      set({ kind: 'signed-in', profile, incoming, invites });
+      const showOnline = state.kind === 'signed-in' ? state.showOnline : true;
+      set({ kind: 'signed-in', profile, incoming, invites, showOnline });
       return profile;
     },
     async deleteAccount() {
@@ -337,9 +357,19 @@ export function createAccount(options: AccountOptions): Account {
     async removeFriend(id) {
       return (await signedIn()).removeFriend(id);
     },
-    async refreshNotifications() {
+    async refreshNotifications(inMatch = false) {
       if (state.kind !== 'signed-in' || !state.profile) return;
-      await loadNotifications(await ensureBackend());
+      await loadNotifications(await ensureBackend(), inMatch);
+    },
+    goOffline() {
+      if (state.kind !== 'signed-in' || !loaded) return;
+      // Bez čekání na Promise – při zavírání stránky musí požadavek odejít hned.
+      void loaded.presenceOffline().catch(() => undefined);
+    },
+    async setShowOnline(show) {
+      const api = await signedIn();
+      await api.setShowOnline(show);
+      if (state.kind === 'signed-in') set({ ...state, showOnline: show });
     },
     async sendGameInvite(friendId, room) {
       return (await signedIn()).sendGameInvite(friendId, room);

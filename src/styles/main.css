@@ -1044,6 +1044,47 @@ legend {
   overflow-wrap: anywhere;
 }
 
+.friend-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.friend-dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.6;
+}
+
+.friend-dot--online {
+  background: #4ade80;
+  opacity: 1;
+  box-shadow: 0 0 6px rgb(74 222 128 / 60%);
+}
+
+.friend-dot--playing {
+  background: #fb923c;
+  opacity: 1;
+}
+
+.friend-status {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.friend-status--online {
+  color: #4ade80;
+}
+
+.friend-status--playing {
+  color: #fb923c;
+}
+
 .friend-score {
   color: var(--gold);
   font-variant-numeric: tabular-nums;

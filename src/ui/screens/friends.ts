@@ -3,6 +3,7 @@ import { formatHandle } from '../../net/account';
 import {
   parseHandle,
   type Friend,
+  type FriendStatus,
   type FriendRequest,
   type SendRequestResult,
 } from '../../net/friends';
@@ -39,6 +40,10 @@ const t = translations(
     cancel: 'Zrušit',
     remove: 'Odebrat',
     play: 'Pozvat do hry',
+    status: { online: 'online', playing: 've hře', offline: 'offline' } satisfies Record<
+      FriendStatus,
+      string
+    >,
     removeTitle: 'Odebrat kamaráda?',
     removeText: (handle: string) =>
       `${handle} zmizí z kamarádů a smaže se i vaše vzájemné skóre. Přidat se můžete znovu.`,
@@ -80,6 +85,10 @@ const t = translations(
     cancel: 'Cancel',
     remove: 'Remove',
     play: 'Invite to a game',
+    status: { online: 'online', playing: 'in a game', offline: 'offline' } satisfies Record<
+      FriendStatus,
+      string
+    >,
     removeTitle: 'Remove friend?',
     removeText: (handle: string) =>
       `${handle} will be removed from your friends and your head-to-head score is deleted. You can add each other again.`,
@@ -245,7 +254,13 @@ export function friendsScreen(app: App): Mount {
       return h(
         'li',
         { class: 'friend-row' },
-        h('span', { class: 'friend-name' }, name),
+        h(
+          'span',
+          { class: 'friend-name' },
+          h('span', { class: `friend-dot friend-dot--${f.status}`, 'aria-hidden': 'true' }),
+          name,
+          h('span', { class: `friend-status friend-status--${f.status}` }, t.status[f.status]),
+        ),
         h(
           'span',
           { class: 'friend-score', 'aria-label': t.scoreLabel(name, f.wins, f.losses) },
@@ -255,7 +270,12 @@ export function friendsScreen(app: App): Mount {
           'span',
           { class: 'friend-actions' },
           app.onlineAvailable
-            ? button(t.play, () => app.inviteToGame(f), 'btn btn-primary btn-small')
+            ? button(
+                t.play,
+                () => app.inviteToGame(f),
+                // Online kamarád pozvánku nejspíš hned uvidí – zvýraznit.
+                f.status === 'online' ? 'btn btn-primary btn-small' : 'btn btn-small',
+              )
             : null,
           remove,
         ),

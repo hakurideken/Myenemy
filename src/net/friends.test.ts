@@ -26,10 +26,14 @@ describe('kamarádi – jméno s kódem', () => {
     expect(isUserId(id)).toBe(true);
     expect(isUserId('not-an-id')).toBe(false);
     expect(
-      friendsSchema.safeParse([{ id, nickname: 'Ota', tag: 1, wins: 2, losses: 0 }]).success,
+      friendsSchema.safeParse([
+        { id, nickname: 'Ota', tag: 1, wins: 2, losses: 0, status: 'online' },
+      ]).success,
     ).toBe(true);
     expect(
-      friendsSchema.safeParse([{ id, nickname: 'Ota', tag: 1, wins: -1, losses: 0 }]).success,
+      friendsSchema.safeParse([
+        { id, nickname: 'Ota', tag: 1, wins: -1, losses: 0, status: 'online' },
+      ]).success,
     ).toBe(false);
   });
 });

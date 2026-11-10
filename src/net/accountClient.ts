@@ -34,6 +34,12 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
     flowType: 'pkce',
   });
 
+  /** Aktuální přístupový token – kvůli odeslání při zavírání stránky bez čekání. */
+  let currentToken: string | null = null;
+  auth.onAuthStateChange((_event, session) => {
+    currentToken = session?.access_token ?? null;
+  });
+
   async function rest(path: string, init: RequestInit = {}): Promise<unknown> {
     const { data } = await auth.getSession();
     const token = data.session?.access_token;
@@ -151,8 +157,26 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
     async removeFriend(userId) {
       await rpc('remove_friend', { p_friend: userId });
     },
-    async notifications() {
-      return notificationsSchema.parse(await rpc('my_notifications'));
+    async ping(inMatch) {
+      const data = notificationsSchema.parse(await rpc('ping', { p_in_match: inMatch }));
+      return { requests: data.requests, invites: data.invites, showOnline: data.show_online };
+    },
+    async presenceOffline() {
+      // Synchronně (bez await před fetch) – stránka se může každou chvíli zavřít.
+      if (!currentToken) return;
+      await fetch(`${config.url}/rest/v1/rpc/presence_offline`, {
+        method: 'POST',
+        keepalive: true,
+        headers: {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${currentToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      }).catch(() => undefined);
+    },
+    async setShowOnline(show) {
+      await rpc('set_show_online', { p_show: show });
     },
     async sendGameInvite(friendId, room) {
       return inviteResultSchema.parse(

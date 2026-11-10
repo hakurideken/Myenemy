@@ -326,7 +326,8 @@ export class App {
       return;
     }
     this.requestsCheckedAt = now;
-    this.account.refreshNotifications().catch(() => undefined);
+    // Lišta je skrytá = rozehraný zápas nebo online místnost → kamarádům „ve hře“.
+    this.account.refreshNotifications(this.topBar.el.hidden === true).catch(() => undefined);
   }
 
   /**
@@ -338,6 +339,8 @@ export class App {
     window.setInterval(() => {
       if (!document.hidden) this.refreshNotifications(10_000);
     }, 15_000);
+    // Zavřená záložka / odchod ze stránky: kamarádům hned offline.
+    window.addEventListener('pagehide', () => this.account.goOffline());
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) this.refreshNotifications(3_000);
     });

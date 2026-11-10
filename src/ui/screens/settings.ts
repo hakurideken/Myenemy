@@ -11,6 +11,11 @@ const t = translations(
     language: 'Jazyk / Language',
     sound: 'Zvuky',
     soundHint: 'Signály a efekty během her',
+    showOnline: 'Ukazovat kamarádům, že jsem online',
+    saveFailedTitle: 'Nepodařilo se uložit',
+    saveFailed: 'Spojení se nepovedlo – nastavení zůstává, jak bylo. Zkus to znovu.',
+    ok: 'Rozumím',
+    showOnlineHint: 'Kamarádi uvidí „online“ nebo „ve hře“. Vypnuté = pro ně vždy offline.',
     music: 'Hudba',
     musicHint: 'V menu i ve hře, na konci zápasu výherní nebo prohraná skladba',
     volume: 'Hlasitost hudby',
@@ -27,6 +32,11 @@ const t = translations(
     language: 'Language / Jazyk',
     sound: 'Sounds',
     soundHint: 'Signals and effects during games',
+    showOnline: 'Show friends that I am online',
+    saveFailedTitle: 'Could not save',
+    saveFailed: 'Connection failed – the setting stays as it was. Please try again.',
+    ok: 'OK',
+    showOnlineHint: 'Friends see “online” or “in a game”. Off = always offline for them.',
     music: 'Music',
     musicHint: 'In the menu and in games, a victory or defeat tune at the end of a match',
     volume: 'Music volume',
@@ -47,7 +57,7 @@ function toggle(
   label: string,
   hint: string,
   checked: boolean,
-  onChange: (checked: boolean) => void,
+  onChange: (checked: boolean, input: HTMLInputElement) => void,
   disabled = false,
 ): HTMLLabelElement {
   return h(
@@ -58,7 +68,10 @@ function toggle(
       role: 'switch',
       checked,
       disabled,
-      onchange: (event: Event) => onChange((event.currentTarget as HTMLInputElement).checked),
+      onchange: (event: Event) => {
+        const input = event.currentTarget as HTMLInputElement;
+        onChange(input.checked, input);
+      },
     }),
     h('span', { class: 'toggle-track', 'aria-hidden': 'true' }),
     h(
@@ -113,6 +126,26 @@ export function settingsScreen(app: App): Mount {
             app.settings.update({ sound: on });
             if (on) app.sfx.play('click');
           }),
+          // Jen pro přihlášené s profilem (kamarádi jsou jen u účtů).
+          app.account.state.kind === 'signed-in' && app.account.state.profile
+            ? toggle(t.showOnline, t.showOnlineHint, app.account.state.showOnline, (on, input) => {
+                // Nastavení soukromí: při chybě vrátit, ať hráč nežije v omylu, že je skrytý.
+                input.disabled = true;
+                app.account
+                  .setShowOnline(on)
+                  .catch(() => {
+                    input.checked = !on;
+                    const dialog = app.dialog({
+                      title: t.saveFailedTitle,
+                      body: [h('p', { class: 'dialog-text' }, t.saveFailed)],
+                      actions: [button(t.ok, () => dialog.close(), 'btn btn-primary')],
+                    });
+                  })
+                  .finally(() => {
+                    input.disabled = false;
+                  });
+              })
+            : null,
           toggle(t.music, t.musicHint, music, (on) => {
             app.settings.update({ music: on });
             volume.disabled = !on;

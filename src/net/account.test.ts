@@ -45,8 +45,11 @@ function fakeBackend(options: { user?: string | null; profile?: Profile | null }
     cancelFriendRequest: () => Promise.resolve(),
     removeFriend: () => Promise.resolve(),
     reportMatch: () => Promise.resolve('pending' as const),
-    notifications: () =>
+    presenceOffline: () => Promise.resolve(),
+    setShowOnline: () => Promise.resolve(),
+    ping: () =>
       Promise.resolve({
+        showOnline: true,
         requests: 1,
         invites: [
           { id: '00000000-0000-4000-8000-000000000009', nickname: 'Ema', tag: 5, room: 'ABCDE' },
@@ -133,6 +136,7 @@ describe('účet – průběh', () => {
       invites: [
         { id: '00000000-0000-4000-8000-000000000009', nickname: 'Ema', tag: 5, room: 'ABCDE' },
       ],
+      showOnline: true,
     });
   });
 
@@ -141,11 +145,23 @@ describe('účet – průběh', () => {
     const { account } = setup(backend, { search: '?code=xyz' });
     account.start();
     await flush();
-    expect(account.state).toEqual({ kind: 'signed-in', profile: null, incoming: 0, invites: [] });
+    expect(account.state).toEqual({
+      kind: 'signed-in',
+      profile: null,
+      incoming: 0,
+      invites: [],
+      showOnline: true,
+    });
     await expect(account.setNickname('zlé')).rejects.toMatchObject({ code: 'invalid' });
     const profile = await account.setNickname('Jana');
     expect(profile).toEqual({ nickname: 'Jana', tag: 42 });
-    expect(account.state).toEqual({ kind: 'signed-in', profile, incoming: 0, invites: [] });
+    expect(account.state).toEqual({
+      kind: 'signed-in',
+      profile,
+      incoming: 0,
+      invites: [],
+      showOnline: true,
+    });
   });
 
   it('nepovedené odhlášení na serveru: tady host, chyba se ohlásí', async () => {
@@ -191,5 +207,30 @@ describe('účet – průběh', () => {
     await account.deleteAccount();
     expect(deleteAccount).toHaveBeenCalled();
     expect(account.state.kind).toBe('guest');
+  });
+});
+
+describe('účet – stav online pro kamarády', () => {
+  it('ozvání nese „ve hře“, přepínač se uloží, odhlášení je hned offline', async () => {
+    const { backend } = fakeBackend({ user: 'u5', profile: { nickname: 'Iva', tag: 8 } });
+    const ping = vi.fn((inMatch: boolean) => {
+      void inMatch;
+      return Promise.resolve({ requests: 0, invites: [], showOnline: true });
+    });
+    const presenceOffline = vi.fn(() => Promise.resolve());
+    const setShowOnline = vi.fn(() => Promise.resolve());
+    backend.ping = ping;
+    backend.presenceOffline = presenceOffline;
+    backend.setShowOnline = setShowOnline;
+    const { account } = setup(backend, { stored: true });
+    account.start();
+    await flush();
+    await account.refreshNotifications(true);
+    expect(ping).toHaveBeenLastCalledWith(true);
+    await account.setShowOnline(false);
+    expect(setShowOnline).toHaveBeenCalledWith(false);
+    expect(account.state).toMatchObject({ kind: 'signed-in', showOnline: false });
+    await account.signOut();
+    expect(presenceOffline).toHaveBeenCalled();
   });
 });
