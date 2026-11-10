@@ -23,7 +23,7 @@ function stats(difficulty: Difficulty): { mean: number; min: number; falseStarts
 }
 
 describe('model reakční doby AI', () => {
-  it.each(DIFFICULTIES)('%s: průměr kolem cílové hodnoty (450 / 330 / 250 ms)', (d) => {
+  it.each(DIFFICULTIES)('%s: průměr kolem cílové hodnoty (450 / 330 / 250 / 150 ms)', (d) => {
     const { mean } = stats(d);
     expect(Math.abs(mean - REACTION_PROFILES[d].meanMs)).toBeLessThan(30);
   });
@@ -34,15 +34,16 @@ describe('model reakční doby AI', () => {
     expect(min).toBeGreaterThan(MIN_REACTION_MS);
   });
 
-  it.each(DIFFICULTIES)('%s: občas udělá chybu (předčasný výstřel)', (d) => {
+  it.each(DIFFICULTIES)('%s: předčasné výstřely odpovídají profilu', (d) => {
     const { falseStarts } = stats(d);
-    expect(falseStarts).toBeGreaterThan(0);
+    if (REACTION_PROFILES[d].falseStartRate > 0) expect(falseStarts).toBeGreaterThan(0);
     expect(Math.abs(falseStarts - REACTION_PROFILES[d].falseStartRate)).toBeLessThan(0.025);
   });
 
   it('těžší obtížnost je rychlejší', () => {
-    const [easy, medium, hard] = DIFFICULTIES.map((d) => stats(d).mean);
+    const [easy, medium, hard, impossible] = DIFFICULTIES.map((d) => stats(d).mean);
     expect(easy).toBeGreaterThan(medium ?? 0);
     expect(medium).toBeGreaterThan(hard ?? 0);
+    expect(hard).toBeGreaterThan(impossible ?? 0);
   });
 });

@@ -56,12 +56,15 @@ function preferredCell(cells: readonly number[], rng: Rng): number {
 /**
  * lehká  – většinou náhodně, někdy si všimne výhry,
  * střední – vyhraje / zablokuje a hlídá, aby zmizelá značka neotevřela soupeři řadu,
- * těžká  – dokonalá hra podle vyřešeného stromu (kdo začíná, může si vynutit výhru).
+ * těžká  – v 85 % tahů hraje dokonale, jinak jako střední,
+ * nemožná – dokonalá hra podle vyřešeného stromu (kdo začíná, může si vynutit výhru).
  */
 export function tttAIMove(view: TttView, ai: AIContext): TttMove {
   const { rng, difficulty, me } = ai;
   const free = freeCells(view);
-  if (difficulty === 'hard') return { cell: rng.pick(bestMoves(view, me)) };
+  if (difficulty === 'impossible' || (difficulty === 'hard' && rng.chance(0.85))) {
+    return { cell: rng.pick(bestMoves(view, me)) };
+  }
 
   const winNow = winningCells(view, me);
   if (difficulty === 'easy') {

@@ -185,7 +185,7 @@ const sum = (belief: Belief, cells: Iterable<number>): number => {
 };
 
 /** Míra náhody podle obtížnosti (lehká AI často táhne bez rozmyslu). */
-const NOISE: Record<Difficulty, number> = { easy: 30, medium: 3, hard: 1 };
+const NOISE: Record<Difficulty, number> = { easy: 30, medium: 3, hard: 1, impossible: 0 };
 /** Penále za návrat na pole, kde lovec nedávno stál. */
 const REVISIT = 3;
 
@@ -193,6 +193,7 @@ const MODEL: Record<Difficulty, Model> = {
   easy: { tracks: false, bias: 0 },
   medium: { tracks: false, bias: 0.2 },
   hard: { tracks: true, bias: 0.4 },
+  impossible: { tracks: true, bias: 0.5 },
 };
 
 function hunterMove(view: HuntView, own: HuntPrivate, fog: FogKnowledge, ai: AIContext): number[] {

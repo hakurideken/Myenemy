@@ -8,6 +8,7 @@ export const CHOICE: Record<Difficulty, { readonly extraMs: number; readonly mis
   easy: { extraMs: 230, missRate: 0.1 },
   medium: { extraMs: 170, missRate: 0.06 },
   hard: { extraMs: 120, missRate: 0.03 },
+  impossible: { extraMs: 50, missRate: 0.01 },
 };
 
 export function reflexAIMove(view: ReflexView, ai: AIContext): ReflexMove {

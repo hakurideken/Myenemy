@@ -19,11 +19,12 @@ interface Labels {
 
 const t = translations<Labels>(
   {
-    difficulty: { easy: 'Lehká', medium: 'Střední', hard: 'Těžká' },
+    difficulty: { easy: 'Lehká', medium: 'Střední', hard: 'Těžká', impossible: 'Nemožná' },
     difficultyHint: {
       easy: 'Pomalejší reakce, hraje spíš náhodně',
       medium: 'Solidní soupeř, občas chybuje',
       hard: 'Rychlý a vychytralý',
+      impossible: 'Na hraně lidských možností – skoro nechybuje',
     },
     type: {
       reaction: 'Reakční',
@@ -78,11 +79,12 @@ const t = translations<Labels>(
     replay: (replay, max) => `rozhodující kolo ${replay}/${max}`,
   },
   {
-    difficulty: { easy: 'Easy', medium: 'Medium', hard: 'Hard' },
+    difficulty: { easy: 'Easy', medium: 'Medium', hard: 'Hard', impossible: 'Impossible' },
     difficultyHint: {
       easy: 'Slower reactions, plays mostly at random',
       medium: 'A solid opponent who sometimes slips',
       hard: 'Fast and cunning',
+      impossible: 'At the edge of human limits – almost never slips',
     },
     type: { reaction: 'Reaction', turn: 'Turn-based', hidden: 'Hidden info', card: 'Cards' },
     cognitive: {

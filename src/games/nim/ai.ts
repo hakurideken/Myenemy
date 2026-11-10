@@ -1,4 +1,5 @@
 import type { AIContext } from '../../core/MiniGame';
+import type { Difficulty } from '../../core/types';
 import { MAX_TAKE, type NimMove, type NimView } from './logic';
 
 /**
@@ -13,14 +14,18 @@ export function optimalTake(remaining: number): number | null {
 /**
  * lehká  – náhodně (jen občas správně),
  * střední – správně v 60 % tahů,
- * těžká  – vždy optimálně; z prohrané pozice bere náhodně a čeká na chybu.
+ * těžká  – optimálně v 85 % tahů,
+ * nemožná – vždy optimálně; z prohrané pozice bere náhodně a čeká na chybu.
  */
+/** Šance, že tah z vyhrané pozice bude optimální. */
+const ACCURACY: Record<Difficulty, number> = { easy: 0.2, medium: 0.6, hard: 0.85, impossible: 1 };
+
 export function nimAIMove(view: NimView, ai: AIContext): NimMove {
   const { rng, difficulty } = ai;
   const maxTake = Math.min(MAX_TAKE, view.remaining);
   const random = (): NimMove => ({ take: rng.intRange(1, maxTake) });
   const optimal = optimalTake(view.remaining);
-  const accuracy = difficulty === 'hard' ? 1 : difficulty === 'medium' ? 0.6 : 0.2;
+  const accuracy = ACCURACY[difficulty];
   if (optimal !== null && rng.chance(accuracy)) return { take: optimal };
   return random();
 }

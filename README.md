@@ -586,6 +586,52 @@ přečíst z paměti – stejné omezení jako u reakčních her).
 změnilo / Čísla na mžik. Online stejně (`?duo` nebo dva prohlížeče) – soupeřův výsledek se
 ukáže až po dohrání obou.
 
+### Úroveň Nemožná a přehled parametrů AI
+
+Čtvrtá obtížnost **Nemožná** (`impossible`): na hraně lidských možností, skoro nechybuje.
+Tahové hry s vyřešenou strategií (Piškvorky, Sirky) na ní hrají dokonale – Těžká proto
+nově občas chybuje (85 % tahů optimálně), aby se dala porazit.
+
+Všechny laditelné parametry (soubor `src/games/<hra>/ai.ts`, reakce `src/core/ai/reaction.ts`):
+
+| Hra                   | Parametr                            | Lehká               | Střední       | Těžká         | Nemožná        |
+| --------------------- | ----------------------------------- | ------------------- | ------------- | ------------- | -------------- |
+| Rychlý tasec, Postřeh | reakce průměr ± rozptyl (ms)        | 450 ± 70            | 330 ± 50      | 250 ± 35      | 150 ± 15       |
+|                       | nejrychlejší reakce (ms)            | 230                 | 200           | 170           | 120            |
+|                       | předčasný výstřel / zaváhání        | 8 % / 6 %           | 5 % / 4 %     | 3 % / 2 %     | 0 % / 0 %      |
+| Postřeh               | výběr cíle navíc (ms) / špatný cíl  | 230 / 10 %          | 170 / 6 %     | 120 / 3 %     | 50 / 1 %       |
+| Klikací souboj        | kliknutí za sekundu                 | 5,5                 | 7,2           | 9             | 13             |
+| Kachní hon            | přesnost                            | 35 %                | 60 %          | 85 %          | 97 %           |
+|                       | omylem holubice                     | 30 %                | 12 %          | 3 %           | 0 %            |
+|                       | reakce na kachnu (ms)               | 1500–2700           | 1050–1800     | 700–1150      | 350–550        |
+|                       | přemíření (ms)                      | 800–1300            | 550–900       | 350–600       | 150–250        |
+| Sekvence              | dosažené kolo (průměr ± rozptyl)    | 4,5 ± 1,3           | 6,5 ± 1,5     | 9 ± 1,6       | 13 ± 1,5       |
+|                       | tempo mačkání (ms na pole)          | 600                 | 480           | 400           | 150            |
+| Co se změnilo         | šance (5 obrázků) / pokles na další | 65 % / 6 %          | 80 % / 5 %    | 92 % / 3,5 %  | 98 % / 1 %     |
+|                       | čas odpovědi (ms)                   | 3000                | 2300          | 1700          | 900            |
+| Čísla na mžik         | rozsah paměti (číslic)              | 5                   | 6,2           | 7,3           | 9,5            |
+|                       | tempo psaní (ms na číslici)         | 600                 | 480           | 380           | 150            |
+| Pexeso                | zapamatuje si odkrytou kartu        | 30 %                | 50 %          | 72 %          | 90 %           |
+| Čtyři v řadě          | hloubka propočtu (půltahy)          | 1 (+35 % náhodně)   | 4             | 7             | 9              |
+| Tečky a čtverečky     | přesná koncovka od (volných čar)    | –                   | – (12 % chyb) | 16            | 18             |
+| Piškvorky             | optimální tahy                      | náhodně             | heuristika    | 85 %          | 100 %          |
+| Sirky                 | optimální tahy                      | 20 %                | 60 %          | 85 %          | 100 %          |
+| Kámen, nůžky, papír   | hraje proti predikci                | 0 %                 | 60 %          | 80 % (Markov) | 95 % (Markov)  |
+| Hon                   | šum v rozhodování / sleduje stopy   | 30 / ne             | 3 / ne        | 1 / ano       | 0 / ano        |
+| Oko bere              | strategie                           | náhodný limit 10–18 | stojí od 17   | simulace 300× | simulace 1500× |
+| Lodě, Logik, Prší     | strategie                           | slabá               | rozumná       | optimální     | jako Těžká     |
+
+Naměřeno simulací (2000 her) – paměťové hry, průměr AI:
+
+| Hra            | Lehká     | Střední   | Těžká     | Nemožná   |
+| -------------- | --------- | --------- | --------- | --------- |
+| Sekvence (kol) | 4,5       | 6,5       | 9,0       | 12,9      |
+| Co se změnilo  | 3,5 / 7   | 4,8 / 7   | 5,9 / 7   | 6,7 / 7   |
+| Čísla na mžik  | 32,5 / 49 | 38,2 / 49 | 42,0 / 49 | 46,7 / 49 |
+
+Lodě, Logik a Prší hrají už na Těžké nejlépe, jak to jde bez podvádění (AI nikdy nevidí
+skryté karty ani lodě) – Nemožná je u nich stejná.
+
 ## Architektura
 
 ```
@@ -626,7 +672,7 @@ src/
 1. Vytvoř složku `src/games/<id>/`.
 2. `logic.ts` – implementuj `GameLogic`, Zod schéma tahu (`moveSchema`) a pohledu
    (`viewSchema`). V `outcome` definuj, co je remíza.
-3. `ai.ts` – `getAIMove` pro obtížnosti `easy` / `medium` / `hard`. Lehká AI musí vždy vrátit
+3. `ai.ts` – `getAIMove` pro obtížnosti `easy` / `medium` / `hard` / `impossible`. Lehká AI musí vždy vrátit
    platný tah (používá se i jako automatický tah při neaktivitě).
 4. `view.ts` – vykreslení přes `h()` / `svg()` z `src/ui/dom.ts` (text nikdy přes `innerHTML`).
    Všechny texty pro hráče patří do `translations(cs, en)` (viz `src/i18n.ts`).

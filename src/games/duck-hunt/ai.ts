@@ -25,6 +25,7 @@ export const DUCK_SKILL: Record<Difficulty, Skill> = {
   easy: { accuracy: 0.35, doveMistake: 0.3, reaction: [1500, 2700], retarget: [800, 1300] },
   medium: { accuracy: 0.6, doveMistake: 0.12, reaction: [1050, 1800], retarget: [550, 900] },
   hard: { accuracy: 0.85, doveMistake: 0.03, reaction: [700, 1150], retarget: [350, 600] },
+  impossible: { accuracy: 0.97, doveMistake: 0, reaction: [350, 550], retarget: [150, 250] },
 };
 
 /** Pták musí být ještě kus na obloze – na odlétajícího za okrajem AI nestřílí. */

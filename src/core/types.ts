@@ -16,8 +16,8 @@ export function win(winner: PlayerSlot): Outcome {
   return { kind: 'win', winner };
 }
 
-export type Difficulty = 'easy' | 'medium' | 'hard';
-export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
+export type Difficulty = 'easy' | 'medium' | 'hard' | 'impossible';
+export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard', 'impossible'];
 
 export type GameType = 'reaction' | 'turn' | 'hidden' | 'card';
 

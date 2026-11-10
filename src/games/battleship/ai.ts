@@ -134,6 +134,7 @@ function chooseCell(view: BattleshipView, ai: AIContext): number {
       break;
     }
     case 'hard':
+    case 'impossible':
       cell = best(unknown, densityMap(k), rng);
       break;
   }

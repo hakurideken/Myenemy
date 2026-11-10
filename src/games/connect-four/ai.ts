@@ -5,7 +5,8 @@ import { cellIndex, COLS, ROWS, type C4Move, type C4View, type Cell } from './lo
 /** Střed napřed – alfa-beta pak ořezává mnohem víc. */
 const ORDER = [3, 2, 4, 1, 5, 0, 6];
 const WIN = 1_000_000;
-const DEPTH: Record<Difficulty, number> = { easy: 1, medium: 4, hard: 7 };
+/** Hloubka propočtu v půltazích (hloubka 9 trvá ~50 ms). */
+const DEPTH: Record<Difficulty, number> = { easy: 1, medium: 4, hard: 7, impossible: 9 };
 
 /** Všechna „okna“ čtyř polí, ve kterých jde vyhrát. */
 const WINDOWS: readonly (readonly number[])[] = (() => {

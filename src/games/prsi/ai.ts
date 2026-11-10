@@ -194,7 +194,8 @@ function searchMove(
 }
 
 export function prsiAIMove(view: PrsiView, ai: AIContext): PrsiMove {
-  const notes = ai.difficulty === 'hard' ? observe(view, ai) : null;
+  const notes =
+    ai.difficulty === 'hard' || ai.difficulty === 'impossible' ? observe(view, ai) : null;
   const hand = handCards(view, ai.me, ai.cards ?? new Map<number, number>());
   const playable = hand.filter((c) => canPlay(view, c.card));
   const pass: PrsiMove = view.ace ? { kind: 'stand' } : { kind: 'draw' };

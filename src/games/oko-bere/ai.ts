@@ -25,11 +25,12 @@ export function winChances(
   opponentCount: number,
   opponentActive: boolean,
   rng: Rng,
+  samples = SAMPLES,
 ): { stand: number; draw: number } {
   const unknown = Array.from({ length: MARIAS_SIZE }, (_, c) => c).filter((c) => !mine.includes(c));
   let stand = 0;
   let draw = 0;
-  for (let i = 0; i < SAMPLES; i++) {
+  for (let i = 0; i < samples; i++) {
     let pool = rng.shuffle(unknown);
     let dealt = pool.slice(-opponentCount);
     // Kdo už stojí, má nejspíš aspoň 14 (nebo přetáhl) – takové ruce bereme.
@@ -53,7 +54,7 @@ export function winChances(
     stand += score(mine);
     draw += score(drawn);
   }
-  return { stand: stand / SAMPLES, draw: draw / SAMPLES };
+  return { stand: stand / samples, draw: draw / samples };
 }
 
 export function okoAIMove(view: OkoView, ai: AIContext): OkoMove {
@@ -69,10 +70,12 @@ export function okoAIMove(view: OkoView, ai: AIContext): OkoMove {
     }
     case 'medium':
       return { kind: total < 17 ? 'draw' : 'stand' };
-    case 'hard': {
+    case 'hard':
+    case 'impossible': {
       // Do 10 nejde přetáhnout – lízat se vyplatí vždy.
       if (total <= 10 && hand.length > 0) return { kind: 'draw' };
-      const chances = winChances(hand, view.hands[opp].length, !view.stood[opp], ai.rng);
+      const samples = ai.difficulty === 'impossible' ? 1500 : SAMPLES;
+      const chances = winChances(hand, view.hands[opp].length, !view.stood[opp], ai.rng, samples);
       return { kind: chances.draw > chances.stand ? 'draw' : 'stand' };
     }
   }

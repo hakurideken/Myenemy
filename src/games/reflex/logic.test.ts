@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { AIMemory } from '../../core/MiniGame';
 import { DIFFICULTIES, DRAW, win } from '../../core/types';
 import { createRng } from '../../core/util/rng';
-import { reflexAIDelay, reflexAIMove } from './ai';
+import { REACTION_PROFILES } from '../../core/ai/reaction';
+import { CHOICE, reflexAIDelay, reflexAIMove } from './ai';
 import {
   COLORS,
   judgeReflex,
@@ -87,7 +88,9 @@ describe('Postřeh – AI', () => {
         const result = normalizeReflex(move, view.target);
         if (result.kind === 'hit') {
           hits++;
-          expect(result.ms).toBeGreaterThan(250);
+          expect(result.ms).toBeGreaterThanOrEqual(
+            REACTION_PROFILES[difficulty].minMs + CHOICE[difficulty].extraMs,
+          );
           expect(reflexAIDelay(view, move, ai)).toBe(
             view.delayMs + (move.kind === 'tap' ? move.ms : 0),
           );

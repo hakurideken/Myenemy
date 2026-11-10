@@ -48,7 +48,7 @@ describe('Klikací souboj – pravidla', () => {
 });
 
 describe('Klikací souboj – AI', () => {
-  it.each(DIFFICULTIES)('%s: lidské tempo a odeslání po odpočtu a 5 s', (difficulty) => {
+  it.each(DIFFICULTIES)('%s: rozumné tempo a odeslání po odpočtu a 5 s', (difficulty) => {
     const rng = createRng(`cb-${difficulty}`);
     const ai = { difficulty, rng, me: 'B' as const, memory: new AIMemory() };
     const view = logic.view(logic.setup({ rng, starter: 'A' }), 'B');
@@ -56,7 +56,7 @@ describe('Klikací souboj – AI', () => {
     const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
     expect(Math.max(...counts)).toBeLessThanOrEqual(MAX_CLICKS);
     expect(mean).toBeGreaterThan(20);
-    expect(mean).toBeLessThan(55);
+    expect(mean).toBeLessThan(70);
     expect(clickAIDelay(view, clicks(1), ai)).toBeGreaterThanOrEqual(COUNTDOWN_MS + DURATION_MS);
   });
 
@@ -72,5 +72,6 @@ describe('Klikací souboj – AI', () => {
     };
     expect(mean('easy')).toBeLessThan(mean('medium'));
     expect(mean('medium')).toBeLessThan(mean('hard'));
+    expect(mean('hard')).toBeLessThan(mean('impossible'));
   });
 });

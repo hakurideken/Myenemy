@@ -7,6 +7,7 @@ export const CLICK_RATE: Record<Difficulty, { readonly mean: number; readonly sd
   easy: { mean: 5.5, sd: 0.7 },
   medium: { mean: 7.2, sd: 0.7 },
   hard: { mean: 9, sd: 0.6 },
+  impossible: { mean: 13, sd: 0.5 },
 };
 
 export function clickAIMove(_view: ClickView, ai: AIContext): ClickMove {

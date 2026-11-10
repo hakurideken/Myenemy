@@ -68,11 +68,18 @@ describe('Sirky – AI', () => {
     return o?.kind === 'win' ? o.winner : null;
   };
 
-  it('těžká z vyhrané pozice vždy vyhraje', () => {
+  it('nemožná z vyhrané pozice vždy vyhraje', () => {
     for (const start of [16, 18, 19, 20, 22, 23, 24]) {
       for (const seed of ['1', '2', '3'])
-        expect(run('hard', 'easy', start, `${seed}-${start}`)).toBe('A');
+        expect(run('impossible', 'easy', start, `${seed}-${start}`)).toBe('A');
     }
+  });
+
+  it('těžká z vyhrané pozice proti střední většinou vyhraje, ale ne vždy', () => {
+    let wins = 0;
+    for (let i = 0; i < 60; i++) if (run('hard', 'medium', 20, `hard-${i}`) === 'A') wins++;
+    expect(wins).toBeGreaterThan(40);
+    expect(wins).toBeLessThan(60);
   });
 
   it('těžká porazí lehkou i z prohrané pozice většinou (čeká na chybu)', () => {

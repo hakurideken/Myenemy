@@ -1,5 +1,5 @@
 import type { AIContext } from '../../core/MiniGame';
-import { otherPlayer } from '../../core/types';
+import { otherPlayer, type Difficulty } from '../../core/types';
 import { COUNTER, RPS_CHOICES, type RpsChoice, type RpsMove, type RpsView } from './logic';
 
 const HISTORY_LIMIT = 60;
@@ -50,9 +50,13 @@ export function predictByMarkov(history: readonly RpsChoice[]): RpsChoice | null
 /**
  * lehká  – náhodně,
  * střední – 60 % kontruje nejčastější volbu soupeře,
- * těžká  – 80 % kontruje predikci Markovova řetězce (jinak nejčastější volbu).
+ * těžká  – 80 % kontruje predikci Markovova řetězce (jinak nejčastější volbu),
+ * nemožná – totéž v 95 % kol.
  * Zbytek je náhodný, aby AI nešlo snadno přelstít.
  */
+/** Jak často AI zahraje proti své predikci (zbytek náhodně). */
+const EXPLOIT: Record<Difficulty, number> = { easy: 0, medium: 0.6, hard: 0.8, impossible: 0.95 };
+
 export function rpsAIMove(_view: RpsView, ai: AIContext): RpsMove {
   const { rng, difficulty } = ai;
   const random = (): RpsMove => ({ choice: rng.pick(RPS_CHOICES) });
@@ -62,7 +66,7 @@ export function rpsAIMove(_view: RpsView, ai: AIContext): RpsMove {
     difficulty === 'medium'
       ? predictByFrequency(history)
       : (predictByMarkov(history) ?? predictByFrequency(history));
-  const exploit = difficulty === 'medium' ? 0.6 : 0.8;
+  const exploit = EXPLOIT[difficulty];
   return prediction && rng.chance(exploit) ? { choice: COUNTER[prediction] } : random();
 }
 

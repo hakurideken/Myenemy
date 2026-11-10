@@ -4,7 +4,7 @@ import type { Rng } from '../util/rng';
 export interface ReactionProfile {
   readonly meanMs: number;
   readonly sdMs: number;
-  /** Lidská spodní hranice – AI nikdy nereaguje „nadlidsky“. */
+  /** Spodní hranice reakce (u Nemožné záměrně na hraně lidských možností). */
   readonly minMs: number;
   /** Pravděpodobnost předčasné reakce (chyba). */
   readonly falseStartRate: number;
@@ -16,6 +16,7 @@ export const REACTION_PROFILES: Record<Difficulty, ReactionProfile> = {
   easy: { meanMs: 450, sdMs: 70, minMs: 230, falseStartRate: 0.08, lapseRate: 0.06 },
   medium: { meanMs: 330, sdMs: 50, minMs: 200, falseStartRate: 0.05, lapseRate: 0.04 },
   hard: { meanMs: 250, sdMs: 35, minMs: 170, falseStartRate: 0.03, lapseRate: 0.02 },
+  impossible: { meanMs: 150, sdMs: 15, minMs: 120, falseStartRate: 0, lapseRate: 0 },
 };
 
 export type ReactionSample =

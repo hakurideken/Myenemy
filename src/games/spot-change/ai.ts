@@ -18,6 +18,7 @@ const SKILL: Record<Difficulty, { base: number; drop: number; ms: [number, numbe
   easy: { base: 0.65, drop: 0.06, ms: [3000, 700] },
   medium: { base: 0.8, drop: 0.05, ms: [2300, 500] },
   hard: { base: 0.92, drop: 0.035, ms: [1700, 400] },
+  impossible: { base: 0.98, drop: 0.01, ms: [900, 200] },
 };
 
 export function spotAIMove(view: SpotView, ai: AIContext): SpotMove {

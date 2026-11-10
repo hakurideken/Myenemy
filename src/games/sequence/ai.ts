@@ -19,6 +19,7 @@ const SKILL: Record<Difficulty, { level: [number, number]; press: [number, numbe
   easy: { level: [4.5, 1.3], press: [600, 90] },
   medium: { level: [6.5, 1.5], press: [480, 70] },
   hard: { level: [9, 1.6], press: [400, 60] },
+  impossible: { level: [13, 1.5], press: [150, 20] },
 };
 
 /** AI „zahraje“ celý běh najednou: správně do kola, kde udělá chybu. */

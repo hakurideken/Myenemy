@@ -1,4 +1,5 @@
 import type { AIContext } from '../../core/MiniGame';
+import type { Difficulty } from '../../core/types';
 import {
   BOX_LINES,
   boxesClosedBy,
@@ -10,7 +11,13 @@ import {
 } from './logic';
 
 /** Od kolika zbývajících čar těžká AI koncovku propočítá přesně (2^16 pozic). */
-export const ENDGAME_LINES = 16;
+/** Od kolika volných čar propočítá koncovku přesně (18 čar ~60 ms, 20 už ~250 ms). */
+export const ENDGAME_LINES: Record<Difficulty, number> = {
+  easy: 0,
+  medium: 0,
+  hard: 16,
+  impossible: 18,
+};
 
 const freeLines = (lines: readonly Owner[]): number[] =>
   Array.from({ length: LINE_COUNT }, (_, i) => i).filter((i) => lines[i] === null);
@@ -99,14 +106,15 @@ export function solveEndgame(lines: readonly Owner[]): { line: number; value: nu
 /**
  * lehká  – často si nevšimne uzavíratelného políčka, jinak náhodně,
  * střední – bere políčka, hraje bezpečné čáry, obětuje nejkratší řetězec (občas chybuje),
- * těžká  – totéž bez chyb a koncovku (≤ 16 čar) propočítá přesně.
+ * těžká  – totéž bez chyb a koncovku (≤ 16 čar) propočítá přesně,
+ * nemožná – jako těžká, koncovku propočítá už od 18 volných čar.
  */
 export function dotsAIMove(view: DotsView, ai: AIContext): DotsMove {
   const { lines } = view;
   const { rng, difficulty } = ai;
   const free = freeLines(lines);
 
-  if (difficulty === 'hard' && free.length <= ENDGAME_LINES) {
+  if (free.length <= ENDGAME_LINES[difficulty]) {
     const scored = solveEndgame(lines);
     const best = Math.max(...scored.map((s) => s.value));
     return { line: rng.pick(scored.filter((s) => s.value === best)).line };

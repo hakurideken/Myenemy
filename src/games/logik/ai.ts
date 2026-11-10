@@ -70,7 +70,8 @@ export function logikAIMove(view: LogikView, ai: AIContext): LogikMove {
     case 'medium':
       code = pickConsistent();
       break;
-    case 'hard': {
+    case 'hard':
+    case 'impossible': {
       if (mine.length === 0) {
         // Zamíchané barvy, aby první tah nebyl vždy stejný.
         const colors = rng.shuffle(Array.from({ length: COLORS }, (_, i) => i));

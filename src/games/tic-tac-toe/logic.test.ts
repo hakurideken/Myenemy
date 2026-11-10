@@ -117,14 +117,26 @@ describe('Piškvorky – AI', () => {
     expect(bestMoves(play([0, 3, 1, 4]), 'A')).toEqual([2]);
   });
 
-  it('těžká jako začínající vyhraje vždy, i proti sobě', () => {
-    const rng = createRng('ttt-hard');
+  it('nemožná jako začínající vyhraje vždy, i proti sobě', () => {
+    const rng = createRng('ttt-impossible');
     for (let i = 0; i < 40; i++) {
-      for (const opp of ['random', 'easy', 'medium'] as const) {
-        expect(duel('hard', opp, rng, 'A')).toEqual(win('A'));
+      for (const opp of ['random', 'easy', 'medium', 'hard'] as const) {
+        expect(duel('impossible', opp, rng, 'A')).toEqual(win('A'));
       }
     }
-    for (let i = 0; i < 4; i++) expect(duel('hard', 'hard', rng, 'B')).toEqual(win('B'));
+    for (let i = 0; i < 4; i++) {
+      expect(duel('impossible', 'impossible', rng, 'B')).toEqual(win('B'));
+    }
+  });
+
+  it('těžká jako začínající porazí střední většinou, ale ne vždy', () => {
+    const rng = createRng('ttt-hard');
+    let wins = 0;
+    for (let i = 0; i < 60; i++) {
+      const o = duel('hard', 'medium', rng, 'A');
+      if (o?.kind === 'win' && o.winner === 'A') wins++;
+    }
+    expect(wins).toBeGreaterThan(35);
   });
 
   it('střední porazí lehkou ve většině her', () => {
