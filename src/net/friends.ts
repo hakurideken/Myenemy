@@ -30,10 +30,18 @@ export interface GameInvite extends Profile {
   readonly room: string;
 }
 
+/** Pozvánka do lobby turnaje od kamaráda (platí hodinu, jen dokud turnaj nezačal). */
+export interface TournamentInvite extends Profile {
+  /** Id turnaje. */
+  readonly id: string;
+  readonly code: string;
+}
+
 export interface Notifications {
   /** Čekající žádosti o přátelství. */
   readonly requests: number;
   readonly invites: readonly GameInvite[];
+  readonly tournaments?: readonly TournamentInvite[];
   /** Ukazuji kamarádům, že jsem online (přepínač v Nastavení). */
   readonly showOnline: boolean;
 }
@@ -85,6 +93,17 @@ export const notificationsSchema = z.object({
       }),
     )
     .max(100),
+  tournaments: z
+    .array(
+      z.object({
+        id: uuid,
+        nickname,
+        tag,
+        code: z.string().regex(/^[A-HJ-NP-Z2-9]{6}$/),
+      }),
+    )
+    .max(50)
+    .default([]),
   show_online: z.boolean(),
 });
 

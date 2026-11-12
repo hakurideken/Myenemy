@@ -30,14 +30,32 @@ import { nicknameScreen } from './screens/nickname';
 import { onlineMenuScreen } from './screens/online';
 import { settingsScreen } from './screens/settings';
 import { setupScreen, type SetupMode } from './screens/setup';
+import { tournamentScreen } from './screens/tournament';
+import { TournamentFlow, type TournamentLink } from './TournamentFlow';
+import { AI_LABEL } from './components/bracket';
+import {
+  entrantName,
+  TOURNAMENT_AI,
+  TOURNAMENT_FORMAT,
+  type TournamentPlayer,
+} from '../net/tournament';
 
 /**
  * Obrazovky, na které se jde vrátit po obnovení stránky (i po přepnutí jazyka, které
  * stránku načte znovu). Zápas ani online místnost obnovit nejde – ty vedou do menu.
  */
-type Route = 'menu' | 'settings' | 'friends' | 'privacy' | 'setup-pve' | 'setup-online' | 'online';
+type Route =
+  | 'menu'
+  | 'settings'
+  | 'friends'
+  | 'privacy'
+  | 'setup-pve'
+  | 'setup-online'
+  | 'online'
+  | 'tournament';
 const ROUTES: readonly Route[] = [
   'menu',
+  'tournament',
   'settings',
   'friends',
   'privacy',
@@ -81,6 +99,7 @@ export class App {
   readonly sfx: Sfx = createSfx(() => this.settings.current);
   readonly music: Music;
   readonly account: Account;
+  readonly tournament: TournamentFlow;
   private readonly topBar: TopBar;
   /** Jsme na obrazovce přezdívky (po přihlášení s hotovým profilem se jde dál). */
   private onNickname = false;
@@ -102,6 +121,7 @@ export class App {
   /** Obrazovka v adrese (#…); null = zápas nebo místnost (po obnovení do menu). */
   private route: Route | null = null;
   private friendsShownSignedIn = false;
+  private tournamentShownSignedIn = false;
 
   constructor(
     private readonly root: HTMLElement,
@@ -110,12 +130,24 @@ export class App {
     const supabase = readSupabaseConfig();
     this.account = createAccount({ config: options.account === false ? null : supabase });
     this.topBar = createTopBar(this);
+    this.tournament = new TournamentFlow(this);
+    this.tournament.onChange(() => this.updateInviteToast());
     this.inviteToast = createInviteToast({
-      accept: (invite) => {
+      acceptGame: (invite) => {
         void this.account.dismissGameInvite(invite.id).catch(() => undefined);
         this.joinOnline(invite.room);
       },
-      decline: (invite) => void this.account.dismissGameInvite(invite.id).catch(() => undefined),
+      declineGame: (invite) =>
+        void this.account.dismissGameInvite(invite.id).catch(() => undefined),
+      acceptTournament: (invite) => {
+        this.tournament.api.dismissInvite(invite.id).catch(() => undefined);
+        void this.tournament.join(invite.code).finally(() => this.goTournament());
+      },
+      declineTournament: (invite) => {
+        this.tournament.api.dismissInvite(invite.id).catch(() => undefined);
+        if (this.account.state.kind === 'signed-in') void this.account.refreshNotifications();
+      },
+      openTournament: () => this.goTournament(),
     });
     root.append(this.topBar.el, this.bannerRoot, this.screenRoot, this.inviteToast.el);
     this.watchNotifications();
@@ -249,6 +281,8 @@ export class App {
         return this.onlineAvailable ? this.goSetup('online') : this.goOnline();
       case 'online':
         return this.goOnline();
+      case 'tournament':
+        return this.goTournament();
       case 'menu':
         return this.goMenu();
     }
@@ -295,13 +329,19 @@ export class App {
   private onAccountChange(state: AccountState): void {
     this.topBar.update();
     this.updateInviteToast();
-    if (state.kind !== 'signed-in') return;
+    if (state.kind !== 'signed-in') {
+      if (state.kind !== 'loading') this.tournament.reset();
+      return;
+    }
     const inMatch = this.topBar.el.hidden;
     if (state.profile) {
       this.setNickname(state.profile.nickname);
+      // Rozehraný turnaj: hned „jsem tady“ (a obnovená obrazovka turnaje se načte).
+      if (this.tournament.state === undefined) void this.tournament.refresh();
       if (this.onNickname) this.continueAfterNickname();
       // Obnovená stránka s kamarády: přihlášení doběhlo až po vykreslení – načíst znovu.
       else if (this.route === 'friends' && !this.friendsShownSignedIn) this.goFriends();
+      else if (this.route === 'tournament' && !this.tournamentShownSignedIn) this.goTournament();
     } else if (!inMatch) {
       this.goNickname();
     }
@@ -349,10 +389,15 @@ export class App {
   /** Pozvánky ukazovat jen mimo rozehraný zápas a online místnost. */
   private updateInviteToast(): void {
     const state = this.account.state;
-    this.inviteToast.update(
-      state.kind === 'signed-in' ? state.invites : [],
-      !this.topBar.el.hidden,
-    );
+    const signedIn = state.kind === 'signed-in';
+    this.inviteToast.update({
+      games: signedIn ? state.invites : [],
+      // Do turnaje zvát jen toho, kdo v žádném není.
+      tournaments: signedIn && this.tournament.state === null ? state.tournamentInvites : [],
+      // Můj turnajový zápas je připravený a nejsem na obrazovce turnaje.
+      matchReady: this.route !== 'tournament' && this.tournament.matchWaiting,
+      visible: !this.topBar.el.hidden,
+    });
   }
 
   /** Z obrazovky Kamarádi: založit místnost a kamaráda do ní rovnou pozvat. */
@@ -386,6 +431,46 @@ export class App {
     this.setRoute('settings');
   }
 
+  goTournament(): void {
+    this.leaveOnline();
+    this.pendingInvite = null;
+    this.show(tournamentScreen(this));
+    this.setRoute('tournament');
+    this.updateInviteToast();
+    this.tournamentShownSignedIn = this.account.state.kind === 'signed-in';
+  }
+
+  /** Turnajový zápas proti hráči: jsem hostitel (horní v pavouku) – založím místnost. */
+  hostTournamentMatch(link: TournamentLink): void {
+    const flow = this.startOnline(link);
+    if (flow) void flow.createRoom(TOURNAMENT_FORMAT);
+  }
+
+  /** Turnajový zápas proti hráči: připojím se do místnosti, kterou soupeř založil. */
+  joinTournamentMatch(link: TournamentLink, room: string): void {
+    const flow = this.startOnline(link);
+    if (flow) void flow.joinRoom(room);
+  }
+
+  /** Turnajový zápas proti AI (střední) – hraje se v prohlížeči. */
+  playTournamentAi(link: TournamentLink, opponent: TournamentPlayer): void {
+    this.leaveOnline();
+    const mySlot = this.tournament.state?.me ?? link.slots.A;
+    this.setRoute(null);
+    new MatchFlow(this, {
+      mode: 'pve',
+      format: TOURNAMENT_FORMAT,
+      names: { A: this.nicknameValue ?? 'Hráč', B: entrantName(opponent, AI_LABEL) },
+      difficulty: TOURNAMENT_AI,
+      tournament: { link, mySlot },
+    }).start();
+  }
+
+  /** Online místnost čeká na soupeře (turnaj: zápas mezitím mohl skončit kontumací). */
+  get waitingForOpponent(): boolean {
+    return this.online?.waitingForOpponent ?? false;
+  }
+
   goOnline(): void {
     this.leaveOnline();
     this.pendingInvite = null;
@@ -409,14 +494,14 @@ export class App {
     if (flow) void flow.joinRoom(code);
   }
 
-  private startOnline(): OnlineFlow | null {
+  private startOnline(tournament: TournamentLink | null = null): OnlineFlow | null {
     this.leaveOnline();
     if (!this.transportFactory) {
       this.show(onlineMenuScreen(this, false));
       return null;
     }
     this.setRoute(null);
-    this.online = new OnlineFlow(this, this.transportFactory);
+    this.online = new OnlineFlow(this, this.transportFactory, tournament);
     return this.online;
   }
 

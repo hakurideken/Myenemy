@@ -13,6 +13,9 @@ const t = translations(
     online: 'Online 1v1',
     onlineSub: 'Založ místnost nebo se připoj kódem',
     onlineOff: 'Na tomhle webu zatím nenastaveno',
+    tournament: 'Turnaj',
+    tournamentSub: 'Pavouk až pro 16 hráčů, volná místa doplní AI',
+    tournamentActive: 'Probíhá tvůj turnaj – vrať se do něj',
     nickname: 'Změnit přezdívku',
     games: 'Sada miniher pro dva – souboj 1v1.',
   },
@@ -25,6 +28,9 @@ const t = translations(
     online: 'Online 1v1',
     onlineSub: 'Create a room or join with a code',
     onlineOff: 'Not set up on this site yet',
+    tournament: 'Tournament',
+    tournamentSub: 'A bracket for up to 16 players, AI fills the gaps',
+    tournamentActive: 'Your tournament is on – jump back in',
     nickname: 'Change nickname',
     games: 'A set of minigames for two – a 1v1 duel.',
   },
@@ -66,6 +72,13 @@ export function menuScreen(app: App): Mount {
           menuButton(t.online, app.onlineAvailable ? t.onlineSub : t.onlineOff, () =>
             app.goOnline(),
           ),
+          app.onlineAvailable && app.account.state.kind !== 'unavailable'
+            ? menuButton(
+                t.tournament,
+                app.tournament.active ? t.tournamentActive : t.tournamentSub,
+                () => app.goTournament(),
+              )
+            : null,
           button(t.nickname, () => app.goNickname(), 'btn btn-ghost'),
         ),
         h('p', { class: 'menu-games' }, t.games),

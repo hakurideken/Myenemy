@@ -187,8 +187,9 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
    bezpečné. Na konci souboru je kontrolní dotaz – má vrátit 0 řádků.
    Potom stejně spusť `supabase/migrations/20261108120000_friends.sql` (kamarádi, žádosti,
    vzájemné výsledky) pak `supabase/migrations/20261110120000_invites.sql` (pozvánky do hry,
-   souhrn upozornění) a nakonec `supabase/migrations/20261111120000_presence.sql` (stav
-   kamarádů online / ve hře). Pořadí je důležité – další soubory potřebují předchozí tabulky.
+   souhrn upozornění), `supabase/migrations/20261111120000_presence.sql` (stav
+   kamarádů online / ve hře) a nakonec `supabase/migrations/20261112120000_tournaments.sql`
+   (turnaje). Pořadí je důležité – další soubory potřebují předchozí tabulky.
 2. **Adresy:** **Authentication → URL Configuration**
    - Site URL: `https://hakurideken.github.io/Myenemy/`
    - Redirect URLs: `https://hakurideken.github.io/Myenemy/`, `http://localhost:5173/`
@@ -631,6 +632,38 @@ Naměřeno simulací (2000 her) – paměťové hry, průměr AI:
 
 Lodě, Logik a Prší hrají už na Těžké nejlépe, jak to jde bez podvádění (AI nikdy nevidí
 skryté karty ani lodě) – Nemožná je u nich stejná.
+
+### Turnaj
+
+**Turnaj** v menu (jen pro přihlášené): vyřazovací pavouk pro 4, 8 nebo 16 hráčů.
+
+- **Lobby:** organizátor založí turnaj a dostane šestiznakový kód; ostatní se připojí kódem
+  nebo pozvánkou od kamaráda (upozornění ve hře). Spustit jde od 2 hráčů. Hráč je nejvýš
+  v jednom turnaji naráz.
+- **Los:** hráči na náhodné pozice, pavouk se doplní do 4 / 8 / 16 **AI (střední)**.
+  Zápas AI proti AI se rozhodne hned (simulace na serveru), nikdo na něj nečeká.
+- **Zápas:** vždy **9 náhodných her** (best of 9, vyhrává kdo dřív 5). Proti hráči online –
+  horní hráč v pavouku založí místnost sám, soupeř se připojí sám (stačí mít otevřenou
+  obrazovku turnaje). Když horní hráč 2 minuty místnost nezaloží, může ji založit dolní.
+  Proti AI se hraje v prohlížeči tlačítkem „Hrát zápas“.
+- **Výsledek:** zápas dvou hráčů hlásí oba; shoda = vítěz postoupí, neshoda = hraje se znovu
+  (potřetí rozhodne los, v pavouku je vidět „los“). Jediné hlášení platí, jen když soupeř
+  odešel (3 minuty se neozval) – „výhru“ nahlášenou bez hraní tak přítomný soupeř nepustí.
+  Zápas bez shody do 45 minut = neshoda (turnaj vždy doběhne). Skóre se uloží jen při
+  shodě obou hlášení. Zápas proti AI hlásí hráč sám (dá se podvést – je to hra mezi
+  kamarády).
+- **Kontumace:** kdo se 3 minuty neozve (zavřená hra), prohraje svůj zápas; odchod
+  z turnaje = prohra zbývajících zápasů. Hraje se i **o 3. místo**.
+- **Pavouk** (SVG) se obnovuje každé 4 s: postupující zlatě, rozehraný zápas se zlatým
+  rámečkem, já modře. Mimo obrazovku turnaje upozornění „Tvůj zápas je připravený“.
+- **Data:** `tournament_state` vrací kód místnosti jen hráčům zápasu; nespuštěný turnaj
+  se maže po dni, rozehraný po 2 dnech, dohraný po 7 dnech. Po smazání účtu se jméno
+  v turnajích nahradí pomlčkou. SQL je ověřené v PGlite (celé odehrání, neshoda, kontumace,
+  16 hráčů, cizí hlášení, pozvánky, export, smazání účtu).
+
+**Jak otestovat:** spusť migraci `20261112120000_tournaments.sql`, přihlas se ve dvou
+prohlížečích (dva účty), jeden založí turnaj, druhý se připojí kódem, organizátor spustí.
+Pavouk pro 4 se doplní dvěma AI; zápasy proti hráči se spustí samy, proti AI tlačítkem.
 
 ## Architektura
 

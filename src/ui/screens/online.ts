@@ -32,6 +32,10 @@ const t = translations(
     copied: '✓ Zkopírováno',
     copyManually: 'Zkopíruj odkaz ručně (Ctrl+C).',
     hostKicker: 'Online · hostitel',
+    tournamentKicker: 'Turnaj',
+    tournamentTitle: 'Tvůj turnajový zápas',
+    tournamentWaiting: 'Čekám, až se soupeř připojí… (kdo se 3 minuty neozve, prohraje kontumací)',
+    tournamentBack: 'Zpět na turnaj',
     roomReady: 'Místnost je připravená',
     orLink: 'Nebo pošli odkaz',
     copy: 'Kopírovat',
@@ -72,6 +76,11 @@ const t = translations(
     copied: '✓ Copied',
     copyManually: 'Copy the link manually (Ctrl+C).',
     hostKicker: 'Online · host',
+    tournamentKicker: 'Tournament',
+    tournamentTitle: 'Your tournament match',
+    tournamentWaiting:
+      'Waiting for your opponent to join… (anyone silent for 3 minutes loses by forfeit)',
+    tournamentBack: 'Back to the tournament',
     roomReady: 'The room is ready',
     orLink: 'Or send a link',
     copy: 'Copy',
@@ -202,6 +211,8 @@ interface WaitingOptions {
   readonly onCancel: () => void;
   /** Přihlášený hráč může rovnou pozvat kamaráda (bez posílání kódu). */
   readonly invite?: InviteOptions;
+  /** Turnajový zápas: soupeř se připojí sám, kód ani odkaz se neukazují. */
+  readonly tournament?: boolean;
 }
 
 const it = translations(
@@ -272,6 +283,25 @@ function inviteSection(o: InviteOptions): HTMLElement {
 
 export function waitingScreen(o: WaitingOptions): Mount {
   return (root) => {
+    if (o.tournament) {
+      root.append(
+        h(
+          'main',
+          { class: 'screen screen--narrow' },
+          h('p', { class: 'kicker' }, t.tournamentKicker),
+          h('h1', { class: 'screen-title', tabindex: '-1' }, t.tournamentTitle),
+          h(
+            'p',
+            { class: 'waiting', role: 'status' },
+            h('span', { class: 'pulse', 'aria-hidden': 'true' }),
+            t.tournamentWaiting,
+          ),
+          h('p', { class: 'note' }, t.format(formatTitle(o.format))),
+          button(t.tournamentBack, o.onCancel, 'btn btn-ghost', { 'data-autofocus': true }),
+        ),
+      );
+      return;
+    }
     const linkInput = h('input', {
       type: 'text',
       readonly: true,

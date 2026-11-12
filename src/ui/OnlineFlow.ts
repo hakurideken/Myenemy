@@ -28,6 +28,9 @@ import {
   type InviteOptions,
 } from './screens/online';
 import { roundResultScreen } from './screens/roundResult';
+import type { TournamentLink } from './TournamentFlow';
+import { TOURNAMENT_FORMAT } from '../net/tournament';
+import { otherPlayer, type PerPlayer, type PlayerSlot } from '../core/types';
 
 const SILENT: Sfx = { play: () => undefined, vibrate: () => undefined };
 
@@ -70,7 +73,9 @@ const t = translations(
     vsAi: 'Proti AI',
     leaveTitle: 'Odejít ze zápasu?',
     leaveText: 'Soupeř vyhraje kontumací.',
+    leaveTournamentText: 'Prohraješ tento turnajový zápas kontumací a soupeř postoupí.',
     leave: 'Odejít',
+    backTournament: 'Zpět na turnaj',
   },
   {
     close: {
@@ -108,7 +113,9 @@ const t = translations(
     vsAi: 'Against AI',
     leaveTitle: 'Leave the match?',
     leaveText: 'Your opponent wins by forfeit.',
+    leaveTournamentText: 'You lose this tournament match by forfeit and your opponent advances.',
     leave: 'Leave',
+    backTournament: 'Back to the tournament',
   },
 );
 
@@ -128,14 +135,25 @@ export class OnlineFlow {
   private check: string | null = null;
   private disposed = false;
   private lastScreen: string | null = null;
+  /** Turnaj: zápas už začal (odchod = prohra) a výsledek už šel do turnaje. */
+  private tournamentStarted = false;
+  private tournamentReported = false;
+  private autoStartTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly onPageHide = (): void => this.dispose();
 
   constructor(
     private readonly app: App,
     private readonly factory: TransportFactory,
+    /** Turnajový zápas (výsledek jde do pavouku, návrat na turnaj, bez odvety). */
+    private readonly tournament: TournamentLink | null = null,
   ) {
     this.me = { id: newClientId(), nickname: app.nickname ?? t.player };
     window.addEventListener('pagehide', this.onPageHide);
+  }
+
+  /** Místnost čeká na soupeře (zápas ještě nezačal). */
+  get waitingForOpponent(): boolean {
+    return !this.disposed && this.session === null;
   }
 
   async createRoom(format: MatchFormat): Promise<void> {
@@ -158,13 +176,15 @@ export class OnlineFlow {
     if (this.disposed) return;
     this.hostRoom.onVersionMismatch(() => this.showClosed('version'));
     this.hostRoom.onGuest((pairing) => this.startSession('host', pairing));
+    this.tournament?.roomCreated(code);
     this.app.show(
       waitingScreen({
         code,
         link: roomLink(code, window.location),
         format,
         onCancel: () => this.exit(),
-        invite: this.inviteOptions(code),
+        invite: this.tournament ? undefined : this.inviteOptions(code),
+        tournament: this.tournament !== null,
       }),
     );
   }
@@ -194,6 +214,12 @@ export class OnlineFlow {
     } catch (err) {
       if (this.disposed) return;
       const reason = err instanceof PairingError ? err.reason : 'unavailable';
+      if (this.tournament && reason !== 'unavailable') {
+        // Místnost soupeře už neexistuje (nebo je plná) – zpět na pavouka, soupeř založí novou.
+        this.dispose();
+        this.tournament.back(code);
+        return;
+      }
       if (reason === 'unavailable') this.showUnavailable(() => void this.joinRoom(code));
       else if (reason === 'version') this.showClosed('version');
       else {
@@ -226,7 +252,13 @@ export class OnlineFlow {
     if (this.disposed) return;
     this.disposed = true;
     window.removeEventListener('pagehide', this.onPageHide);
+    if (this.autoStartTimer !== null) clearTimeout(this.autoStartTimer);
     this.app.setBanner(null);
+    // Turnaj: odchod z rozehraného zápasu = prohra kontumací (nahlásí se hned).
+    const s = this.session;
+    if (this.tournament && s && this.tournamentStarted && !this.tournamentReported) {
+      this.reportTournament(otherPlayer(s.me), s.score);
+    }
     // Odcházím z rozhodnutého zápasu dřív, než se nahlásil výsledek – nahlásit teď.
     const report = this.session?.leavingReport;
     if (report) this.reportResult(report.matchKey, report.won, 'left');
@@ -243,7 +275,26 @@ export class OnlineFlow {
   }
 
   private exit(): void {
-    this.exitTo(() => this.app.goMenu());
+    this.exitTo(() => this.home());
+  }
+
+  /** Kam po zápase: turnaj, nebo menu. */
+  private home(): void {
+    if (this.tournament) this.tournament.back();
+    else this.app.goMenu();
+  }
+
+  private get menuLabel(): string {
+    return this.tournament ? t.backTournament : t.menu;
+  }
+
+  /** Výsledek turnajového zápasu: hráči místnosti A/B → pozice v pavouku, skóre horní : dolní. */
+  private reportTournament(winner: PlayerSlot, score: PerPlayer<number>): void {
+    const link = this.tournament;
+    if (!link || this.tournamentReported) return;
+    this.tournamentReported = true;
+    const hostOnTop = link.slots.A === link.top;
+    link.finish(link.slots[winner], hostOnTop ? score.A : score.B, hostOnTop ? score.B : score.A);
   }
 
   private exitTo(next: () => void): void {
@@ -272,8 +323,10 @@ export class OnlineFlow {
     this.app.show(
       messageScreen(t.unavailableTitle, t.unavailableText, [
         { label: t.retry, onClick: retry, primary: true },
-        { label: t.vsAi, onClick: () => this.exitTo(() => this.app.goSetup('pve')) },
-        { label: t.menu, onClick: () => this.exit() },
+        ...(this.tournament
+          ? []
+          : [{ label: t.vsAi, onClick: () => this.exitTo(() => this.app.goSetup('pve')) }]),
+        { label: this.menuLabel, onClick: () => this.exit() },
       ]),
     );
   }
@@ -283,13 +336,20 @@ export class OnlineFlow {
     this.app.setBanner(null);
     this.app.show(
       messageScreen(title, detail ? `${text} (${detail})` : text, [
-        { label: t.menu, onClick: () => this.exit(), primary: true },
+        { label: this.menuLabel, onClick: () => this.exit(), primary: true },
       ]),
     );
   }
 
   private startSession(role: 'host' | 'guest', pairing: Pairing): void {
     if (this.session || this.disposed) return;
+    // Turnaj: zápas musí být best of 9 s náhodnými hrami – jinak to není turnajový zápas.
+    if (this.tournament && JSON.stringify(pairing.format) !== JSON.stringify(TOURNAMENT_FORMAT)) {
+      void pairing.peer.bye();
+      this.dispose();
+      this.tournament.back();
+      return;
+    }
     this.check = pairing.check;
     const names =
       role === 'host'
@@ -321,7 +381,7 @@ export class OnlineFlow {
     void this.app
       .confirm({
         title: t.leaveTitle,
-        message: t.leaveText,
+        message: this.tournament ? t.leaveTournamentText : t.leaveText,
         confirm: t.leave,
       })
       .then((ok) => {
@@ -362,6 +422,13 @@ export class OnlineFlow {
     const fresh = key !== this.lastScreen;
     this.lastScreen = key;
     const show = (mount: Mount): void => this.app.show(mount, { animate: fresh });
+    if (phase.name === 'intro' || phase.name === 'playing' || phase.name === 'round-result') {
+      this.tournamentStarted = true;
+    }
+    // Turnaj: hostitel spustí zápas sám (chvilku po spárování, ať soupeř vidí, s kým hraje).
+    if (this.tournament && phase.name === 'lobby' && s.me === 'A' && this.autoStartTimer === null) {
+      this.autoStartTimer = setTimeout(() => s.startMatch(), 2_000);
+    }
     switch (phase.name) {
       case 'seeding':
       case 'lobby':
@@ -431,6 +498,7 @@ export class OnlineFlow {
       case 'match-result':
         this.app.setBanner(null);
         this.reportResult(phase.matchKey, phase.winner === s.me, phase.reason);
+        this.reportTournament(phase.winner, s.score);
         this.app.show(
           matchResultScreen({
             names,
@@ -442,6 +510,7 @@ export class OnlineFlow {
             sfx: fresh ? this.app.sfx : SILENT,
             onRematch: () => s.requestRematch(),
             onMenu: () => this.exit(),
+            tournament: this.tournament ? { onBack: () => this.exit() } : undefined,
             online: {
               reason: phase.reason,
               detail: phase.detail,

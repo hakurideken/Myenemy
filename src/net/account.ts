@@ -8,6 +8,7 @@ import type {
   Notifications,
   ReportResult,
   SendRequestResult,
+  TournamentInvite,
 } from './friends';
 
 /**
@@ -52,6 +53,8 @@ export type AccountState =
       readonly incoming: number;
       /** Pozvánky do hry od kamarádů (obnovují se průběžně). */
       readonly invites: readonly GameInvite[];
+      /** Pozvánky do turnaje od kamarádů. */
+      readonly tournamentInvites: readonly TournamentInvite[];
       /** Ukazuji kamarádům, že jsem online. */
       readonly showOnline: boolean;
     };
@@ -95,6 +98,8 @@ export interface AccountBackend {
   sendGameInvite(friendId: string, room: string): Promise<InviteResult>;
   dismissGameInvite(inviteId: string): Promise<void>;
   cancelGameInvites(room: string): Promise<void>;
+  /** Obecné volání funkce v databázi (turnaje); keepalive = doběhne i při zavírání. */
+  call(fn: string, args?: Record<string, unknown>, keepalive?: boolean): Promise<unknown>;
 }
 
 export interface Account {
@@ -124,6 +129,8 @@ export interface Account {
   dismissGameInvite(inviteId: string): Promise<void>;
   /** Hostitel ruší místnost – pozvánky do ní zmizí. */
   cancelGameInvites(room: string): Promise<void>;
+  /** Volání funkce v databázi – jen přihlášený s přezdívkou. */
+  call(fn: string, args?: Record<string, unknown>, keepalive?: boolean): Promise<unknown>;
 }
 
 /** Parametry, které po přihlášení přidá Supabase do adresy (kód pro výměnu, chyba). */
@@ -179,6 +186,7 @@ const UNAVAILABLE: Account = {
   sendGameInvite: () => Promise.reject(new AccountError('network')),
   dismissGameInvite: () => Promise.resolve(),
   cancelGameInvites: () => Promise.resolve(),
+  call: () => Promise.reject(new AccountError('network')),
 };
 
 export function createAccount(options: AccountOptions): Account {
@@ -220,11 +228,25 @@ export function createAccount(options: AccountOptions): Account {
     try {
       const profile = await api.profile(id);
       if (userId === id)
-        set({ kind: 'signed-in', profile, incoming: 0, invites: [], showOnline: true });
+        set({
+          kind: 'signed-in',
+          profile,
+          incoming: 0,
+          invites: [],
+          tournamentInvites: [],
+          showOnline: true,
+        });
     } catch {
       // Profil se nenačetl (výpadek) – přihlášení zůstává, zkusí se znovu příště.
       if (userId === id)
-        set({ kind: 'signed-in', profile: null, incoming: 0, invites: [], showOnline: true });
+        set({
+          kind: 'signed-in',
+          profile: null,
+          incoming: 0,
+          invites: [],
+          tournamentInvites: [],
+          showOnline: true,
+        });
     }
     if (userId === id && state.kind === 'signed-in' && state.profile) {
       void loadNotifications(api).catch(() => undefined);
@@ -243,14 +265,18 @@ export function createAccount(options: AccountOptions): Account {
 
   async function loadNotifications(api: AccountBackend, inMatch = false): Promise<void> {
     const id = userId;
-    const { requests, invites, showOnline } = await api.ping(inMatch);
+    const { requests, invites, showOnline, tournaments = [] } = await api.ping(inMatch);
     if (userId !== id || state.kind !== 'signed-in') return;
     const same =
       state.incoming === requests &&
       state.invites.length === invites.length &&
       state.invites.every((inv, i) => inv.id === invites[i]?.id) &&
+      state.tournamentInvites.length === tournaments.length &&
+      state.tournamentInvites.every((inv, i) => inv.id === tournaments[i]?.id) &&
       state.showOnline === showOnline;
-    if (!same) set({ ...state, incoming: requests, invites, showOnline });
+    if (!same) {
+      set({ ...state, incoming: requests, invites, tournamentInvites: tournaments, showOnline });
+    }
   }
 
   /** Volání, která dávají smysl jen přihlášenému (s přezdívkou). */
@@ -328,7 +354,8 @@ export function createAccount(options: AccountOptions): Account {
       const incoming = state.kind === 'signed-in' ? state.incoming : 0;
       const invites = state.kind === 'signed-in' ? state.invites : [];
       const showOnline = state.kind === 'signed-in' ? state.showOnline : true;
-      set({ kind: 'signed-in', profile, incoming, invites, showOnline });
+      const tournamentInvites = state.kind === 'signed-in' ? state.tournamentInvites : [];
+      set({ kind: 'signed-in', profile, incoming, invites, tournamentInvites, showOnline });
       return profile;
     },
     async deleteAccount() {
@@ -385,6 +412,10 @@ export function createAccount(options: AccountOptions): Account {
     async cancelGameInvites(room) {
       if (state.kind !== 'signed-in' || !state.profile) return;
       await (await ensureBackend()).cancelGameInvites(room);
+    },
+    async call(fn, args = {}, keepalive = false) {
+      if (state.kind !== 'signed-in' || !state.profile) throw new AccountError('network');
+      return (await ensureBackend()).call(fn, args, keepalive);
     },
     async reportMatch(matchKey, won) {
       if (state.kind !== 'signed-in' || !state.profile) return 'ignored';

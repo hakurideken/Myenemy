@@ -54,10 +54,14 @@ function fakeBackend(options: { user?: string | null; profile?: Profile | null }
         invites: [
           { id: '00000000-0000-4000-8000-000000000009', nickname: 'Ema', tag: 5, room: 'ABCDE' },
         ],
+        tournaments: [
+          { id: '00000000-0000-4000-8000-000000000010', nickname: 'Ema', tag: 5, code: 'ABCDEF' },
+        ],
       }),
     sendGameInvite: () => Promise.resolve('sent' as const),
     dismissGameInvite: () => Promise.resolve(),
     cancelGameInvites: () => Promise.resolve(),
+    call: vi.fn(() => Promise.resolve(null)),
     deleteAccount,
   };
   return { backend, signOut, deleteAccount, emitUser: (id: string | null) => userHandler?.(id) };
@@ -136,6 +140,9 @@ describe('účet – průběh', () => {
       invites: [
         { id: '00000000-0000-4000-8000-000000000009', nickname: 'Ema', tag: 5, room: 'ABCDE' },
       ],
+      tournamentInvites: [
+        { id: '00000000-0000-4000-8000-000000000010', nickname: 'Ema', tag: 5, code: 'ABCDEF' },
+      ],
       showOnline: true,
     });
   });
@@ -150,6 +157,7 @@ describe('účet – průběh', () => {
       profile: null,
       incoming: 0,
       invites: [],
+      tournamentInvites: [],
       showOnline: true,
     });
     await expect(account.setNickname('zlé')).rejects.toMatchObject({ code: 'invalid' });
@@ -160,6 +168,7 @@ describe('účet – průběh', () => {
       profile,
       incoming: 0,
       invites: [],
+      tournamentInvites: [],
       showOnline: true,
     });
   });

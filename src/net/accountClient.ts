@@ -23,6 +23,19 @@ import {
  * vymění za přihlášení, žádné tokeny v URL) a volání databáze přes REST.
  * Do databáze klient smí jen číst svůj profil; zapisuje se funkcemi (viz supabase/migrations).
  */
+/** Funkce databáze, které smí volat obecné `call` (turnaj). */
+const TOURNAMENT_RPC: ReadonlySet<string> = new Set([
+  'tournament_create',
+  'tournament_join',
+  'tournament_leave',
+  'tournament_start',
+  'tournament_state',
+  'tournament_set_room',
+  'tournament_report',
+  'tournament_invite',
+  'dismiss_tournament_invite',
+]);
+
 export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBackend {
   const auth = new GoTrueClient({
     url: `${config.url}/auth/v1`,
@@ -159,7 +172,12 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
     },
     async ping(inMatch) {
       const data = notificationsSchema.parse(await rpc('ping', { p_in_match: inMatch }));
-      return { requests: data.requests, invites: data.invites, showOnline: data.show_online };
+      return {
+        requests: data.requests,
+        invites: data.invites,
+        tournaments: data.tournaments,
+        showOnline: data.show_online,
+      };
     },
     async presenceOffline() {
       // Synchronně (bez await před fetch) – stránka se může každou chvíli zavřít.
@@ -188,6 +206,13 @@ export function createSupabaseAccountBackend(config: SupabaseConfig): AccountBac
     },
     async cancelGameInvites(room) {
       await rpc('cancel_game_invites', { p_room: room }, true);
+    },
+    call(fn, args = {}, keepalive = false) {
+      // Jen veřejné funkce turnaje – jiné jdou přes vlastní metody se schématem odpovědi.
+      if (!TOURNAMENT_RPC.has(fn)) {
+        return Promise.reject(new AccountError('network'));
+      }
+      return rpc(fn, args, keepalive);
     },
     async reportMatch(matchKey, won) {
       return reportResultSchema.parse(

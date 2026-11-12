@@ -5096,3 +5096,198 @@ html.reduce-motion *::after {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* ---------- Turnaj ---------- */
+
+.screen--tournament > .stack {
+  gap: 20px;
+}
+
+.screen--tournament .card {
+  max-width: 640px;
+  width: 100%;
+}
+
+.tournament-status .waiting {
+  margin: 0;
+}
+
+.tournament-win {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.tournament-podium .is-me .friend-name {
+  color: var(--gold);
+}
+
+.bracket {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bracket-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+  border-radius: var(--radius);
+}
+
+.bracket-scroll:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.bracket-svg {
+  display: block;
+  font-family: var(--font);
+}
+
+.br-heading {
+  fill: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.br-lines {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.br-row rect {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.br-split {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.br-name {
+  fill: var(--text);
+  font-size: 13px;
+}
+
+.br-seed {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.br-score {
+  fill: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.br-row.is-tbd .br-name,
+.br-row.is-loser .br-name,
+.br-row.is-loser .br-score,
+.br-row.is-gone .br-name {
+  fill: var(--muted);
+}
+
+.br-row.is-gone .br-name {
+  text-decoration: line-through;
+}
+
+.br-row.is-winner rect {
+  fill: var(--panel-2);
+}
+
+.br-row.is-winner .br-name,
+.br-row.is-winner .br-score {
+  fill: var(--gold);
+  font-weight: 700;
+}
+
+.br-row.is-me .br-name {
+  fill: var(--b);
+  font-weight: 700;
+}
+
+.br-match.is-live .br-row rect {
+  stroke: var(--gold);
+  stroke-width: 1.5;
+}
+
+.br-match.is-live.is-mine .br-row rect {
+  animation: br-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes br-pulse {
+  50% {
+    stroke-opacity: 0.35;
+  }
+}
+
+.br-champion rect {
+  fill: var(--bg-raise);
+  stroke: var(--line);
+  stroke-dasharray: 4 3;
+}
+
+.br-champion.is-decided rect {
+  fill: var(--panel-2);
+  stroke: var(--gold);
+  stroke-dasharray: none;
+}
+
+.br-champion-title {
+  fill: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.br-champion-name {
+  fill: var(--muted);
+  font-size: 13px;
+}
+
+.br-champion.is-decided .br-champion-name {
+  fill: var(--gold);
+  font-weight: 700;
+}
+
+.bracket-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.bracket-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 6px;
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+
+.legend-win::before {
+  background: var(--gold);
+}
+
+.legend-live::before {
+  border: 2px solid var(--gold);
+}
+
+.legend-me::before {
+  background: var(--b);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .br-match.is-live.is-mine .br-row rect {
+    animation: none;
+  }
+}

@@ -23,6 +23,7 @@ const t = translations(
     history: 'Průběh zápasu',
     replay: (n: number) => ` · rozhodující kolo ${n}`,
     menu: 'Do menu',
+    backTournament: 'Zpět na turnaj',
   },
   {
     draw: 'draw',
@@ -37,6 +38,7 @@ const t = translations(
     history: 'Match history',
     replay: (n: number) => ` · deciding round ${n}`,
     menu: 'Menu',
+    backTournament: 'Back to the tournament',
   },
 );
 
@@ -50,6 +52,8 @@ interface MatchResultOptions {
   readonly sfx: Sfx;
   readonly onRematch: () => void;
   readonly onMenu: () => void;
+  /** Turnajový zápas: místo odvety a menu jen návrat na pavouka. */
+  readonly tournament?: { readonly onBack: () => void } | undefined;
   readonly online?: {
     readonly reason: EndReason;
     readonly detail: string | null;
@@ -130,8 +134,11 @@ export function matchResultScreen(o: MatchResultOptions): Mount {
           h(
             'div',
             { class: 'actions' },
-            button(t.menu, o.onMenu, 'btn btn-ghost'),
-            rematchControls(o),
+            o.tournament
+              ? button(t.backTournament, o.tournament.onBack, 'btn btn-primary btn-lg', {
+                  'data-autofocus': true,
+                })
+              : [button(t.menu, o.onMenu, 'btn btn-ghost'), rematchControls(o)],
           ),
         ),
       ),
