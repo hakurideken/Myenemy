@@ -4,11 +4,13 @@ import type { App } from '../App';
 import { openAccountDialog } from '../screens/account';
 import { h, setText } from '../dom';
 import { plural } from '../labels';
+import { logo } from './common';
 import { gearIcon, userIcon } from './icons';
 
 const t = translations(
   {
     nav: 'Jazyk, nastavení a účet',
+    home: 'Myenemy – hlavní menu',
     settings: 'Nastavení',
     switchTo: 'Přepnout do angličtiny',
     signIn: 'Přihlásit',
@@ -20,6 +22,7 @@ const t = translations(
   },
   {
     nav: 'Language, settings and account',
+    home: 'Myenemy – main menu',
     settings: 'Settings',
     switchTo: 'Switch to Czech',
     signIn: 'Sign in',
@@ -48,11 +51,27 @@ function accountLabel(state: AccountState): string {
 }
 
 /**
- * Lišta vpravo nahoře: jazyk, nastavení, přihlášení. Během zápasu se skrývá
+ * Lišta nahoře: vlevo logo (návrat do menu), vpravo jazyk, nastavení, přihlášení. Během zápasu se skrývá
  * (přepnutí jazyka načte stránku znovu a rozehraný zápas by se ztratil).
  */
 export function createTopBar(app: App): TopBar {
   const other = lang() === 'en' ? 'cs' : 'en';
+  // Odkaz na úvodní adresu (funguje i otevřením v nové záložce), v aplikaci přepne do menu.
+  const home = h(
+    'a',
+    {
+      href: window.location.pathname,
+      class: 'topbar-home',
+      'aria-label': t.home,
+      title: t.home,
+      onclick: (event: MouseEvent) => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return;
+        event.preventDefault();
+        app.goMenu();
+      },
+    },
+    logo(),
+  );
   const langButton = h(
     'button',
     {
@@ -91,6 +110,7 @@ export function createTopBar(app: App): TopBar {
   const el = h(
     'nav',
     { class: 'app-topbar', 'aria-label': t.nav },
+    home,
     langButton,
     settingsButton,
     accountButton,
