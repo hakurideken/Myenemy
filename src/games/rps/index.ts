@@ -45,6 +45,8 @@ export const rps = defineGame<RpsState, RpsMove, RpsView>({
   rules: t.rules,
   controls: () => [t.keyHelp],
   moveTimeoutMs: 15_000,
+  // Divák nevidí volbu hráče, dokud nezvolí oba.
+  spectator: { mask: (view) => (view.revealed ? view : { ...view, mine: null }) },
   revealMs: RPS_SHAKE_MS + 1900,
   logic: rpsLogic,
   moveSchema: rpsMoveSchema,

@@ -44,6 +44,8 @@ export const reflex = defineGame<ReflexState, ReflexMove, ReflexView>({
   rules: t.rules,
   controls: () => t.controlsSolo,
   moveTimeoutMs: null,
+  // Každý hraje u sebe – divák vidí jen průběh a výsledek.
+  spectator: false,
   revealMs: 2000,
   logic: reflexLogic,
   moveSchema: reflexMoveSchema,

@@ -30,6 +30,7 @@ import {
 import { roundResultScreen } from './screens/roundResult';
 import type { TournamentLink } from './TournamentFlow';
 import { TOURNAMENT_FORMAT } from '../net/tournament';
+import { matchBody, type SpectateCaster, type SpectatePhase } from '../online/spectate';
 import { otherPlayer, type PerPlayer, type PlayerSlot } from '../core/types';
 
 const SILENT: Sfx = { play: () => undefined, vibrate: () => undefined };
@@ -139,6 +140,9 @@ export class OnlineFlow {
   private tournamentStarted = false;
   private tournamentReported = false;
   private autoStartTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Turnaj (hostitel): vysílání divákům. */
+  private caster: SpectateCaster | null = null;
+  private lastPhase: OnlinePhase | null = null;
   private readonly onPageHide = (): void => this.dispose();
 
   constructor(
@@ -266,6 +270,11 @@ export class OnlineFlow {
     if (!this.session && this.invitedRoom) {
       this.app.account.cancelGameInvites(this.invitedRoom).catch(() => undefined);
     }
+    if (this.caster && this.session) {
+      // Odchod uprostřed zápasu: divákům „konec“.
+      this.lastPhase = { name: 'closed', reason: 'me-left', detail: null };
+      this.cast();
+    }
     const leaving = this.session?.leave() ?? Promise.resolve();
     const transport = this.transport;
     const hostRoom = this.hostRoom;
@@ -362,8 +371,23 @@ export class OnlineFlow {
       format: pairing.format,
       clock: systemClock,
       reportKey: pairing.reportKey,
+      // Vysílá jen hostitel turnajového zápasu (jinak se pohledy vůbec nepočítají).
+      ...(this.tournament &&
+        role === 'host' && { spectate: (snapshot) => this.caster?.game(snapshot) }),
     });
     this.session = session;
+    // Turnaj: hostitel vysílá průběh divákům (ostatním hráčům turnaje).
+    if (this.tournament && role === 'host') {
+      void this.tournament.broadcast().then((caster) => {
+        if (!caster) return;
+        if (this.disposed) {
+          void caster.close();
+          return;
+        }
+        this.caster = caster;
+        this.cast();
+      });
+    }
     session.onConnection((state) => {
       if (this.disposed) return;
       this.app.setBanner(
@@ -416,7 +440,44 @@ export class OnlineFlow {
       .catch((err: unknown) => console.warn('[účet] výsledek zápasu se nenahlásil', err));
   }
 
+  /** Stav zápasu divákům (po každé fázi). */
+  private cast(): void {
+    const s = this.session;
+    const phase = this.lastPhase;
+    if (!this.caster || !s || !phase) return;
+    const map: Record<OnlinePhase['name'], SpectatePhase> = {
+      seeding: 'waiting',
+      lobby: 'waiting',
+      intro: 'intro',
+      playing: 'playing',
+      'round-result': 'round-result',
+      'match-result': 'match-result',
+      closed: 'ended',
+    };
+    const current =
+      phase.name === 'intro' || phase.name === 'playing' || phase.name === 'round-result'
+        ? phase.current
+        : null;
+    this.caster.update(
+      matchBody({
+        names: s.names,
+        score: s.score,
+        phase: map[phase.name],
+        current,
+        history: s.history,
+        winner: phase.name === 'match-result' ? phase.winner : null,
+      }),
+    );
+    if (phase.name === 'match-result' || phase.name === 'closed') {
+      const caster = this.caster;
+      this.caster = null;
+      void caster.close();
+    }
+  }
+
   private render(s: OnlineSession, phase: OnlinePhase): void {
+    this.lastPhase = phase;
+    this.cast();
     const names = s.names;
     const key = OnlineFlow.screenKey(phase);
     const fresh = key !== this.lastScreen;

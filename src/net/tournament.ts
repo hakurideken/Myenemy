@@ -55,6 +55,9 @@ export interface TournamentMatch {
   /** Jak dlouho (s) je zápas připravený a místnost založená – jen pro hráče zápasu. */
   readonly readyAge: number | null;
   readonly roomAge: number | null;
+  /** Sledování: kanál a veřejný klíč vysílajícího (jen u rozehraného zápasu). */
+  readonly watch: string | null;
+  readonly watchKey: string | null;
 }
 
 export interface TournamentState {
@@ -122,18 +125,30 @@ export const tournamentStateSchema = z
           replays: z.number().int().min(0).max(100),
           ready_age: z.number().int().min(0).nullable().optional(),
           room_age: z.number().int().min(0).nullable().optional(),
+          watch: z
+            .string()
+            .regex(/^[A-Za-z0-9_-]{22}$/)
+            .nullable()
+            .optional(),
+          watch_key: z
+            .string()
+            .regex(/^[A-Za-z0-9_-]{87}$/)
+            .nullable()
+            .optional(),
         }),
       )
       .max(16),
   })
   .transform((s): TournamentState => ({
     ...s,
-    matches: s.matches.map(({ score_a, score_b, ready_age, room_age, ...m }) => ({
+    matches: s.matches.map(({ score_a, score_b, ready_age, room_age, watch, watch_key, ...m }) => ({
       ...m,
       scoreA: score_a,
       scoreB: score_b,
       readyAge: ready_age ?? null,
       roomAge: room_age ?? null,
+      watch: watch ?? null,
+      watchKey: watch_key ?? null,
     })),
   }));
 
@@ -165,6 +180,8 @@ export interface TournamentApi {
   start(): Promise<StartResult>;
   /** false = místnost zakládat nesmím (dolní hráč dřív než po 2 minutách). */
   setRoom(match: MatchRef, room: string): Promise<boolean>;
+  /** Kanál sledování mého rozehraného zápasu (token a veřejný klíč podpisu). */
+  setWatch(match: MatchRef, token: string, publicKey: string): Promise<boolean>;
   report(
     match: MatchRef,
     winner: number,
@@ -205,6 +222,16 @@ export function createTournamentApi(call: RpcCall): TournamentApi {
           p_round: match.round,
           p_idx: match.idx,
           p_room: room,
+        }),
+      );
+    },
+    async setWatch(match, token, publicKey) {
+      return z.boolean().parse(
+        await call('tournament_set_watch', {
+          p_round: match.round,
+          p_idx: match.idx,
+          p_watch: token,
+          p_key: publicKey,
         }),
       );
     },

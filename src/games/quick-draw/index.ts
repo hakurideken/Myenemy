@@ -44,6 +44,8 @@ export const quickDraw = defineGame<QuickDrawState, QuickDrawMove, QuickDrawView
   rules: t.rules,
   controls: () => t.controlsSolo,
   moveTimeoutMs: null,
+  // Každý hraje u sebe – divák vidí jen průběh a výsledek.
+  spectator: false,
   revealMs: 1800,
   logic: quickDrawLogic,
   moveSchema: quickDrawMoveSchema,

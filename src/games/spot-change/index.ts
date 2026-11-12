@@ -49,6 +49,8 @@ export const spotChange = defineGame<SpotState, SpotMove, SpotView>({
   moveTimeoutMs: null,
   // 7 kol po ~13 s nejvýš + odpočet a rezerva.
   untimedLimitMs: 2 * 60_000,
+  // Každý hraje u sebe – divák vidí jen průběh a výsledek.
+  spectator: false,
   revealMs: 2500,
   logic: spotLogic,
   moveSchema: spotMoveSchema,

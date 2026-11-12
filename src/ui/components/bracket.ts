@@ -29,6 +29,7 @@ const t = translations(
     legendWin: 'postupuje',
     legendLive: 'právě se hraje',
     legendMe: 'ty',
+    watch: 'Sledovat',
   },
   {
     label: 'Tournament bracket',
@@ -47,6 +48,7 @@ const t = translations(
     legendWin: 'advances',
     legendLive: 'playing now',
     legendMe: 'you',
+    watch: 'Watch',
   },
 );
 
@@ -143,7 +145,21 @@ function row(
 }
 
 /** Pavouk jako SVG (jména jen přes textContent). Široký pavouk se posouvá do strany. */
-export function bracketView(state: TournamentState): HTMLElement {
+/** Dá se sledovat: rozehraný zápas s vysíláním, ve kterém nehraju. */
+export function watchable(state: TournamentState, m: TournamentMatch): boolean {
+  return (
+    m.status === 'ready' &&
+    m.watch !== null &&
+    m.watchKey !== null &&
+    (state.me === null || (m.a !== state.me && m.b !== state.me))
+  );
+}
+
+/** onWatch = kliknutí na rozehraný zápas otevře sledování. */
+export function bracketView(
+  state: TournamentState,
+  onWatch?: (match: TournamentMatch) => void,
+): HTMLElement {
   const size = state.size ?? 4;
   const layout = bracketLayout(size);
   const { rounds } = layout;
@@ -180,10 +196,27 @@ export function bracketView(state: TournamentState): HTMLElement {
     const classes = ['br-match'];
     if (m.status === 'ready') classes.push('is-live');
     if (state.me !== null && (m.a === state.me || m.b === state.me)) classes.push('is-mine');
+    const canWatch = onWatch !== undefined && watchable(state, m);
+    if (canWatch) classes.push('is-watchable');
+    const label = `${t.watch}: ${entrantName(playerAt(state, m.a), t.ai)} – ${entrantName(playerAt(state, m.b), t.ai)}`;
     parts.push(
       svg(
         'g',
-        { class: classes.join(' ') },
+        {
+          class: classes.join(' '),
+          ...(canWatch && {
+            role: 'button',
+            tabindex: '0',
+            'aria-label': label,
+            onclick: () => onWatch(m),
+            onkeydown: (event: KeyboardEvent) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              onWatch(m);
+            },
+          }),
+        },
+        canWatch ? svg('title', null, label) : null,
         m.round === rounds && m.idx === 1
           ? svg('text', { class: 'br-heading', x, y: cy - ROW - 8 }, t.rounds.third)
           : null,

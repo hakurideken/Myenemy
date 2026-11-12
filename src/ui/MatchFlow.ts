@@ -1,7 +1,7 @@
 import { GameRunner } from '../core/GameRunner';
 import { MatchController, type CurrentGame } from '../core/match/MatchController';
 import { planMatch, type MatchFormat } from '../core/match/planMatch';
-import type { RoundEnd, SeatConfig } from '../core/MiniGame';
+import type { RoundEnd, SeatConfig, SpectateSnapshot } from '../core/MiniGame';
 import type { Difficulty, PerPlayer, PlayerSlot } from '../core/types';
 import { systemClock } from '../core/util/clock';
 import { deriveRng, randomSeed } from '../core/util/rng';
@@ -14,6 +14,7 @@ import { matchIntroScreen } from './screens/matchIntro';
 import { matchResultScreen } from './screens/matchResult';
 import { roundResultScreen } from './screens/roundResult';
 import type { TournamentLink } from './TournamentFlow';
+import { matchBody, type SpectateCaster, type SpectatePhase } from '../online/spectate';
 
 const t = translations(
   {
@@ -53,6 +54,17 @@ export class MatchFlow {
   }
 
   start(): void {
+    // Turnaj: zápas proti AI vysílá divákům hráč sám.
+    void this.setup.tournament?.link.broadcast().then((caster) => {
+      if (!caster) return;
+      // Hráč mezitím odešel – vysílání hned ukončit.
+      if (this.left) {
+        void caster.close();
+        return;
+      }
+      this.caster = caster;
+      this.cast(this.castPhase);
+    });
     this.app.show(
       matchIntroScreen({
         setup: this.setup,
@@ -65,9 +77,39 @@ export class MatchFlow {
   }
 
   private reported = false;
+  /** Hráč zápas opustil (vysílání, které se otevře až potom, se hned zavře). */
+  private left = false;
+  /** Turnaj: vysílání divákům. */
+  private caster: SpectateCaster | null = null;
+  private castPhase: SpectatePhase = 'waiting';
+  private castCurrent: CurrentGame | null = null;
+
+  /** Stav zápasu divákům. */
+  private cast(phase: SpectatePhase, current: CurrentGame | null = this.castCurrent): void {
+    this.castPhase = phase;
+    this.castCurrent = current;
+    if (!this.caster) return;
+    this.caster.update(
+      matchBody({
+        names: this.setup.names,
+        score: this.controller.score,
+        phase,
+        current,
+        history: this.controller.history,
+        winner: phase === 'match-result' ? this.controller.winner : null,
+      }),
+    );
+    if (phase === 'match-result' || phase === 'ended') {
+      const caster = this.caster;
+      this.caster = null;
+      void caster.close();
+    }
+  }
 
   /** Kam po zápase: turnaj, nebo menu. */
   private home(): void {
+    this.left = true;
+    if (this.caster) this.cast('ended');
     if (this.setup.tournament) this.setup.tournament.link.back();
     else this.app.goMenu();
   }
@@ -100,6 +142,7 @@ export class MatchFlow {
 
   private showGameIntro(): void {
     const current = this.controller.current();
+    this.cast('intro', current);
     this.app.show(
       gameIntroScreen({
         game: getGame(current.gameId),
@@ -120,6 +163,7 @@ export class MatchFlow {
   private playRound(): void {
     this.started = true;
     const current = this.controller.current();
+    this.cast('playing', current);
     const game = getGame(current.gameId);
     this.app.show(
       gameScreen({
@@ -143,6 +187,9 @@ export class MatchFlow {
             prefs: this.app.prefs(),
             sfx: this.app.sfx,
             showTurnTimer: (deadline, total) => parts.showTurnTimer(deadline, total),
+            ...(this.setup.tournament && {
+              spectate: (snapshot: SpectateSnapshot) => this.caster?.game(snapshot),
+            }),
           });
           runner.onEnd((result) => this.onRoundEnd(current, result));
           runner.start();
@@ -155,6 +202,7 @@ export class MatchFlow {
 
   private onRoundEnd(current: CurrentGame, result: RoundEnd): void {
     const report = this.controller.report(result.outcome);
+    this.cast('round-result', current);
     this.app.show(
       roundResultScreen({
         report,
@@ -176,6 +224,7 @@ export class MatchFlow {
     const winner = this.controller.winner;
     if (!winner) return;
     this.reportTournament(winner);
+    this.cast('match-result', null);
     this.app.show(
       matchResultScreen({
         names: this.setup.names,

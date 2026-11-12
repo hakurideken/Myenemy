@@ -188,8 +188,9 @@ Callback adresa níže je `https://<tvuj-projekt>.supabase.co/auth/v1/callback`
    Potom stejně spusť `supabase/migrations/20261108120000_friends.sql` (kamarádi, žádosti,
    vzájemné výsledky) pak `supabase/migrations/20261110120000_invites.sql` (pozvánky do hry,
    souhrn upozornění), `supabase/migrations/20261111120000_presence.sql` (stav
-   kamarádů online / ve hře) a nakonec `supabase/migrations/20261112120000_tournaments.sql`
-   (turnaje). Pořadí je důležité – další soubory potřebují předchozí tabulky.
+   kamarádů online / ve hře), `supabase/migrations/20261112120000_tournaments.sql`
+   (turnaje) a nakonec `supabase/migrations/20261113120000_spectate.sql` (sledování).
+   Pořadí je důležité – další soubory potřebují předchozí tabulky.
 2. **Adresy:** **Authentication → URL Configuration**
    - Site URL: `https://hakurideken.github.io/Myenemy/`
    - Redirect URLs: `https://hakurideken.github.io/Myenemy/`, `http://localhost:5173/`
@@ -660,6 +661,18 @@ skryté karty ani lodě) – Nemožná je u nich stejná.
   se maže po dni, rozehraný po 2 dnech, dohraný po 7 dnech. Po smazání účtu se jméno
   v turnajích nahradí pomlčkou. SQL je ověřené v PGlite (celé odehrání, neshoda, kontumace,
   16 hráčů, cizí hlášení, pozvánky, export, smazání účtu).
+
+- **Sledování:** kdo dohrál kolo nebo vypadl (a vůbec kdokoli z turnaje, kdo zrovna nehraje),
+  může kliknout na rozehraný zápas v pavouku nebo na „Sledovat“ v seznamu Živé zápasy.
+  Vidí skóre, kolikátá hra běží, historii zápasu a živou desku – očima jednoho z hráčů
+  (přepínač), ale bez jeho tajných údajů (karty v ruce, lodě, poloha v mlze, ještě
+  neodhalená volba v KNP a Oko bere). Reakční a paměťové hry hraje každý u sebe – u nich
+  divák vidí jen průběh a výsledek. Technicky: hostitel místnosti (nebo hráč proti AI)
+  posílá do zvláštního kanálu Supabase Realtime podepsané snímky (ECDSA P-256) – jen když
+  se někdo dívá (divák se ozývá každých 10 s), nejvýš 2× za s a jen při změně, poslední se
+  opakuje každých 5 s. Token kanálu a veřejný klíč dá server jen účastníkům turnaje
+  (migrace `20261113120000_spectate.sql`); přepsat kanál smí jen ten, kdo ho založil.
+  Kód místnosti hráčů diváci neznají a do hry nic poslat nemůžou.
 
 **Jak otestovat:** spusť migraci `20261112120000_tournaments.sql`, přihlas se ve dvou
 prohlížečích (dva účty), jeden založí turnaj, druhý se připojí kódem, organizátor spustí.

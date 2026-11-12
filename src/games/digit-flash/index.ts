@@ -52,6 +52,8 @@ export const digitFlash = defineGame<DigitState, DigitMove, DigitView>({
   moveTimeoutMs: null,
   // 7 kol po nejvýš ~17 s + odpočet a rezerva.
   untimedLimitMs: 3 * 60_000,
+  // Každý hraje u sebe – divák vidí jen průběh a výsledek.
+  spectator: false,
   revealMs: 2500,
   logic: digitLogic,
   moveSchema: digitMoveSchema,

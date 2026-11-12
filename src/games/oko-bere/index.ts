@@ -54,6 +54,13 @@ export const okoBere = defineGame<OkoState, OkoMove, OkoView>({
   rules: t.rules,
   controls: () => [t.keys],
   moveTimeoutMs: 30_000,
+  // Divák nevidí, jak se hráč rozhodl, dokud se kolo nevyhodnotí.
+  spectator: {
+    mask: (view, viewer) =>
+      view.decisions[viewer] === null
+        ? view
+        : { ...view, decisions: { ...view.decisions, [viewer]: 'decided' } },
+  },
   revealMs: 3500,
   cards: okoCards,
   logic: okoLogic,

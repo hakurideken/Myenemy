@@ -452,6 +452,19 @@ export class GameRunner<S, M, V, Sec = unknown> implements MiniGame {
   private render(): void {
     this.renderView();
     this.publish();
+    this.spectate();
+  }
+
+  /** Turnaj: veřejné pohledy obou hráčů pro diváky (hry hrané každým u sebe se nevysílají). */
+  private spectate(): void {
+    const spectate = this.ctx?.spectate;
+    const policy = this.game.spectator;
+    if (!spectate || policy === false || !this.current || this.destroyed) return;
+    const viewOf = (p: PlayerSlot): unknown => {
+      const view = this.game.logic.view(this.state, p);
+      return policy ? policy.mask(view, p) : view;
+    };
+    spectate({ views: { A: viewOf('A'), B: viewOf('B') }, finished: this.finished });
   }
 
   private renderView(): void {

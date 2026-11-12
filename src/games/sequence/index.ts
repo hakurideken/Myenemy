@@ -52,6 +52,8 @@ export const sequence = defineGame<SequenceState, SequenceMove, SequenceView>({
   moveTimeoutMs: null,
   // Dlouhý běh (až 15 kol) – soupeř smí mlčet, dokud hraje.
   untimedLimitMs: 6 * 60_000,
+  // Každý hraje u sebe – divák vidí jen průběh a výsledek.
+  spectator: false,
   revealMs: 2500,
   logic: sequenceLogic,
   moveSchema: sequenceMoveSchema,

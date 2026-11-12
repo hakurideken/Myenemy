@@ -15,7 +15,8 @@ import {
   type TournamentState,
 } from '../../net/tournament';
 import type { App, Mount } from '../App';
-import { AI_LABEL, bracketView } from '../components/bracket';
+import { AI_LABEL, bracketView, watchable } from '../components/bracket';
+import type { TournamentMatch } from '../../net/tournament';
 import { button } from '../components/common';
 import { append, h, setText, type Child } from '../dom';
 import { accountErrorText, openAccountDialog } from './account';
@@ -108,6 +109,9 @@ const t = translations(
     youWon: '🏆 Vyhrál jsi turnaj!',
     close: 'Zavřít turnaj',
     menu: 'Do menu',
+    liveTitle: 'Živé zápasy',
+    liveHint: 'Podívej se, jak se daří ostatním – i během čekání na svůj zápas.',
+    watch: 'Sledovat',
     stayHint:
       'Nech tuhle stránku otevřenou – kdo se 3 minuty neozve, prohraje svůj zápas kontumací.',
   },
@@ -200,6 +204,9 @@ const t = translations(
     youWon: '🏆 You won the tournament!',
     close: 'Close tournament',
     menu: 'Menu',
+    liveTitle: 'Live matches',
+    liveHint: 'See how the others are doing – even while you wait for your match.',
+    watch: 'Watch',
     stayHint: 'Keep this page open – anyone silent for 3 minutes loses their match by forfeit.',
   },
 );
@@ -579,12 +586,58 @@ export function tournamentScreen(app: App): Mount {
       return card;
     }
 
+    const watch = (s: TournamentState, m: TournamentMatch): void => {
+      if (!m.watch || !m.watchKey) return;
+      app.watchMatch({
+        match: { round: m.round, idx: m.idx },
+        token: m.watch,
+        publicKey: m.watchKey,
+        names: {
+          A: entrantName(playerAt(s, m.a), AI_LABEL),
+          B: entrantName(playerAt(s, m.b), AI_LABEL),
+        },
+      });
+    };
+
+    /** Rozehrané zápasy ostatních, které se dají sledovat. */
+    function liveView(s: TournamentState): Child {
+      const live = s.matches.filter((m) => watchable(s, m));
+      if (live.length === 0) return '';
+      return h(
+        'section',
+        { class: 'card' },
+        h('h2', { class: 'friends-title' }, t.liveTitle),
+        h('p', { class: 'field-hint' }, t.liveHint),
+        h(
+          'ul',
+          { class: 'friend-list' },
+          live.map((m) =>
+            h(
+              'li',
+              { class: 'friend-row' },
+              h(
+                'span',
+                { class: 'friend-name' },
+                `${entrantName(playerAt(s, m.a), AI_LABEL)} – ${entrantName(playerAt(s, m.b), AI_LABEL)}`,
+              ),
+              h(
+                'span',
+                { class: 'friend-actions' },
+                button(t.watch, () => watch(s, m), 'btn btn-small btn-primary'),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     function runningView(s: TournamentState): Child[] {
       return [
         ...heading(t.runningTitle),
         myMatchCard(s),
         flow.lastReport === 'replay' ? h('p', { class: 'note' }, t.replay) : '',
-        bracketView(s),
+        liveView(s),
+        bracketView(s, (m) => watch(s, m)),
         h('p', { class: 'field-hint' }, t.stayHint),
         status,
         h(

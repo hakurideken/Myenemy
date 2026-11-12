@@ -5,7 +5,7 @@ import { lang, setLang, type Lang } from '../i18n';
 import { createAccount, formatHandle, type Account, type AccountState } from '../net/account';
 import type { Friend } from '../net/friends';
 import { readSupabaseConfig, supabaseTransportFactory } from '../net/config';
-import type { TransportFactory } from '../net/Transport';
+import type { Transport, TransportFactory } from '../net/Transport';
 import { loadNickname, saveNickname } from '../platform/profile';
 import { applyMotionPreference, prefersReducedMotion, SettingsStore } from '../platform/settings';
 import { createAppMusic, type Music, type MusicTrack } from '../platform/music';
@@ -31,6 +31,7 @@ import { onlineMenuScreen } from './screens/online';
 import { settingsScreen } from './screens/settings';
 import { setupScreen, type SetupMode } from './screens/setup';
 import { tournamentScreen } from './screens/tournament';
+import { spectateScreen, type WatchTarget } from './screens/spectate';
 import { TournamentFlow, type TournamentLink } from './TournamentFlow';
 import { AI_LABEL } from './components/bracket';
 import {
@@ -440,6 +441,15 @@ export class App {
     this.tournamentShownSignedIn = this.account.state.kind === 'signed-in';
   }
 
+  /** Sledovat zápas ostatních v turnaji (návrat na pavouka). */
+  watchMatch(target: WatchTarget): void {
+    this.leaveOnline();
+    this.pendingInvite = null;
+    this.show(spectateScreen(this, target));
+    this.setRoute(null);
+    this.updateInviteToast();
+  }
+
   /** Turnajový zápas proti hráči: jsem hostitel (horní v pavouku) – založím místnost. */
   hostTournamentMatch(link: TournamentLink): void {
     const flow = this.startOnline(link);
@@ -464,6 +474,11 @@ export class App {
       difficulty: TOURNAMENT_AI,
       tournament: { link, mySlot },
     }).start();
+  }
+
+  /** Nový kanál pro sledování (vysílání / příjem); null = online není nastavené. */
+  openSpectateTransport(): Promise<Transport> | null {
+    return this.transportFactory ? this.transportFactory() : null;
   }
 
   /** Online místnost čeká na soupeře (turnaj: zápas mezitím mohl skončit kontumací). */

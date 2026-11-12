@@ -11,6 +11,7 @@ import {
   type TournamentPlayer,
   type TournamentState,
 } from '../net/tournament';
+import { SpectateCaster } from '../online/spectate';
 import type { App } from './App';
 
 /**
@@ -29,6 +30,8 @@ export interface TournamentLink {
   roomCreated(code: string): void;
   /** Zpět na pavouka; failedRoom = do této místnosti se nepovedlo připojit. */
   back(failedRoom?: string): void;
+  /** Začít vysílat divákům (kanál se zapíše k zápasu); null = nejde (síť). */
+  broadcast(): Promise<SpectateCaster | null>;
 }
 
 type Mode = 'off' | 'screen' | 'background';
@@ -272,6 +275,19 @@ export class TournamentFlow {
         if (failedRoom) this.failedRooms.add(failedRoom);
         this.playing = null;
         this.app.goTournament();
+      },
+      broadcast: async () => {
+        const opening = this.app.openSpectateTransport();
+        if (!opening) return null;
+        let caster: SpectateCaster | null = null;
+        try {
+          caster = await SpectateCaster.open(await opening);
+          if (await this.api.setWatch(ref, caster.token, caster.publicKey)) return caster;
+        } catch {
+          // Bez vysílání se hraje dál.
+        }
+        await caster?.close();
+        return null;
       },
     };
   }

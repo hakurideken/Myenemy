@@ -31,6 +31,7 @@ const TOURNAMENT_RPC: ReadonlySet<string> = new Set([
   'tournament_start',
   'tournament_state',
   'tournament_set_room',
+  'tournament_set_watch',
   'tournament_report',
   'tournament_invite',
   'dismiss_tournament_invite',

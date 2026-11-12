@@ -12,6 +12,7 @@ import { planMatch, type MatchFormat, type MatchPlan } from '../core/match/planM
 import type {
   AIMemory,
   AnyMiniGameModule,
+  SpectateSnapshot,
   FinalBoard,
   GameInfo,
   Prefs,
@@ -163,6 +164,8 @@ export interface OnlineSessionOptions {
   readonly goneAfterMs?: number;
   /** Klíč pro hlášení výsledků kamarádům (z párování); bez něj se nic nehlásí. */
   readonly reportKey?: CryptoKey;
+  /** Turnaj: hostitel vysílá divákům veřejné pohledy hry (viz online/spectate.ts). */
+  readonly spectate?: (snapshot: SpectateSnapshot) => void;
 }
 
 interface RoundState {
@@ -382,6 +385,8 @@ export class OnlineSession {
       prefs: mount.prefs,
       sfx: mount.sfx,
       showTurnTimer: (deadline, total) => mount.showTurnTimer(deadline, total),
+      // Vysílá jen hostitel – jeho runner zná celý veřejný průběh.
+      ...(this.o.role === 'host' && this.o.spectate && { spectate: this.o.spectate }),
     };
 
     if (round.symmetric) {

@@ -5334,3 +5334,61 @@ html.reduce-motion *::after {
     display: none;
   }
 }
+
+/* ---------- Sledování zápasu ---------- */
+
+.screen--spectate .versus {
+  justify-content: flex-start;
+}
+
+.spectate-score .big-score {
+  margin: 0;
+}
+
+.spectate-game {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.spectate-status {
+  margin: 0;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.spectate-eyes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.spectate-eyes .field-label {
+  margin: 0;
+}
+
+.spectate-board {
+  pointer-events: none;
+}
+
+.spectate-local {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.br-match.is-watchable {
+  cursor: pointer;
+}
+
+.br-match.is-watchable:hover .br-row rect,
+.br-match.is-watchable:focus-visible .br-row rect {
+  fill: var(--panel-2);
+}
+
+.br-match.is-watchable:focus-visible {
+  outline: none;
+}

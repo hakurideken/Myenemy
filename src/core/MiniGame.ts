@@ -314,6 +314,13 @@ export interface MiniGameModule<S, M, V, Sec = unknown> extends GameInfo {
     moveOf(finalView: V, player: PlayerSlot): M | null;
   };
   /**
+   * Sledování (turnaj): divák vidí pohled hráče bez jeho soukromých údajů.
+   * false = hru každý hraje u sebe (reakční, paměťové) – divák vidí jen průběh a výsledek.
+   * mask = skryje z pohledu `viewer` to, co ví jen on (např. vlastní ještě neodhalenou volbu).
+   * Bez uvedení = pohled z logiky je veřejný (tajná data drží jen klient vlastníka).
+   */
+  readonly spectator?: false | { mask(view: V, viewer: PlayerSlot): V };
+  /**
    * Lehká obtížnost musí vždy vrátit platný tah – používá se i jako automatický tah.
    * U her se skrytou informací se volá jen mimo tahy z tajných dat (viz awaitsSecret).
    */
@@ -360,6 +367,14 @@ export interface RoundContext {
   readonly dealer?: CardDealer;
   /** Online hry v mlze: šifrovaná pozorování místo lokálních. */
   readonly fog?: FogKeeper;
+  /** Sledování: po každé změně veřejné pohledy obou hráčů (turnaj – vysílání divákům). */
+  readonly spectate?: (snapshot: SpectateSnapshot) => void;
+}
+
+/** Co jde divákům: pohled každého hráče (už bez soukromých údajů) a konec hry. */
+export interface SpectateSnapshot {
+  readonly views: PerPlayer<unknown>;
+  readonly finished: Outcome | null;
 }
 
 export interface RemoteUpdate {
