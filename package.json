@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@supabase/auth-js": "^2.118.0",
-    "@supabase/realtime-js": "^2.118.0",
+    "@supabase/realtime-js": "^2.119.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
